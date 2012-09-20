@@ -33,5 +33,6 @@
 #include "qmi-wds.h"
 #include "qmi-nas.h"
 #include "qmi-wms.h"
+#include "qmi-pds.h"
 
 #endif /* _LIBQMI_GLIB_H_ */

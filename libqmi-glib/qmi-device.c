@@ -34,6 +34,7 @@
 #include "qmi-wds.h"
 #include "qmi-nas.h"
 #include "qmi-wms.h"
+#include "qmi-pds.h"
 #include "qmi-utils.h"
 #include "qmi-error-types.h"
 #include "qmi-enum-types.h"
@@ -698,6 +699,10 @@ qmi_device_allocate_client (QmiDevice *self,
 
     case QMI_SERVICE_WMS:
         ctx->client_type = QMI_TYPE_CLIENT_WMS;
+        break;
+
+    case QMI_SERVICE_PDS:
+        ctx->client_type = QMI_TYPE_CLIENT_PDS;
         break;
 
     default:
@@ -1532,6 +1537,7 @@ process_open_flags (DeviceOpenContext *ctx)
                                         NULL,
                                         (GAsyncReadyCallback)ctl_set_data_format_ready,
                                         ctx);
+        qmi_message_ctl_set_data_format_input_unref (input);
         return;
     }
 
