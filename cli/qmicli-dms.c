@@ -77,6 +77,9 @@ static gchar *restore_factory_defaults_str;
 static gchar *validate_service_programming_code_str;
 static gboolean get_band_capabilities_flag;
 static gboolean get_factory_sku_flag;
+static gboolean list_stored_images_flag;
+static gchar *select_stored_image_str;
+static gchar *delete_stored_image_str;
 static gboolean reset_flag;
 static gboolean noop_flag;
 
@@ -221,6 +224,18 @@ static GOptionEntry entries[] = {
       "Get factory stock keeping unit",
       NULL
     },
+    { "dms-list-stored-images", 0, 0, G_OPTION_ARG_NONE, &list_stored_images_flag,
+      "List stored images",
+      NULL
+    },
+    { "dms-select-stored-image", 0, 0, G_OPTION_ARG_STRING, &select_stored_image_str,
+      "Select stored image",
+      "[modem#,pri#] where # is the index"
+    },
+    { "dms-delete-stored-image", 0, 0, G_OPTION_ARG_STRING, &delete_stored_image_str,
+      "Delete stored image",
+      "[modem#|pri#] where # is the index"
+    },
     { "dms-reset", 0, 0, G_OPTION_ARG_NONE, &reset_flag,
       "Reset the service state",
       NULL
@@ -291,6 +306,9 @@ qmicli_dms_options_enabled (void)
                  !!validate_service_programming_code_str +
                  get_band_capabilities_flag +
                  get_factory_sku_flag +
+                 list_stored_images_flag +
+                 !!select_stored_image_str +
+                 !!delete_stored_image_str +
                  reset_flag +
                  noop_flag);
 
@@ -2241,6 +2259,597 @@ get_factory_sku_ready (QmiClientDms *client,
     shutdown (TRUE);
 }
 
+typedef struct {
+    QmiMessageDmsListStoredImagesOutput *list_images_output;
+    guint i;
+    guint j;
+} ListImagesContext;
+
+static void
+list_images_context_free (ListImagesContext *operation_ctx)
+{
+    qmi_message_dms_list_stored_images_output_unref (operation_ctx->list_images_output);
+    g_slice_free (ListImagesContext, operation_ctx);
+}
+
+static void get_image_info (ListImagesContext *operation_ctx);
+
+static void
+get_stored_image_info_ready (QmiClientDms *client,
+                             GAsyncResult *res,
+                             ListImagesContext *operation_ctx)
+{
+    GArray *array;
+    QmiMessageDmsGetStoredImageInfoOutput *output;
+    GError *error = NULL;
+    QmiMessageDmsListStoredImagesOutputListImage *image;
+    QmiMessageDmsListStoredImagesOutputListImageSublistSublistElement *subimage;
+    gchar *unique_id_str;
+
+    output = qmi_client_dms_get_stored_image_info_finish (client, res, &error);
+    if (!output) {
+        /* Fully ignore errors */
+        g_error_free (error);
+    } else if (!qmi_message_dms_get_stored_image_info_output_get_result (output, &error)) {
+        /* Fully ignore errors */
+        g_error_free (error);
+    }
+
+    qmi_message_dms_list_stored_images_output_get_list (
+        operation_ctx->list_images_output,
+        &array,
+        NULL);
+    image = &g_array_index (array, QmiMessageDmsListStoredImagesOutputListImage, operation_ctx->i);
+    subimage = &g_array_index (image->sublist,
+                               QmiMessageDmsListStoredImagesOutputListImageSublistSublistElement,
+                               operation_ctx->j);
+
+    unique_id_str = qmicli_get_raw_data_printable (subimage->unique_id, 80, "");
+    unique_id_str[strlen(unique_id_str) - 1] = '\0';
+
+    g_print ("%s"
+             "\t\t[%s%u]\n"
+             "\t\tUnique ID:     '%s'\n"
+             "\t\tBuild ID:      '%s'\n",
+             operation_ctx->j == image->index_of_running_image ? "\t\t>>>>>>>>>> [CURRENT] <<<<<<<<<<\n" : "",
+             qmi_dms_firmware_image_type_get_string (image->type),
+             operation_ctx->j,
+             unique_id_str,
+             subimage->build_id);
+
+    if (subimage->storage_index != 255)
+        g_print ("\t\tStorage index: '%u'\n", subimage->storage_index);
+
+    if (subimage->failure_count != 255)
+        g_print ("\t\tFailure count: '%u'\n", subimage->failure_count);
+
+    if (output) {
+        /* Boot version (optional) */
+        {
+            guint16 boot_major_version;
+            guint16 boot_minor_version;
+
+            if (qmi_message_dms_get_stored_image_info_output_get_boot_version (
+                    output,
+                    &boot_major_version,
+                    &boot_minor_version,
+                    NULL)) {
+                g_print ("\t\tBoot version:  '%u.%u'\n",
+                         boot_major_version,
+                         boot_minor_version);
+            }
+        }
+
+        /* PRI version (optional) */
+        {
+            guint32 pri_version;
+            const gchar *pri_info;
+
+            if (qmi_message_dms_get_stored_image_info_output_get_pri_version (
+                    output,
+                    &pri_version,
+                    &pri_info,
+                    NULL)) {
+                g_print ("\t\tPRI version:   '%u'\n"
+                         "\t\tPRI info:      '%s'\n",
+                         pri_version,
+                         pri_info);
+            }
+        }
+
+        /* OEM lock ID (optional) */
+        {
+            guint32 lock_id;
+
+            if (qmi_message_dms_get_stored_image_info_output_get_oem_lock_id (
+                    output,
+                    &lock_id,
+                    NULL)) {
+                g_print ("\t\tOEM lock ID:   '%u'\n",
+                         lock_id);
+            }
+        }
+
+        qmi_message_dms_get_stored_image_info_output_unref (output);
+    }
+
+    g_print ("\n");
+    g_free (unique_id_str);
+
+    /* Go on to the next one */
+    operation_ctx->j++;
+    get_image_info (operation_ctx);
+}
+
+static void
+get_image_info (ListImagesContext *operation_ctx)
+{
+    GArray *array;
+    QmiMessageDmsListStoredImagesOutputListImage *image;
+    QmiMessageDmsListStoredImagesOutputListImageSublistSublistElement *subimage;
+    QmiMessageDmsGetStoredImageInfoInputImage image_id;
+    QmiMessageDmsGetStoredImageInfoInput *input;
+
+    qmi_message_dms_list_stored_images_output_get_list (
+        operation_ctx->list_images_output,
+        &array,
+        NULL);
+
+    if (operation_ctx->i >= array->len) {
+        /* We're done */
+        list_images_context_free (operation_ctx);
+        shutdown (TRUE);
+        return;
+    }
+
+    image = &g_array_index (array,
+                            QmiMessageDmsListStoredImagesOutputListImage,
+                            operation_ctx->i);
+
+    if (operation_ctx->j >= image->sublist->len) {
+        /* No more images in the sublist, go to next image type */
+        operation_ctx->j = 0;
+        operation_ctx->i++;
+        get_image_info (operation_ctx);
+        return;
+    }
+
+    /* Print info of the image type */
+    if (operation_ctx->j == 0) {
+        g_print ("\t[%u] Type:    '%s'\n"
+                 "\t    Maximum: '%u'\n"
+                 "\n",
+                 operation_ctx->i,
+                 qmi_dms_firmware_image_type_get_string (image->type),
+                 image->maximum_images);
+    }
+
+    subimage = &g_array_index (image->sublist,
+                               QmiMessageDmsListStoredImagesOutputListImageSublistSublistElement,
+                               operation_ctx->j);
+
+    /* Query image info */
+    image_id.type = image->type;
+    image_id.unique_id = subimage->unique_id;
+    image_id.build_id = subimage->build_id;
+    input = qmi_message_dms_get_stored_image_info_input_new ();
+    qmi_message_dms_get_stored_image_info_input_set_image (input, &image_id, NULL);
+
+    qmi_client_dms_get_stored_image_info (ctx->client,
+                                          input,
+                                          10,
+                                          ctx->cancellable,
+                                          (GAsyncReadyCallback)get_stored_image_info_ready,
+                                          operation_ctx);
+    qmi_message_dms_get_stored_image_info_input_unref (input);
+}
+
+static void
+list_stored_images_ready (QmiClientDms *client,
+                          GAsyncResult *res)
+{
+    QmiMessageDmsListStoredImagesOutput *output;
+    GError *error = NULL;
+    ListImagesContext *operation_ctx;
+
+    output = qmi_client_dms_list_stored_images_finish (client, res, &error);
+    if (!output) {
+        g_printerr ("error: operation failed: %s\n", error->message);
+        g_error_free (error);
+        shutdown (FALSE);
+        return;
+    }
+
+    if (!qmi_message_dms_list_stored_images_output_get_result (output, &error)) {
+        g_printerr ("error: couldn't list stored images: %s\n", error->message);
+        g_error_free (error);
+        qmi_message_dms_list_stored_images_output_unref (output);
+        shutdown (FALSE);
+        return;
+    }
+
+    g_print ("[%s] Device list of stored images retrieved:\n\n",
+             qmi_device_get_path_display (ctx->device));
+
+    operation_ctx = g_slice_new0 (ListImagesContext);
+    operation_ctx->list_images_output = output;
+    operation_ctx->i = 0;
+    operation_ctx->j = 0;
+
+    get_image_info (operation_ctx);
+}
+
+typedef struct {
+    QmiClientDms *client;
+    GSimpleAsyncResult *result;
+    gint modem_index;
+    gint pri_index;
+} GetStoredImageContext;
+
+typedef struct {
+    GArray *modem_unique_id;
+    gchar *modem_build_id;
+    GArray *pri_unique_id;
+    gchar *pri_build_id;
+} GetStoredImageResult;
+
+static void
+get_stored_image_context_complete_and_free (GetStoredImageContext *operation_ctx)
+{
+    g_simple_async_result_complete (operation_ctx->result);
+    g_object_unref (operation_ctx->result);
+    g_object_unref (operation_ctx->client);
+    g_slice_free (GetStoredImageContext, operation_ctx);
+}
+
+static void
+get_stored_image_finish (QmiClientDms *client,
+                         GAsyncResult *res,
+                         GArray **modem_unique_id,
+                         gchar **modem_build_id,
+                         GArray **pri_unique_id,
+                         gchar **pri_build_id)
+{
+    GetStoredImageResult *result;
+
+    result = g_simple_async_result_get_op_res_gpointer (G_SIMPLE_ASYNC_RESULT (res));
+
+    *modem_unique_id = result->modem_unique_id ? g_array_ref (result->modem_unique_id) : NULL;
+    *modem_build_id = g_strdup (result->modem_build_id);
+    *pri_unique_id = result->pri_unique_id ? g_array_ref (result->pri_unique_id) : NULL;
+    *pri_build_id = g_strdup (result->pri_build_id);
+}
+
+static void
+get_stored_image_list_stored_images_ready (QmiClientDms *client,
+                                           GAsyncResult *res,
+                                           GetStoredImageContext *operation_ctx)
+{
+    GetStoredImageResult result = { NULL, NULL, NULL, NULL };
+    GArray *array;
+    QmiMessageDmsListStoredImagesOutput *output;
+    GError *error = NULL;
+    guint i;
+
+    output = qmi_client_dms_list_stored_images_finish (client, res, &error);
+    if (!output) {
+        g_printerr ("error: operation failed: %s\n", error->message);
+        g_error_free (error);
+        shutdown (FALSE);
+        return;
+    }
+
+    if (!qmi_message_dms_list_stored_images_output_get_result (output, &error)) {
+        g_printerr ("error: couldn't list stored images: %s\n", error->message);
+        g_error_free (error);
+        qmi_message_dms_list_stored_images_output_unref (output);
+        shutdown (FALSE);
+        return;
+    }
+
+    qmi_message_dms_list_stored_images_output_get_list (
+        output,
+        &array,
+        NULL);
+
+    for (i = 0; i < array->len; i++) {
+        QmiMessageDmsListStoredImagesOutputListImageSublistSublistElement *subimage;
+        QmiMessageDmsListStoredImagesOutputListImage *image;
+        gchar *unique_id_str;
+        gint image_index;
+
+        image = &g_array_index (array,
+                                QmiMessageDmsListStoredImagesOutputListImage,
+                                i);
+
+        if (image->type == QMI_DMS_FIRMWARE_IMAGE_TYPE_MODEM)
+            image_index = operation_ctx->modem_index;
+        else if (image->type == QMI_DMS_FIRMWARE_IMAGE_TYPE_PRI)
+            image_index = operation_ctx->pri_index;
+        else
+            g_assert_not_reached ();
+
+        /* If not looking for the specific image type, go on */
+        if (image_index < 0)
+            continue;
+
+        if (image_index >= image->sublist->len) {
+            g_printerr ("error: couldn't find '%s' image at index '%d'\n",
+                        qmi_dms_firmware_image_type_get_string (image->type),
+                        image_index);
+            qmi_message_dms_list_stored_images_output_unref (output);
+            shutdown (FALSE);
+            return;
+        }
+
+        subimage = &g_array_index (image->sublist,
+                                   QmiMessageDmsListStoredImagesOutputListImageSublistSublistElement,
+                                   image_index);
+
+        unique_id_str = qmicli_get_raw_data_printable (subimage->unique_id, 80, "");
+        unique_id_str[strlen (unique_id_str) - 1] = '\0';
+        g_debug ("Found [%s%d]: Unique ID: '%s', Build ID: '%s'",
+                 qmi_dms_firmware_image_type_get_string (image->type),
+                 image_index,
+                 unique_id_str,
+                 subimage->build_id);
+        g_free (unique_id_str);
+
+        /* Build result */
+        if (image->type == QMI_DMS_FIRMWARE_IMAGE_TYPE_MODEM) {
+            result.modem_unique_id = subimage->unique_id;
+            result.modem_build_id = subimage->build_id;
+        } else if (image->type == QMI_DMS_FIRMWARE_IMAGE_TYPE_PRI) {
+            result.pri_unique_id = subimage->unique_id;
+            result.pri_build_id = subimage->build_id;
+        } else
+            g_assert_not_reached ();
+    }
+
+    /* Complete */
+    g_simple_async_result_set_op_res_gpointer (operation_ctx->result, &result, NULL);
+    get_stored_image_context_complete_and_free (operation_ctx);
+    qmi_message_dms_list_stored_images_output_unref (output);
+}
+
+static void
+get_stored_image (QmiClientDms *client,
+                  const gchar *str,
+                  GAsyncReadyCallback callback,
+                  gpointer user_data)
+{
+    GetStoredImageContext *operation_ctx;
+    gchar **split;
+    guint i = 0;
+    gint modem_index = -1;
+    gint pri_index = -1;
+
+    split = g_strsplit (str, ",", -1);
+    while (split[i]) {
+        QmiDmsFirmwareImageType type;
+        guint image_index;
+
+        if (i >= 3) {
+            g_printerr ("A maximum of 2 images should be given: '%s'\n", str);
+            shutdown (FALSE);
+            return;
+        }
+
+        if (!qmicli_read_firmware_id_from_string (split[i], &type, &image_index)) {
+            g_printerr ("Couldn't parse input string as firmware index info: '%s'\n", str);
+            shutdown (FALSE);
+            return;
+        }
+
+        if (type == QMI_DMS_FIRMWARE_IMAGE_TYPE_MODEM) {
+            if (modem_index >= 0) {
+                g_printerr ("Couldn't two 'modem' type firwmare indexes: '%s'\n", str);
+                shutdown (FALSE);
+                return;
+            }
+            modem_index = (gint)image_index;
+        } else if (type == QMI_DMS_FIRMWARE_IMAGE_TYPE_PRI) {
+            if (pri_index >= 0) {
+                g_printerr ("Couldn't two 'pri' type firwmare indexes: '%s'\n", str);
+                shutdown (FALSE);
+                return;
+            }
+            pri_index = (gint)image_index;
+        }
+
+        i++;
+    }
+
+    operation_ctx = g_slice_new (GetStoredImageContext);
+    operation_ctx->client = g_object_ref (client);
+    operation_ctx->result = g_simple_async_result_new (G_OBJECT (client),
+                                                       callback,
+                                                       user_data,
+                                                       get_stored_image);
+    operation_ctx->modem_index = modem_index;
+    operation_ctx->pri_index = pri_index;
+
+    qmi_client_dms_list_stored_images (
+        ctx->client,
+        NULL,
+        10,
+        ctx->cancellable,
+        (GAsyncReadyCallback)get_stored_image_list_stored_images_ready,
+        operation_ctx);
+}
+
+static void
+select_stored_image_ready (QmiClientDms *client,
+                           GAsyncResult *res)
+{
+    QmiMessageDmsSetFirmwarePreferenceOutput *output;
+    GError *error = NULL;
+
+    output = qmi_client_dms_set_firmware_preference_finish (client, res, &error);
+    if (!output) {
+        g_printerr ("error: operation failed: %s\n", error->message);
+        g_error_free (error);
+        shutdown (FALSE);
+        return;
+    }
+
+    if (!qmi_message_dms_set_firmware_preference_output_get_result (output, &error)) {
+        g_printerr ("error: couldn't select stored image: %s\n", error->message);
+        g_error_free (error);
+        qmi_message_dms_set_firmware_preference_output_unref (output);
+        shutdown (FALSE);
+        return;
+    }
+
+    g_print ("[%s] Stored image successfully selected\n"
+             "\n"
+             "\tYou may want to power-cycle the modem now, or just set it offline and reset it:\n"
+             "\t\t$> sudo qmicli ... --dms-set-operating-mode=offline\n"
+             "\t\t$> sudo qmicli ... --dms-set-operating-mode=reset\n"
+             "\n"
+             "\tYou should check that the modem|pri image pair is valid by checking the current operating mode:\n"
+             "\t\t$> sudo qmicli .... --dms-get-operating-mode\n"
+             "\tIf the Mode is reported as 'online', you're good to go.\n"
+             "\tIf the Mode is reported as 'offline' with a 'pri-version-incompatible' reason, you chose an incorrect pair\n"
+             "\n",
+             qmi_device_get_path_display (ctx->device));
+
+    qmi_message_dms_set_firmware_preference_output_unref (output);
+    shutdown (TRUE);
+}
+
+static void
+get_stored_image_select_ready (QmiClientDms *client,
+                               GAsyncResult *res)
+{
+    QmiMessageDmsSetFirmwarePreferenceInput *input;
+    GArray *array;
+    QmiMessageDmsSetFirmwarePreferenceInputListImage modem_image_id;
+    QmiMessageDmsSetFirmwarePreferenceInputListImage pri_image_id;
+
+    modem_image_id.type = QMI_DMS_FIRMWARE_IMAGE_TYPE_MODEM;
+    pri_image_id.type = QMI_DMS_FIRMWARE_IMAGE_TYPE_PRI;
+
+    get_stored_image_finish (client,
+                             res,
+                             &modem_image_id.unique_id,
+                             &modem_image_id.build_id,
+                             &pri_image_id.unique_id,
+                             &pri_image_id.build_id);
+
+    if (!modem_image_id.unique_id || !modem_image_id.build_id ||
+        !pri_image_id.unique_id || !pri_image_id.build_id) {
+        g_printerr ("error: must specify a pair of 'modem' and 'pri' images to select\n");
+        shutdown (FALSE);
+        return;
+    }
+
+    array = g_array_sized_new (FALSE, FALSE, sizeof (QmiMessageDmsSetFirmwarePreferenceInputListImage), 2);
+    g_array_append_val (array, modem_image_id);
+    g_array_append_val (array, pri_image_id);
+
+    input = qmi_message_dms_set_firmware_preference_input_new ();
+    qmi_message_dms_set_firmware_preference_input_set_list (input, array, NULL);
+
+    qmi_client_dms_set_firmware_preference (
+        client,
+        input,
+        10,
+        NULL,
+        (GAsyncReadyCallback)select_stored_image_ready,
+        NULL);
+    qmi_message_dms_set_firmware_preference_input_unref (input);
+
+    g_free (modem_image_id.build_id);
+    if (modem_image_id.unique_id)
+        g_array_unref (modem_image_id.unique_id);
+    g_free (pri_image_id.build_id);
+    if (pri_image_id.unique_id)
+        g_array_unref (pri_image_id.unique_id);
+}
+
+static void
+delete_stored_image_ready (QmiClientDms *client,
+                           GAsyncResult *res)
+{
+    QmiMessageDmsDeleteStoredImageOutput *output;
+    GError *error = NULL;
+
+    output = qmi_client_dms_delete_stored_image_finish (client, res, &error);
+    if (!output) {
+        g_printerr ("error: operation failed: %s\n", error->message);
+        g_error_free (error);
+        shutdown (FALSE);
+        return;
+    }
+
+    if (!qmi_message_dms_delete_stored_image_output_get_result (output, &error)) {
+        g_printerr ("error: couldn't delete stored image: %s\n", error->message);
+        g_error_free (error);
+        qmi_message_dms_delete_stored_image_output_unref (output);
+        shutdown (FALSE);
+        return;
+    }
+
+    g_print ("[%s] Stored image successfully deleted\n",
+             qmi_device_get_path_display (ctx->device));
+    qmi_message_dms_delete_stored_image_output_unref (output);
+    shutdown (TRUE);
+}
+
+static void
+get_stored_image_delete_ready (QmiClientDms *client,
+                               GAsyncResult *res)
+{
+    QmiMessageDmsDeleteStoredImageInput *input;
+    QmiMessageDmsDeleteStoredImageInputImage modem_image_id;
+    QmiMessageDmsDeleteStoredImageInputImage pri_image_id;
+
+    modem_image_id.type = QMI_DMS_FIRMWARE_IMAGE_TYPE_MODEM;
+    pri_image_id.type = QMI_DMS_FIRMWARE_IMAGE_TYPE_PRI;
+
+    get_stored_image_finish (client,
+                             res,
+                             &modem_image_id.unique_id,
+                             &modem_image_id.build_id,
+                             &pri_image_id.unique_id,
+                             &pri_image_id.build_id);
+
+    if (modem_image_id.unique_id && modem_image_id.build_id &&
+        pri_image_id.unique_id && pri_image_id.build_id) {
+        g_printerr ("error: cannot specify multiple images to delete\n");
+        shutdown (FALSE);
+        return;
+    }
+
+    input = qmi_message_dms_delete_stored_image_input_new ();
+    if (modem_image_id.unique_id && modem_image_id.build_id)
+        qmi_message_dms_delete_stored_image_input_set_image (input, &modem_image_id, NULL);
+    else if (pri_image_id.unique_id && pri_image_id.build_id)
+        qmi_message_dms_delete_stored_image_input_set_image (input, &pri_image_id, NULL);
+    else {
+        g_printerr ("error: didn't specify correctly an image to delete\n");
+        shutdown (FALSE);
+        return;
+    }
+
+    qmi_client_dms_delete_stored_image (
+        client,
+        input,
+        10,
+        NULL,
+        (GAsyncReadyCallback)delete_stored_image_ready,
+        NULL);
+    qmi_message_dms_delete_stored_image_input_unref (input);
+
+    g_free (modem_image_id.build_id);
+    if (modem_image_id.unique_id)
+        g_array_unref (modem_image_id.unique_id);
+    g_free (pri_image_id.build_id);
+    if (pri_image_id.unique_id)
+        g_array_unref (pri_image_id.unique_id);
+}
+
 static void
 reset_ready (QmiClientDms *client,
              GAsyncResult *res)
@@ -2819,6 +3428,38 @@ qmicli_dms_run (QmiDevice *device,
                                         ctx->cancellable,
                                         (GAsyncReadyCallback)get_factory_sku_ready,
                                         NULL);
+        return;
+    }
+
+    /* Request to list stored images? */
+    if (list_stored_images_flag) {
+        g_debug ("Asynchronously listing stored images...");
+        qmi_client_dms_list_stored_images (ctx->client,
+                                           NULL,
+                                           10,
+                                           ctx->cancellable,
+                                           (GAsyncReadyCallback)list_stored_images_ready,
+                                           NULL);
+        return;
+    }
+
+    /* Request to select stored image? */
+    if (select_stored_image_str) {
+        g_debug ("Asynchronously selecting stored image...");
+        get_stored_image (ctx->client,
+                          select_stored_image_str,
+                          (GAsyncReadyCallback)get_stored_image_select_ready,
+                          NULL);
+        return;
+    }
+
+    /* Request to delete stored image? */
+    if (delete_stored_image_str) {
+        g_debug ("Asynchronously deleting stored image...");
+        get_stored_image (ctx->client,
+                          delete_stored_image_str,
+                          (GAsyncReadyCallback)get_stored_image_delete_ready,
+                          NULL);
         return;
     }
 

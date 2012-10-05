@@ -31,17 +31,19 @@ class VariableSequence(Variable):
     """
     Constructor
     """
-    def __init__(self, dictionary, sequence_type_name):
+    def __init__(self, dictionary, sequence_type_name, container_type):
 
         # Call the parent constructor
         Variable.__init__(self, dictionary)
+
+        self.container_type = container_type
 
         # Load members of this sequence
         self.members = []
         for member_dictionary in dictionary['contents']:
             member = {}
             member['name'] = utils.build_underscore_name(member_dictionary['name'])
-            member['object'] = VariableFactory.create_variable(member_dictionary, sequence_type_name + ' ' + member['name'])
+            member['object'] = VariableFactory.create_variable(member_dictionary, sequence_type_name + ' ' + member['name'], self.container_type)
             self.members.append(member)
 
         # TODO: do we need this?
@@ -58,6 +60,15 @@ class VariableSequence(Variable):
         # Emit types for each member
         for member in self.members:
             member['object'].emit_types(f)
+
+
+    """
+    Emit helper methods for all types in the struct
+    """
+    def emit_helper_methods(self, hfile, cfile):
+        # Emit for each member
+        for member in self.members:
+            member['object'].emit_helper_methods(hfile, cfile)
 
 
     """

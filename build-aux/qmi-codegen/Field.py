@@ -32,7 +32,7 @@ class Field:
     """
     Constructor
     """
-    def __init__(self, prefix, dictionary, common_objects_dictionary):
+    def __init__(self, prefix, dictionary, common_objects_dictionary, container_type):
         # The field prefix, usually the name of the Container,
         #  e.g. "Qmi Message Ctl Something Output"
         self.prefix = prefix
@@ -44,13 +44,15 @@ class Field:
         self.mandatory = dictionary['mandatory']
         # The type, which must always be "TLV"
         self.type = dictionary['type']
+        # The container type, which must be either "Input" or "Output"
+        self.container_type = container_type
 
         # Create the composed full name (prefix + name),
         #  e.g. "Qmi Message Ctl Something Output Result"
         self.fullname = dictionary['fullname'] if 'fullname' in dictionary else self.prefix + ' ' + self.name
 
         # Create our variable object
-        self.variable = VariableFactory.create_variable(dictionary, self.fullname)
+        self.variable = VariableFactory.create_variable(dictionary, self.fullname, self.container_type)
 
         # Create the variable name within the Container
         self.variable_name = 'arg_' + string.lower(utils.build_underscore_name(self.name))
@@ -227,11 +229,11 @@ class Field:
 
         template = (
             '\n'
-            '${lp}if (!qmi_message_tlv_add (self,\n'
-            '${lp}                          (guint8)${tlv_id},\n'
-            '${lp}                          (1024 - buffer_len),\n'
-            '${lp}                          buffer,\n'
-            '${lp}                          error)) {\n'
+            '${lp}if (!qmi_message_add_raw_tlv (self,\n'
+            '${lp}                              (guint8)${tlv_id},\n'
+            '${lp}                              buffer,\n'
+            '${lp}                              (1024 - buffer_len),\n'
+            '${lp}                              error)) {\n'
             '${lp}    g_prefix_error (error, \"Couldn\'t set the ${name} TLV: \");\n'
             '${lp}    qmi_message_unref (self);\n'
             '${lp}    return NULL;\n'
@@ -271,14 +273,13 @@ class Field:
                          'error'                : 'error' if self.mandatory == 'yes' else 'NULL'}
 
         template = (
-            '${lp}guint8 *buffer;\n'
+            '${lp}const guint8 *buffer;\n'
             '${lp}guint16 buffer_len;\n'
             '\n'
-            '${lp}if (qmi_message_tlv_get (message,\n'
-            '${lp}                         ${tlv_id},\n'
-            '${lp}                         &buffer_len,\n'
-            '${lp}                         &buffer,\n'
-            '${lp}                         ${error})) {\n'
+            '${lp}buffer = qmi_message_get_raw_tlv (message,\n'
+            '${lp}                                  ${tlv_id},\n'
+            '${lp}                                  &buffer_len);\n'
+            '${lp} if (buffer) {\n'
             '${lp}    self->${variable_name}_set = TRUE;\n'
             '\n')
         f.write(string.Template(template).substitute(translations))
@@ -296,7 +297,10 @@ class Field:
         if self.mandatory == 'yes':
             template += (
                 '${lp}} else {\n'
-                '${lp}    g_prefix_error (error, \"Couldn\'t get the ${name} TLV: \");\n'
+                '${lp}    g_set_error (error,\n'
+                '${lp}                 QMI_CORE_ERROR,\n'
+                '${lp}                 QMI_CORE_ERROR_TLV_NOT_FOUND,\n'
+                '${lp}                 \"Couldn\'t get the ${name} TLV: Not found\");\n'
                 '${lp}    ${container_underscore}_unref (self);\n'
                 '${lp}    return NULL;\n'
                 '${lp}}\n')
@@ -325,14 +329,13 @@ class Field:
             '    QmiMessage *message,\n'
             '    const gchar *line_prefix)\n'
             '{\n'
-            '    guint8 *buffer;\n'
+            '    const guint8 *buffer;\n'
             '    guint16 buffer_len;\n'
             '\n'
-            '    if (qmi_message_tlv_get (message,\n'
-            '                             ${tlv_id},\n'
-            '                             &buffer_len,\n'
-            '                             &buffer,\n'
-            '                             NULL)) {\n'
+            '    buffer = qmi_message_get_raw_tlv (message,\n'
+            '                                      ${tlv_id},\n'
+            '                                      &buffer_len);\n'
+            '    if (buffer) {\n'
             '        GString *printable;\n'
             '\n'
             '        printable = g_string_new ("");\n')

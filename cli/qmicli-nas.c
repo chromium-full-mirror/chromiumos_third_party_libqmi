@@ -189,7 +189,7 @@ get_signal_info_ready (QmiClientNas *client,
     QmiMessageNasGetSignalInfoOutput *output;
     GError *error = NULL;
     gint8 rssi;
-    guint16 ecio;
+    gint16 ecio;
     QmiNasEvdoSinrLevel sinr_level;
     gint32 io;
     gint8 rsrq;
@@ -418,17 +418,12 @@ get_signal_strength_ready (QmiClientNas *client,
 
     /* IO... */
     if (qmi_message_nas_get_signal_strength_output_get_io (output, &io, NULL)) {
-        g_print ("IO:\n"
-                 "\tNetwork '%s': '%d dBm'\n",
-                 qmi_nas_radio_interface_get_string (QMI_NAS_RADIO_INTERFACE_CDMA_1XEVDO),
-                 io);
+        g_print ("IO: '%d dBm'\n", io);
     }
 
     /* SINR level */
     if (qmi_message_nas_get_signal_strength_output_get_sinr (output, &sinr_level, NULL)) {
-        g_print ("SINR:\n"
-                 "\tNetwork '%s': (%u) '%.1lf dB'\n",
-                 qmi_nas_radio_interface_get_string (QMI_NAS_RADIO_INTERFACE_CDMA_1XEVDO),
+        g_print ("SINR: (%u) '%.1lf dB'\n",
                  sinr_level, get_db_from_sinr_level (sinr_level));
     }
 
@@ -503,7 +498,7 @@ get_home_network_ready (QmiClientNas *client,
         g_print ("\tHome network:\n"
                  "\t\tMCC: '%" G_GUINT16_FORMAT"'\n"
                  "\t\tMNC: '%" G_GUINT16_FORMAT"'\n"
-                 "\t\tDescription: '%s'",
+                 "\t\tDescription: '%s'\n",
                  mcc,
                  mnc,
                  description);

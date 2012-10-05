@@ -161,9 +161,10 @@ typedef enum {
  * @QMI_DMS_OPERATING_MODE_PERSISTENT_LOW_POWER: Device has disabled RF and state persists even after a reset.
  * @QMI_DMS_OPERATING_MODE_FACTORY_TEST: Special mode for manufacturer tests.
  * @QMI_DMS_OPERATING_MODE_OFFLINE: Device has deactivated RF and is partially shutdown.
- * @QMI_DMS_OPERATING_MODE_RESETTING: Device is in the process of power cycling.
+ * @QMI_DMS_OPERATING_MODE_RESET: Device is in the process of power cycling.
  * @QMI_DMS_OPERATING_MODE_SHUTTING_DOWN: Device is in the process of shutting down.
  * @QMI_DMS_OPERATING_MODE_MODE_ONLY_LOW_POWER: Mode-only Low Power.
+ * @QMI_DMS_OPERATING_MODE_UNKNOWN: Unknown.
  *
  * Operating mode of the device.
  */
@@ -172,10 +173,11 @@ typedef enum {
     QMI_DMS_OPERATING_MODE_LOW_POWER             = 1,
     QMI_DMS_OPERATING_MODE_FACTORY_TEST          = 2,
     QMI_DMS_OPERATING_MODE_OFFLINE               = 3,
-    QMI_DMS_OPERATING_MODE_RESETTING             = 4,
+    QMI_DMS_OPERATING_MODE_RESET                 = 4,
     QMI_DMS_OPERATING_MODE_SHUTTING_DOWN         = 5,
     QMI_DMS_OPERATING_MODE_PERSISTENT_LOW_POWER  = 6,
-    QMI_DMS_OPERATING_MODE_MODE_ONLY_LOW_POWER   = 7
+    QMI_DMS_OPERATING_MODE_MODE_ONLY_LOW_POWER   = 7,
+    QMI_DMS_OPERATING_MODE_UNKNOWN               = 0xFF
 } QmiDmsOperatingMode;
 
 /**
@@ -310,5 +312,20 @@ typedef enum {
 typedef enum {
     QMI_DMS_TIME_REFERENCE_TYPE_USER = 0
 } QmiDmsTimeReferenceType;
+
+/*****************************************************************************/
+/* Helper enums for the 'QMI DMS Get Firmware Preference' message */
+
+/**
+ * QmiDmsFirmwareImageType:
+ * @QMI_DMS_FIRMWARE_IMAGE_TYPE_MODEM: Modem image.
+ * @QMI_DMS_FIRMWARE_IMAGE_TYPE_PRI: PRI image.
+ *
+ * Type of firmware image.
+ */
+typedef enum {
+    QMI_DMS_FIRMWARE_IMAGE_TYPE_MODEM = 0,
+    QMI_DMS_FIRMWARE_IMAGE_TYPE_PRI   = 1
+} QmiDmsFirmwareImageType;
 
 #endif /* _LIBQMI_GLIB_QMI_ENUMS_DMS_H_ */
