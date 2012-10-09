@@ -21,18 +21,16 @@
  * Copyright (C) 2012 Aleksander Morgado <aleksander@lanedo.com>
  */
 
-/* NOTE: this is a private non-installable header */
-
 #ifndef _LIBQMI_GLIB_QMI_UTILS_H_
 #define _LIBQMI_GLIB_QMI_UTILS_H_
+
+#if !defined (__LIBQMI_GLIB_H_INSIDE__) && !defined (LIBQMI_GLIB_COMPILATION)
+#error "Only <libqmi-glib.h> can be included directly."
+#endif
 
 #include <glib.h>
 
 G_BEGIN_DECLS
-
-gchar *qmi_utils_str_hex (gconstpointer mem,
-                          gsize size,
-                          gchar delimiter);
 
 /* Reading/Writing integer variables */
 
@@ -122,6 +120,19 @@ void qmi_utils_write_fixed_size_string_to_buffer  (guint8      **buffer,
                                                    guint16      *buffer_size,
                                                    guint16       fixed_size,
                                                    const gchar  *in);
+
+/* Enabling/Disabling traces */
+gboolean qmi_utils_get_traces_enabled (void);
+void     qmi_utils_set_traces_enabled (gboolean enabled);
+
+/* Other private methods */
+
+#if defined (LIBQMI_GLIB_COMPILATION)
+G_GNUC_INTERNAL
+gchar *__qmi_utils_str_hex (gconstpointer mem,
+                            gsize size,
+                            gchar delimiter);
+#endif
 
 G_END_DECLS
 

@@ -23,6 +23,18 @@
 #ifndef _LIBQMI_GLIB_QMI_ENUMS_WMS_H_
 #define _LIBQMI_GLIB_QMI_ENUMS_WMS_H_
 
+#if !defined (__LIBQMI_GLIB_H_INSIDE__) && !defined (LIBQMI_GLIB_COMPILATION)
+#error "Only <libqmi-glib.h> can be included directly."
+#endif
+
+/**
+ * SECTION: qmi-enums-wms
+ * @title: WMS enumerations and flags
+ *
+ * This section defines enumerations and flags used in the WMS service
+ * interface.
+ */
+
 /*****************************************************************************/
 /* Helper enums for the 'QMI WMS Event Report' indication */
 
@@ -295,7 +307,7 @@ typedef enum {
     QMI_WMS_GSM_UMTS_TP_CAUSE_TPDU_NOT_SUPPORTED                 = 0xB0,
     QMI_WMS_GSM_UMTS_TP_CAUSE_SC_BUSY                            = 0xC0,
     QMI_WMS_GSM_UMTS_TP_CAUSE_NO_SC_SUBSCRIPTION                 = 0xC1,
-    QMI_WMS_GSM_UMTS_TP_CAUSE_SC_SYS_FAILURE                     = 0xC2,
+    QMI_WMS_GSM_UMTS_TP_CAUSE_SC_SYSTEM_FAILURE                  = 0xC2,
     QMI_WMS_GSM_UMTS_TP_CAUSE_INVALID_SME_ADDRESS                = 0xC3,
     QMI_WMS_GSM_UMTS_TP_CAUSE_DESTINATION_SME_BARRED             = 0xC4,
     QMI_WMS_GSM_UMTS_TP_CAUSE_SM_REJECTED_OR_DUPLICATE           = 0xC5,

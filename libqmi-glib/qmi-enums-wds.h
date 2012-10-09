@@ -23,6 +23,18 @@
 #ifndef _LIBQMI_GLIB_QMI_ENUMS_WDS_H_
 #define _LIBQMI_GLIB_QMI_ENUMS_WDS_H_
 
+#if !defined (__LIBQMI_GLIB_H_INSIDE__) && !defined (LIBQMI_GLIB_COMPILATION)
+#error "Only <libqmi-glib.h> can be included directly."
+#endif
+
+/**
+ * SECTION: qmi-enums-wds
+ * @title: WDS enumerations and flags
+ *
+ * This section defines enumerations and flags used in the WDS service
+ * interface.
+ */
+
 #include <glib.h>
 
 /*****************************************************************************/
@@ -597,7 +609,7 @@ typedef enum {
  * @QMI_WDS_VERBOSE_CALL_END_REASON_EHRPD_VSNCP_TIMEOUT: (VSNCP) timeout.
  * @QMI_WDS_VERBOSE_CALL_END_REASON_EHRPD_VSNCP_FAILURE: (VSNCP) failure.
  * @QMI_WDS_VERBOSE_CALL_END_REASON_EHRPD_VSNCP_3GPP2_GENERAL_ERROR: (VSCNP) 3GPP2 general error.
- * @QMI_WDS_VERBOSE_CALL_END_REASON_EHRPD_VSNCP_3GPP2_UNAUTHENTICATED_APN: : (VSCNP) 3GPP2 unauthenticated APN.
+ * @QMI_WDS_VERBOSE_CALL_END_REASON_EHRPD_VSNCP_3GPP2_UNAUTHENTICATED_APN: (VSCNP) 3GPP2 unauthenticated APN.
  * @QMI_WDS_VERBOSE_CALL_END_REASON_EHRPD_VSNCP_3GPP2_PDN_LIMIT_EXCEEDED: (VSCNP) 3GPP2 PDN limit exceeded.
  * @QMI_WDS_VERBOSE_CALL_END_REASON_EHRPD_VSNCP_3GPP2_NO_PDN_GATEWAY: (VSCNP) 3GPP2 no PDN gateway.
  * @QMI_WDS_VERBOSE_CALL_END_REASON_EHRPD_VSNCP_3GPP2_PDN_GATEWAY_UNREACHABLE: (VSCNP) 3GPP2 PDN gateway unreachable.
@@ -605,7 +617,7 @@ typedef enum {
  * @QMI_WDS_VERBOSE_CALL_END_REASON_EHRPD_VSNCP_3GPP2_INSUFFICIENT_PARAMETERS: (VSCNP) 3GPP2 insufficient parameters.
  * @QMI_WDS_VERBOSE_CALL_END_REASON_EHRPD_VSNCP_3GPP2_RESOURCE_UNAVAILABLE: (VSCNP) 3GPP2 resource unavailable.
  * @QMI_WDS_VERBOSE_CALL_END_REASON_EHRPD_VSNCP_3GPP2_ADMINISTRATIVELY_PROHIBITED: (VSCNP) 3GPP2 administratively prohibited.
- * @QMI_WDS_VERBOSE_CALL_END_REASON_EHRPD_VSNCP_3GPP2_PDN_ID_IN_USE: : (VSCNP) 3GPP2 PDN ID in use.
+ * @QMI_WDS_VERBOSE_CALL_END_REASON_EHRPD_VSNCP_3GPP2_PDN_ID_IN_USE: (VSCNP) 3GPP2 PDN ID in use.
  * @QMI_WDS_VERBOSE_CALL_END_REASON_EHRPD_VSNCP_3GPP2_SUBSCRIPTION_LIMITATION: (VSCNP) 3GPP2 subscription limitation.
  * @QMI_WDS_VERBOSE_CALL_END_REASON_EHRPD_VSNCP_3GPP2_PDN_EXISTS_FOR_THIS_APN: (VSCNP) 3GPP2 PDN exists for this APN.
  *
@@ -728,7 +740,7 @@ typedef enum {
 
 /**
  * QmiWdsRat3gpp2:
- * @QMI_WDS_RAT_3GPP2_UNKNOWN: Unknown, to be ignored.
+ * @QMI_WDS_RAT_3GPP2_NONE: Unknown, to be ignored.
  * @QMI_WDS_RAT_3GPP2_CDMA1X: CDMA 1x.
  * @QMI_WDS_RAT_3GPP2_EVDO_REV0: EVDO Rev0.
  * @QMI_WDS_RAT_3GPP2_EVDO_REVA: EVDO RevA.
@@ -912,7 +924,6 @@ typedef enum { /*< underscore_name=qmi_wds_authentication >*/
     QMI_WDS_AUTHENTICATION_PAP  = 1 << 0,
     QMI_WDS_AUTHENTICATION_CHAP = 1 << 1
 } QmiWdsAuthentication;
-
 
 /**
  * QmiWdsProfileType:

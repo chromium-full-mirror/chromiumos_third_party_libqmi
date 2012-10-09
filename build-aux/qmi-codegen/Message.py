@@ -47,7 +47,7 @@ class Message:
         self.prefix = 'Qmi ' + self.type
 
         # Create the composed full name (prefix + service + name),
-        #  e.g. "Qmi Message Ctl Something Output Result"
+        #  e.g. "Qmi Message Ctl Something"
         self.fullname = self.prefix + ' ' + self.service + ' ' + self.name
 
         # Create the ID enumeration name
@@ -88,21 +88,8 @@ class Message:
         input_arg_template = 'gpointer unused' if self.input.fields is None else '${container} *input'
         template = (
             '\n'
-            'QmiMessage *${underscore}_request_create (\n'
-            '    guint8 transaction_id,\n'
-            '    guint8 cid,\n'
-            '    %s,\n'
-            '    GError **error);\n' % input_arg_template)
-        hfile.write(string.Template(template).substitute(translations))
-
-        # Emit message creator
-        template = (
-            '\n'
-            '/**\n'
-            ' * ${underscore}_request_create:\n'
-            ' */\n'
-            'QmiMessage *\n'
-            '${underscore}_request_create (\n'
+            'static QmiMessage *\n'
+            '__${underscore}_request_create (\n'
             '    guint8 transaction_id,\n'
             '    guint8 cid,\n'
             '    %s,\n'
@@ -196,24 +183,8 @@ class Message:
 
         template = (
             '\n'
-            '${container} *${underscore}_${type}_parse (\n'
-            '    QmiMessage *message,\n'
-            '    GError **error);\n')
-        hfile.write(string.Template(template).substitute(translations))
-
-        template = (
-            '\n'
-            '/**\n'
-            ' * ${underscore}_${type}_parse:\n'
-            ' * @message: a #QmiMessage ${type}.\n'
-            ' * @error: a #GError.\n'
-            ' *\n'
-            ' * Parse the \'${name}\' ${type}.\n'
-            ' *\n'
-            ' * Returns: a #${container} which should be disposed with ${container_underscore}_unref(), or #NULL if @error is set.\n'
-            ' */\n'
-            '${container} *\n'
-            '${underscore}_${type}_parse (\n'
+            'static ${container} *\n'
+            '__${underscore}_${type}_parse (\n'
             '    QmiMessage *message,\n'
             '    GError **error)\n'
             '{\n'
@@ -349,7 +320,7 @@ class Message:
                 '    } else {\n'
                 '        gchar *value_hex;\n'
                 '\n'
-                '        value_hex = qmi_utils_str_hex (value, length, \':\');\n'
+                '        value_hex = __qmi_utils_str_hex (value, length, \':\');\n'
                 '        g_string_append_printf (ctx->printable,\n'
                 '                                "%sTLV:\\n"\n'
                 '                                "%s  type       = \\"%s\\" (0x%02x)\\n"\n'
@@ -424,3 +395,51 @@ class Message:
         hfile.write('\n/* --- Printable -- */\n');
         cfile.write('\n/* --- Printable -- */\n');
         self.__emit_get_printable(hfile, cfile)
+
+    """
+    Emit the sections
+    """
+    def emit_sections(self, sfile):
+
+        translations = { 'hyphened'            : utils.build_dashed_name (self.fullname),
+                         'fullname_underscore' : utils.build_underscore_name(self.fullname),
+                         'camelcase'           : utils.build_camelcase_name (self.fullname),
+                         'service'             : utils.build_underscore_name (self.service),
+                         'name_underscore'     : utils.build_underscore_name (self.name),
+                         'fullname'            : self.service + ' ' + self.name,
+                         'type'                : 'response' if self.type == 'Message' else 'indication' }
+
+        sections = { 'public-types'   : '',
+                     'public-methods' : '',
+                     'standard'       : '',
+                     'private'        : '' }
+
+        if self.input:
+            self.input.add_sections (sections)
+        self.output.add_sections (sections)
+
+        if self.type == 'Message':
+            template = (
+                '<SUBSECTION ${camelcase}ClientMethods>\n'
+                'qmi_client_${service}_${name_underscore}\n'
+                'qmi_client_${service}_${name_underscore}_finish\n')
+            sections['public-methods'] += string.Template(template).substitute(translations)
+
+        translations['public_types']   = sections['public-types']
+        translations['public_methods'] = sections['public-methods']
+        translations['standard']       = sections['standard']
+        translations['private']        = sections['private']
+
+        template = (
+            '<SECTION>\n'
+            '<FILE>${hyphened}</FILE>\n'
+            '<TITLE>${fullname}</TITLE>\n'
+            '${public_types}'
+            '${public_methods}'
+            '<SUBSECTION Private>\n'
+            '${private}'
+            '<SUBSECTION Standard>\n'
+            '${standard}'
+            '</SECTION>\n'
+            '\n')
+        sfile.write(string.Template(template).substitute(translations))

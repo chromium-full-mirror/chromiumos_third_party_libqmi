@@ -39,6 +39,17 @@
 #include "qmi-error-types.h"
 #include "qmi-enum-types.h"
 
+/**
+ * SECTION:qmi-device
+ * @title: QmiDevice
+ * @short_description: Generic QMI device handling routines
+ *
+ * #QmiDevice is a generic type in charge of controlling the access of multiple
+ * #QmiClient objects to the managed QMI port.
+ *
+ * A #QmiDevice can only handle one single QMI port.
+ */
+
 static void async_initable_iface_init (GAsyncInitableIface *iface);
 
 G_DEFINE_TYPE_EXTENDED (QmiDevice, qmi_device, G_TYPE_OBJECT, 0,
@@ -47,7 +58,6 @@ G_DEFINE_TYPE_EXTENDED (QmiDevice, qmi_device, G_TYPE_OBJECT, 0,
 enum {
     PROP_0,
     PROP_FILE,
-    PROP_CLIENT_CTL,
     PROP_LAST
 };
 
@@ -143,28 +153,6 @@ build_transaction_key (QmiMessage *message)
 
     /* We're putting a 32 bit value into a gpointer */
     key = GUINT_TO_POINTER ((((service << 8) | client_id) << 16) | transaction_id);
-
-#ifdef MESSAGE_ENABLE_TRACE
-    {
-        gchar *hex;
-
-        hex = qmi_utils_str_hex (&key, sizeof (key), ':');
-        g_debug ("KEY: %s", hex);
-        g_free (hex);
-
-        hex = qmi_utils_str_hex (&service, sizeof (service), ':');
-        g_debug ("  Service: %s", hex);
-        g_free (hex);
-
-        hex = qmi_utils_str_hex (&client_id, sizeof (client_id), ':');
-        g_debug ("  Client ID: %s", hex);
-        g_free (hex);
-
-        hex = qmi_utils_str_hex (&transaction_id, sizeof (transaction_id), ':');
-        g_debug ("  Transaction ID: %s", hex);
-        g_free (hex);
-    }
-#endif /* MESSAGE_ENABLE_TRACE */
 
     return key;
 }
@@ -416,7 +404,7 @@ qmi_device_get_path_display (QmiDevice *self)
  *
  * Checks whether the #QmiDevice is open for I/O.
  *
- * Returns: #TRUE if @self is open, #FALSE otherwise.
+ * Returns: %TRUE if @self is open, %FALSE otherwise.
  */
 gboolean
 qmi_device_is_open (QmiDevice *self)
@@ -496,7 +484,7 @@ allocate_client_context_complete_and_free (AllocateClientContext *ctx)
  * qmi_device_allocate_client_finish:
  * @self: a #QmiDevice.
  * @res: a #GAsyncResult.
- * @error: a #GError.
+ * @error: Return location for error or %NULL.
  *
  * Finishes an operation started with qmi_device_allocate_client().
  *
@@ -764,14 +752,14 @@ release_client_context_complete_and_free (ReleaseClientContext *ctx)
  * qmi_device_release_client_finish:
  * @self: a #QmiDevice.
  * @res: a #GAsyncResult.
- * @error: a #GError.
+ * @error: Return location for error or %NULL.
  *
  * Finishes an operation started with qmi_device_release_client().
  *
  * Note that even if the release operation returns an error, the client should
  * anyway be considered released, and shouldn't be used afterwards.
  *
- * Returns: #TRUE if successful, or #NULL if @error is set.
+ * Returns: %TRUE if successful, or #NULL if @error is set.
  */
 gboolean
 qmi_device_release_client_finish (QmiDevice *self,
@@ -922,11 +910,11 @@ qmi_device_release_client (QmiDevice *self,
  * @self: a #QmiDevice.
  * @res: a #GAsyncResult.
  * @link_id: a placeholder for the output #guint16, or #NULL if not required.
- * @error: a #GError.
+ * @error: Return location for error or %NULL.
  *
  * Finishes an operation started with qmi_device_set_instance_id().
  *
- * Returns: #TRUE if successful, #FALSE if @error is set.
+ * Returns: %TRUE if successful, %FALSE if @error is set.
  */
 gboolean
 qmi_device_set_instance_id_finish (QmiDevice *self,
@@ -1055,8 +1043,7 @@ static void
 process_message (QmiDevice *self,
                  QmiMessage *message)
 {
-#ifdef MESSAGE_ENABLE_TRACE
-    {
+    if (qmi_utils_get_traces_enabled ()) {
         gchar *printable;
 
         printable = qmi_message_get_printable (message, ">>>>>> ");
@@ -1065,7 +1052,6 @@ process_message (QmiDevice *self,
                  printable);
         g_free (printable);
     }
-#endif /* MESSAGE_ENABLE_TRACE */
 
     if (qmi_message_is_indication (message)) {
         if (qmi_message_get_client_id (message) == QMI_CID_BROADCAST) {
@@ -1303,11 +1289,11 @@ device_open_context_complete_and_free (DeviceOpenContext *ctx)
  * qmi_device_open_finish:
  * @self: a #QmiDevice.
  * @res: a #GAsyncResult.
- * @error: a #GError.
+ * @error: Return location for error or %NULL.
  *
- * Finishes an asynchronous open operation started with qmi_device_open_async().
+ * Finishes an asynchronous open operation started with qmi_device_open().
  *
- * Returns: #TRUE if successful, #FALSE if @error is set.
+ * Returns: %TRUE if successful, %FALSE if @error is set.
  */
 gboolean
 qmi_device_open_finish (QmiDevice *self,
@@ -1638,13 +1624,13 @@ destroy_iochannel (QmiDevice *self,
 /**
  * qmi_device_close:
  * @self: a #QmiDevice
- * @error: a #GError
+ * @error: Return location for error or %NULL.
  *
  * Synchronously closes a #QmiDevice, preventing any further I/O.
  *
  * Closing a #QmiDevice multiple times will not return an error.
  *
- * Returns: #TRUE if successful, #FALSE if @error is set.
+ * Returns: %TRUE if successful, %FALSE if @error is set.
  */
 gboolean
 qmi_device_close (QmiDevice *self,
@@ -1727,8 +1713,7 @@ qmi_device_command (QmiDevice *self,
         return;
     }
 
-#ifdef MESSAGE_ENABLE_TRACE
-    {
+    if (qmi_utils_get_traces_enabled ()) {
         gchar *printable;
 
         printable = qmi_message_get_printable (message, "<<<<<< ");
@@ -1737,7 +1722,6 @@ qmi_device_command (QmiDevice *self,
                  printable);
         g_free (printable);
     }
-#endif /* MESSAGE_ENABLE_TRACE */
 
     /* Get raw message */
     raw_message = qmi_message_get_raw (message, &raw_message_len, &error);
@@ -1794,7 +1778,7 @@ qmi_device_command (QmiDevice *self,
 /**
  * qmi_device_new_finish:
  * @res: a #GAsyncResult.
- * @error: a #GError.
+ * @error: Return location for error or %NULL.
  *
  * Finishes an operation started with qmi_device_new().
  *
@@ -1986,10 +1970,6 @@ set_property (GObject *object,
         self->priv->path = g_file_get_path (self->priv->file);
         self->priv->path_display = g_filename_display_name (self->priv->path);
         break;
-    case PROP_CLIENT_CTL:
-        /* Not writable */
-        g_assert_not_reached ();
-        break;
     default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
         break;
@@ -2007,9 +1987,6 @@ get_property (GObject *object,
     switch (prop_id) {
     case PROP_FILE:
         g_value_set_object (value, self->priv->file);
-        break;
-    case PROP_CLIENT_CTL:
-        g_value_set_object (value, self->priv->client_ctl);
         break;
     default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -2120,12 +2097,4 @@ qmi_device_class_init (QmiDeviceClass *klass)
                              G_TYPE_FILE,
                              G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY);
     g_object_class_install_property (object_class, PROP_FILE, properties[PROP_FILE]);
-
-    properties[PROP_CLIENT_CTL] =
-        g_param_spec_object (QMI_DEVICE_CLIENT_CTL,
-                             "CTL client",
-                             "Implicit CTL client",
-                             QMI_TYPE_CLIENT_CTL,
-                             G_PARAM_READABLE);
-    g_object_class_install_property (object_class, PROP_CLIENT_CTL, properties[PROP_CLIENT_CTL]);
 }

@@ -23,6 +23,10 @@
 #ifndef _LIBQMI_GLIB_QMI_DEVICE_H_
 #define _LIBQMI_GLIB_QMI_DEVICE_H_
 
+#if !defined (__LIBQMI_GLIB_H_INSIDE__) && !defined (LIBQMI_GLIB_COMPILATION)
+#error "Only <libqmi-glib.h> can be included directly."
+#endif
+
 #include <glib-object.h>
 #include <gio/gio.h>
 
@@ -43,15 +47,22 @@ typedef struct _QmiDevice QmiDevice;
 typedef struct _QmiDeviceClass QmiDeviceClass;
 typedef struct _QmiDevicePrivate QmiDevicePrivate;
 
-#define QMI_DEVICE_FILE       "device-file"
-#define QMI_DEVICE_CLIENT_CTL "device-client-ctl"
+#define QMI_DEVICE_FILE "device-file"
 
+/**
+ * QmiDevice:
+ *
+ * The #QmiDevice structure contains private data and should only be accessed
+ * using the provided API.
+ */
 struct _QmiDevice {
+    /*< private >*/
     GObject parent;
     QmiDevicePrivate *priv;
 };
 
 struct _QmiDeviceClass {
+    /*< private >*/
     GObjectClass parent;
 };
 

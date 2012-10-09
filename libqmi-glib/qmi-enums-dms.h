@@ -23,7 +23,17 @@
 #ifndef _LIBQMI_GLIB_QMI_ENUMS_DMS_H_
 #define _LIBQMI_GLIB_QMI_ENUMS_DMS_H_
 
-#include <glib.h>
+#if !defined (__LIBQMI_GLIB_H_INSIDE__) && !defined (LIBQMI_GLIB_COMPILATION)
+#error "Only <libqmi-glib.h> can be included directly."
+#endif
+
+/**
+ * SECTION: qmi-enums-dms
+ * @title: DMS enumerations and flags
+ *
+ * This section defines enumerations and flags used in the DMS service
+ * interface.
+ */
 
 /*****************************************************************************/
 /* Helper enums for the 'QMI DMS Get Capabilities' message */
@@ -128,7 +138,7 @@ typedef enum {
 /* Helper enums for the 'QMI DMS UIM Get PIN Status' message */
 
 /**
- * QmiDmsPinStatus:
+ * QmiDmsUimPinStatus:
  * @QMI_DMS_UIM_PIN_STATUS_NOT_INITIALIZED: Not initialized.
  * @QMI_DMS_UIM_PIN_STATUS_ENABLED_NOT_VERIFIED: Enabled, not verified.
  * @QMI_DMS_UIM_PIN_STATUS_ENABLED_VERIFIED: Enabled, verified.

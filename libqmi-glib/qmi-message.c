@@ -35,6 +35,8 @@
 
 #include "qmi-message.h"
 #include "qmi-utils.h"
+#include "qmi-enums-private.h"
+#include "qmi-enum-types-private.h"
 #include "qmi-enum-types.h"
 #include "qmi-error-types.h"
 
@@ -145,7 +147,7 @@ get_qmi_flags (QmiMessage *self)
  *
  * Checks whether the given #QmiMessage is a response.
  *
- * Returns: #TRUE if @self is a response message, #FALSE otherwise.
+ * Returns: %TRUE if @self is a response message, %FALSE otherwise.
  */
 gboolean
 qmi_message_is_response (QmiMessage *self)
@@ -167,7 +169,7 @@ qmi_message_is_response (QmiMessage *self)
  *
  * Checks whether the given #QmiMessage is an indication.
  *
- * Returns: #TRUE if @self is an indication message, #FALSE otherwise.
+ * Returns: %TRUE if @self is an indication message, %FALSE otherwise.
  */
 gboolean
 qmi_message_is_indication (QmiMessage *self)
@@ -341,7 +343,7 @@ qmi_tlv_next (QmiMessage *self,
  *    field are all consistent.
  * 3. The TLVs in the message fit exactly in the payload size.
  *
- * Returns: #TRUE if the message is valid, #FALSE otherwise.
+ * Returns: %TRUE if the message is valid, %FALSE otherwise.
  */
 static gboolean
 message_check (QmiMessage *self,
@@ -529,7 +531,7 @@ qmi_message_unref (QmiMessage *self)
 /**
  * qmi_message_get_raw:
  * @self: a #QmiMessage.
- * @len: (out): return location for the size of the output buffer.
+ * @length: (out): return location for the size of the output buffer.
  * @error: return location for error or %NULL.
  *
  * Gets the raw data buffer of the #QmiMessage.
@@ -553,7 +555,6 @@ qmi_message_get_raw (QmiMessage *self,
  * @self: a #QmiMessage.
  * @type: specific ID of the TLV to get.
  * @length: (out): return location for the length of the TLV.
- * @error: return location for error or %NULL.
  *
  * Get the raw data buffer of a specific TLV within the #QmiMessage.
  *
@@ -615,7 +616,7 @@ qmi_message_foreach_raw_tlv (QmiMessage *self,
  *
  * Creates a new @type TLV with the value given in @raw, and adds it to the #QmiMessage.
  *
- * Returns: #TRUE if the TLV as successfully added, otherwise #FALSE is returned and @error is set.
+ * Returns: %TRUE if the TLV as successfully added, otherwise %FALSE is returned and @error is set.
  */
 gboolean
 qmi_message_add_raw_tlv (QmiMessage *self,
@@ -739,7 +740,7 @@ qmi_message_get_tlv_printable (QmiMessage *self,
     g_return_val_if_fail (raw != NULL, NULL);
     g_return_val_if_fail (raw_length > 0, NULL);
 
-    value_hex = qmi_utils_str_hex (raw, raw_length, ':');
+    value_hex = __qmi_utils_str_hex (raw, raw_length, ':');
     printable = g_strdup_printf ("%sTLV:\n"
                                  "%s  type   = 0x%02x\n"
                                  "%s  length = %" G_GSIZE_FORMAT "\n"
@@ -838,22 +839,22 @@ qmi_message_get_printable (QmiMessage *self,
     contents = NULL;
     switch (qmi_message_get_service (self)) {
     case QMI_SERVICE_CTL:
-        contents = qmi_message_ctl_get_printable (self, line_prefix);
+        contents = __qmi_message_ctl_get_printable (self, line_prefix);
         break;
     case QMI_SERVICE_DMS:
-        contents = qmi_message_dms_get_printable (self, line_prefix);
+        contents = __qmi_message_dms_get_printable (self, line_prefix);
         break;
     case QMI_SERVICE_WDS:
-        contents = qmi_message_wds_get_printable (self, line_prefix);
+        contents = __qmi_message_wds_get_printable (self, line_prefix);
         break;
     case QMI_SERVICE_NAS:
-        contents = qmi_message_nas_get_printable (self, line_prefix);
+        contents = __qmi_message_nas_get_printable (self, line_prefix);
         break;
     case QMI_SERVICE_WMS:
-        contents = qmi_message_wms_get_printable (self, line_prefix);
+        contents = __qmi_message_wms_get_printable (self, line_prefix);
         break;
     case QMI_SERVICE_PDS:
-        contents = qmi_message_pds_get_printable (self, line_prefix);
+        contents = __qmi_message_pds_get_printable (self, line_prefix);
         break;
     default:
         break;
@@ -875,7 +876,7 @@ qmi_message_get_printable (QmiMessage *self,
  *
  * Gets, if known, the service version in which the given message was first introduced.
  *
- * Returns: #TRUE if @major and @minor are set, #FALSE otherwise.
+ * Returns: %TRUE if @major and @minor are set, %FALSE otherwise.
  */
 gboolean
 qmi_message_get_version_introduced (QmiMessage *self,
@@ -890,19 +891,19 @@ qmi_message_get_version_introduced (QmiMessage *self,
         return TRUE;
 
     case QMI_SERVICE_DMS:
-        return qmi_message_dms_get_version_introduced (self, major, minor);
+        return __qmi_message_dms_get_version_introduced (self, major, minor);
 
     case QMI_SERVICE_WDS:
-        return qmi_message_wds_get_version_introduced (self, major, minor);
+        return __qmi_message_wds_get_version_introduced (self, major, minor);
 
     case QMI_SERVICE_NAS:
-        return qmi_message_nas_get_version_introduced (self, major, minor);
+        return __qmi_message_nas_get_version_introduced (self, major, minor);
 
     case QMI_SERVICE_WMS:
-        return qmi_message_wms_get_version_introduced (self, major, minor);
+        return __qmi_message_wms_get_version_introduced (self, major, minor);
 
     case QMI_SERVICE_PDS:
-        return qmi_message_pds_get_version_introduced (self, major, minor);
+        return __qmi_message_pds_get_version_introduced (self, major, minor);
 
     default:
         /* For the still unsupported services, cannot do anything */
