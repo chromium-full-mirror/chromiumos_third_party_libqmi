@@ -423,6 +423,7 @@ typedef enum {
 
 /**
  * QmiNasDataCapability:
+ * @QMI_NAS_DATA_CAPABILITY_NONE: None or unknown.
  * @QMI_NAS_DATA_CAPABILITY_GPRS: GPRS.
  * @QMI_NAS_DATA_CAPABILITY_EDGE: EDGE.
  * @QMI_NAS_DATA_CAPABILITY_HSDPA: HSDPA.
@@ -440,6 +441,7 @@ typedef enum {
  * Data capability of the network.
  */
 typedef enum {
+    QMI_NAS_DATA_CAPABILITY_NONE          = 0x00,
     QMI_NAS_DATA_CAPABILITY_GPRS          = 0x01,
     QMI_NAS_DATA_CAPABILITY_EDGE          = 0x02,
     QMI_NAS_DATA_CAPABILITY_HSDPA         = 0x03,
@@ -821,5 +823,17 @@ typedef enum {
     QMI_NAS_SIM_REJECT_STATE_SIM_PS_INVALID    = 3,
     QMI_NAS_SIM_REJECT_STATE_SIM_CS_PS_INVALID = 4
 } QmiNasSimRejectState;
+
+/**
+ * QmiNasCdmaPilotType:
+ * @QMI_NAS_CDMA_PILOT_TYPE_ACTIVE: the pilot is part of the active set.
+ * @QMI_NAS_CDMA_PILOT_TYPE_NEIGHBOR: the pilot is part of the neighbor set.
+ *
+ * The pilot set the pilot belongs to.
+ */
+typedef enum {
+    QMI_NAS_CDMA_PILOT_TYPE_ACTIVE   = 0,
+    QMI_NAS_CDMA_PILOT_TYPE_NEIGHBOR = 1,
+} QmiNasCdmaPilotType;
 
 #endif /* _LIBQMI_GLIB_QMI_ENUMS_NAS_H_ */
