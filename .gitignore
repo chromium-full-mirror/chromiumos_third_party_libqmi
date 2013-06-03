@@ -3,12 +3,11 @@
 *.lo
 *.la
 *.bz2
+*.pyc
 
-ChangeLog
 INSTALL
 Makefile
 Makefile.in
-README
 aclocal.m4
 autom4te.cache
 compile
