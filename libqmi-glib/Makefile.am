@@ -9,12 +9,14 @@ libqmi_glib_la_CPPFLAGS = \
 	-I$(top_builddir) \
 	-I$(top_srcdir)/libqmi-glib \
 	-I$(top_srcdir)/libqmi-glib/generated \
+	-I$(top_builddir)/libqmi-glib \
 	-I$(top_builddir)/libqmi-glib/generated \
 	-DLIBQMI_GLIB_COMPILATION \
 	-DG_LOG_DOMAIN=\"Qmi\"
 
 libqmi_glib_la_SOURCES = \
 	libqmi-glib.h \
+	qmi-version.h \
 	qmi-errors.h \
 	qmi-enums-wds.h qmi-enums-wds.c \
 	qmi-enums-dms.h qmi-flags64-dms.h \
@@ -31,9 +33,13 @@ libqmi_glib_la_LIBADD = \
 	${top_builddir}/libqmi-glib/generated/libqmi-glib-generated.la \
 	$(LIBQMI_GLIB_LIBS)
 
+libqmi_glib_la_LDFLAGS = \
+	-version-info $(QMI_GLIB_LT_CURRENT):$(QMI_GLIB_LT_REVISION):$(QMI_GLIB_LT_AGE)
+
 includedir = @includedir@/libqmi-glib
 include_HEADERS = \
 	libqmi-glib.h \
+	qmi-version.h \
 	qmi-errors.h \
 	qmi-enums.h \
 	qmi-enums-private.h \
@@ -46,3 +52,6 @@ include_HEADERS = \
 	qmi-message.h \
 	qmi-device.h \
 	qmi-client.h
+
+EXTRA_DIST = \
+	qmi-version.h.in
