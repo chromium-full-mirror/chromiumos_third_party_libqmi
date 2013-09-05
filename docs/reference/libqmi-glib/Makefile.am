@@ -13,7 +13,9 @@ ALL_SECTIONS = \
 	$(top_builddir)/libqmi-glib/generated/qmi-wds.sections \
 	$(top_builddir)/libqmi-glib/generated/qmi-wms.sections \
 	$(top_builddir)/libqmi-glib/generated/qmi-pds.sections \
-	$(top_builddir)/libqmi-glib/generated/qmi-pbm.sections
+	$(top_builddir)/libqmi-glib/generated/qmi-pbm.sections \
+	$(top_builddir)/libqmi-glib/generated/qmi-uim.sections \
+	$(top_builddir)/libqmi-glib/generated/qmi-oma.sections
 
 $(DOC_MODULE)-sections.mstamp: $(ALL_SECTIONS)
 	$(AM_V_GEN) \

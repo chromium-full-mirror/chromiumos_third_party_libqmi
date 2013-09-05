@@ -3,7 +3,7 @@ AC_PREREQ([2.68])
 
 dnl The QMI version number
 m4_define([qmi_major_version], [1])
-m4_define([qmi_minor_version], [5])
+m4_define([qmi_minor_version], [6])
 m4_define([qmi_micro_version], [0])
 m4_define([qmi_version],
           [qmi_major_version.qmi_minor_version.qmi_micro_version])
@@ -16,7 +16,7 @@ dnl        If the interface has grown (that is, the new library is compatible
 dnl            with old code), increment a.
 dnl        If the interface has changed in an incompatible way (that is,
 dnl            functions have changed or been removed), then zero a.
-m4_define([qmi_glib_lt_current],  [0])
+m4_define([qmi_glib_lt_current],  [1])
 m4_define([qmi_glib_lt_revision], [0])
 m4_define([qmi_glib_lt_age],      [0])
 
@@ -86,6 +86,10 @@ AC_SUBST(GLIB_MKENUMS)
 dnl Documentation
 GTK_DOC_CHECK(1.0)
 
+dnl Man page
+AC_PATH_PROG(HELP2MAN, help2man, false)
+AM_CONDITIONAL(BUILDOPT_MAN, test x$HELP2MAN != xfalse)
+
 AC_CONFIG_FILES([Makefile
                  data/Makefile
                  data/pkg-config/Makefile
@@ -103,7 +107,8 @@ AC_CONFIG_FILES([Makefile
                  docs/Makefile
                  docs/reference/Makefile
                  docs/reference/libqmi-glib/Makefile
-                 docs/reference/libqmi-glib/version.xml])
+                 docs/reference/libqmi-glib/version.xml
+                 docs/man/Makefile])
 AC_OUTPUT
 
 echo "

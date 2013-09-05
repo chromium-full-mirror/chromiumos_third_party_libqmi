@@ -24,6 +24,8 @@ libqmi_glib_la_SOURCES = \
 	qmi-enums-wms.h \
 	qmi-enums-pds.h \
 	qmi-enums-pbm.h \
+	qmi-enums-uim.h \
+	qmi-enums-oma.h \
 	qmi-enums.h qmi-enums-private.h \
 	qmi-utils.h qmi-utils.c \
 	qmi-message.h qmi-message.c \
@@ -50,6 +52,8 @@ include_HEADERS = \
 	qmi-enums-wms.h \
 	qmi-enums-pds.h \
 	qmi-enums-pbm.h \
+	qmi-enums-uim.h \
+	qmi-enums-oma.h \
 	qmi-utils.h \
 	qmi-message.h \
 	qmi-device.h \
