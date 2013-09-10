@@ -4,14 +4,15 @@ SUBDIRS = generated . test
 lib_LTLIBRARIES = libqmi-glib.la
 
 libqmi_glib_la_CPPFLAGS = \
-	$(LIBQMI_GLIB_CFLAGS) \
+	$(GLIB_CFLAGS) \
 	-I$(top_srcdir) \
 	-I$(top_builddir) \
-	-I$(top_srcdir)/libqmi-glib \
-	-I$(top_srcdir)/libqmi-glib/generated \
-	-I$(top_builddir)/libqmi-glib \
-	-I$(top_builddir)/libqmi-glib/generated \
+	-I$(top_srcdir)/src/libqmi-glib \
+	-I$(top_srcdir)/src/libqmi-glib/generated \
+	-I$(top_builddir)/src/libqmi-glib \
+	-I$(top_builddir)/src/libqmi-glib/generated \
 	-DLIBQMI_GLIB_COMPILATION \
+	-DLIBEXEC_PATH=\""$(libexecdir)"\" \
 	-DG_LOG_DOMAIN=\"Qmi\"
 
 libqmi_glib_la_SOURCES = \
@@ -30,11 +31,12 @@ libqmi_glib_la_SOURCES = \
 	qmi-utils.h qmi-utils.c \
 	qmi-message.h qmi-message.c \
 	qmi-device.h qmi-device.c \
-	qmi-client.h qmi-client.c
+	qmi-client.h qmi-client.c \
+	qmi-proxy.h qmi-proxy.c
 
 libqmi_glib_la_LIBADD = \
-	${top_builddir}/libqmi-glib/generated/libqmi-glib-generated.la \
-	$(LIBQMI_GLIB_LIBS)
+	${top_builddir}/src/libqmi-glib/generated/libqmi-glib-generated.la \
+	$(GLIB_LIBS)
 
 libqmi_glib_la_LDFLAGS = \
 	-version-info $(QMI_GLIB_LT_CURRENT):$(QMI_GLIB_LT_REVISION):$(QMI_GLIB_LT_AGE)
@@ -57,7 +59,8 @@ include_HEADERS = \
 	qmi-utils.h \
 	qmi-message.h \
 	qmi-device.h \
-	qmi-client.h
+	qmi-client.h \
+	qmi-proxy.h
 
 EXTRA_DIST = \
 	qmi-version.h.in

@@ -26,6 +26,9 @@
 #include <termios.h>
 #include <unistd.h>
 #include <gio/gio.h>
+#include <gio/gunixinputstream.h>
+#include <gio/gunixoutputstream.h>
+#include <gio/gunixsocketaddress.h>
 
 #include "qmi-device.h"
 #include "qmi-message.h"
@@ -41,6 +44,7 @@
 #include "qmi-utils.h"
 #include "qmi-error-types.h"
 #include "qmi-enum-types.h"
+#include "qmi-proxy.h"
 
 /**
  * SECTION:qmi-device
@@ -58,13 +62,21 @@ static void async_initable_iface_init (GAsyncInitableIface *iface);
 G_DEFINE_TYPE_EXTENDED (QmiDevice, qmi_device, G_TYPE_OBJECT, 0,
                         G_IMPLEMENT_INTERFACE (G_TYPE_ASYNC_INITABLE, async_initable_iface_init))
 
+#define MAX_SPAWN_RETRIES 10
+
 enum {
     PROP_0,
     PROP_FILE,
     PROP_LAST
 };
 
+enum {
+    SIGNAL_INDICATION,
+    SIGNAL_LAST
+};
+
 static GParamSpec *properties[PROP_LAST];
+static guint       signals   [SIGNAL_LAST] = { 0 };
 
 struct _QmiDevicePrivate {
     /* File */
@@ -79,10 +91,15 @@ struct _QmiDevicePrivate {
     /* Supported services */
     GArray *supported_services;
 
-    /* I/O channel, set when the file is open */
-    GIOChannel *iochannel;
-    guint watch_id;
-    GByteArray *response;
+    /* I/O stream, set when the file is open */
+    GInputStream *istream;
+    GOutputStream *ostream;
+    GSource *input_source;
+    GByteArray *buffer;
+
+    /* Support for qmi-proxy */
+    GSocketClient *socket_client;
+    GSocketConnection *socket_connection;
 
     /* HT to keep track of ongoing transactions */
     GHashTable *transactions;
@@ -568,7 +585,7 @@ qmi_device_is_open (QmiDevice *self)
 {
     g_return_val_if_fail (QMI_IS_DEVICE (self), FALSE);
 
-    return !!self->priv->iochannel;
+    return !!(self->priv->istream && self->priv->ostream);
 }
 
 /*****************************************************************************/
@@ -1174,7 +1191,7 @@ qmi_device_set_instance_id (QmiDevice *self,
 }
 
 /*****************************************************************************/
-/* Open device */
+/* Input channel processing */
 
 typedef struct {
     QmiClient *client;
@@ -1235,6 +1252,9 @@ process_message (QmiDevice *self,
     }
 
     if (qmi_message_is_indication (message)) {
+        /* Generic emission of the indication */
+        g_signal_emit (self, signals[SIGNAL_INDICATION], 0, message);
+
         if (qmi_message_get_client_id (message) == QMI_CID_BROADCAST) {
             GHashTableIter iter;
             gpointer key;
@@ -1288,15 +1308,15 @@ parse_response (QmiDevice *self)
          * If it doesn't, we broke framing :-/
          * If we broke framing, an error should be reported and the device
          * should get closed */
-        if (self->priv->response->len > 0 &&
-            self->priv->response->data[0] != QMI_MESSAGE_QMUX_MARKER) {
+        if (self->priv->buffer->len > 0 &&
+            self->priv->buffer->data[0] != QMI_MESSAGE_QMUX_MARKER) {
             /* TODO: Report fatal error */
             g_warning ("[%s] QMI framing error detected",
                        self->priv->path_display);
             return;
         }
 
-        message = qmi_message_new_from_raw (self->priv->response, &error);
+        message = qmi_message_new_from_raw (self->priv->buffer, &error);
         if (!message) {
             if (!error)
                 /* More data we need */
@@ -1312,144 +1332,265 @@ parse_response (QmiDevice *self)
             process_message (self, message);
             qmi_message_unref (message);
         }
-    } while (self->priv->response->len > 0);
+    } while (self->priv->buffer->len > 0);
 }
 
 static gboolean
-data_available (GIOChannel *source,
-                GIOCondition condition,
+input_ready_cb (GInputStream *istream,
                 QmiDevice *self)
 {
-    gsize bytes_read;
-    GIOStatus status;
-    gchar buffer[BUFFER_SIZE + 1];
+    guint8 buffer[BUFFER_SIZE];
+    GError *error = NULL;
+    gssize read;
 
-    if (condition & G_IO_HUP) {
-        g_debug ("[%s] unexpected port hangup!",
-                 self->priv->path_display);
-
-        if (self->priv->response &&
-            self->priv->response->len)
-            g_byte_array_remove_range (self->priv->response, 0, self->priv->response->len);
-
+    read = g_pollable_input_stream_read_nonblocking (G_POLLABLE_INPUT_STREAM (istream),
+                                                     buffer,
+                                                     BUFFER_SIZE,
+                                                     NULL,
+                                                     &error);
+    if (read < 0) {
+        g_warning ("Error reading from istream: %s", error ? error->message : "unknown");
+        if (error)
+            g_error_free (error);
+        /* Close the device */
         qmi_device_close (self, NULL);
         return FALSE;
     }
 
-    if (condition & G_IO_ERR) {
-        if (self->priv->response &&
-            self->priv->response->len)
-            g_byte_array_remove_range (self->priv->response, 0, self->priv->response->len);
-        return TRUE;
+    if (read == 0) {
+        /* HUP! */
+        g_warning ("Cannot read from istream: connection broken");
+        return FALSE;
     }
 
-    /* If not ready yet, prepare the response with default initial size. */
-    if (G_UNLIKELY (!self->priv->response))
-        self->priv->response = g_byte_array_sized_new (500);
+    /* else, read > 0 */
+    if (!G_UNLIKELY (self->priv->buffer))
+        self->priv->buffer = g_byte_array_sized_new (read);
+    g_byte_array_append (self->priv->buffer, buffer, read);
 
-    do {
-        GError *error = NULL;
-
-        status = g_io_channel_read_chars (source,
-                                          buffer,
-                                          BUFFER_SIZE,
-                                          &bytes_read,
-                                          &error);
-        if (status == G_IO_STATUS_ERROR) {
-            if (error) {
-                g_warning ("[%s] error reading from the IOChannel: '%s'",
-                           self->priv->path_display,
-                           error->message);
-                g_error_free (error);
-            }
-
-            /* Port is closed; we're done */
-            if (self->priv->watch_id == 0)
-                break;
-        }
-
-        /* If no bytes read, just let g_io_channel wait for more data */
-        if (bytes_read == 0)
-            break;
-
-        if (bytes_read > 0)
-            g_byte_array_append (self->priv->response, (const guint8 *)buffer, bytes_read);
-
-        /* Try to parse what we already got */
-        parse_response (self);
-
-        /* And keep on if we were told to keep on */
-    } while (bytes_read == BUFFER_SIZE || status == G_IO_STATUS_AGAIN);
+    /* Try to parse input messages */
+    parse_response (self);
 
     return TRUE;
-}
-
-static gboolean
-create_iochannel (QmiDevice *self,
-                  GError **error)
-{
-    GError *inner_error = NULL;
-    gint fd;
-
-    if (self->priv->iochannel) {
-        g_set_error (error,
-                     QMI_CORE_ERROR,
-                     QMI_CORE_ERROR_WRONG_STATE,
-                     "Already open");
-        return FALSE;
-    }
-
-    g_assert (self->priv->file);
-    g_assert (self->priv->path);
-
-    errno = 0;
-    fd = open (self->priv->path, O_RDWR | O_EXCL | O_NONBLOCK | O_NOCTTY);
-    if (fd < 0) {
-        g_set_error (error,
-                     QMI_CORE_ERROR,
-                     QMI_CORE_ERROR_FAILED,
-                     "Cannot open device file '%s': %s",
-                     self->priv->path_display,
-                     strerror (errno));
-        return FALSE;
-    }
-
-    /* Create new GIOChannel */
-    self->priv->iochannel = g_io_channel_unix_new (fd);
-
-    /* We don't want UTF-8 encoding, we're playing with raw binary data */
-    g_io_channel_set_encoding (self->priv->iochannel, NULL, NULL);
-
-    /* We don't want to get the channel buffered */
-    g_io_channel_set_buffered (self->priv->iochannel, FALSE);
-
-    /* Let the GIOChannel own the FD */
-    g_io_channel_set_close_on_unref (self->priv->iochannel, TRUE);
-
-    /* We don't want to get blocked while writing stuff */
-    if (!g_io_channel_set_flags (self->priv->iochannel,
-                                 G_IO_FLAG_NONBLOCK,
-                                 &inner_error)) {
-        g_prefix_error (&inner_error, "Cannot set non-blocking channel: ");
-        g_propagate_error (error, inner_error);
-        g_io_channel_shutdown (self->priv->iochannel, FALSE, NULL);
-        g_io_channel_unref (self->priv->iochannel);
-        self->priv->iochannel = NULL;
-        return FALSE;
-    }
-
-    self->priv->watch_id = g_io_add_watch (self->priv->iochannel,
-                                           G_IO_IN | G_IO_ERR | G_IO_HUP,
-                                           (GIOFunc)data_available,
-                                           self);
-
-    return !!self->priv->iochannel;
 }
 
 typedef struct {
     QmiDevice *self;
     GSimpleAsyncResult *result;
+    guint spawn_retries;
+} CreateIostreamContext;
+
+static void
+create_iostream_context_complete_and_free (CreateIostreamContext *ctx)
+{
+    g_simple_async_result_complete_in_idle (ctx->result);
+    g_object_unref (ctx->result);
+    g_object_unref (ctx->self);
+    g_slice_free (CreateIostreamContext, ctx);
+}
+
+static gboolean
+create_iostream_finish (QmiDevice *self,
+                        GAsyncResult *res,
+                        GError **error)
+{
+    return !g_simple_async_result_propagate_error (G_SIMPLE_ASYNC_RESULT (res), error);
+}
+
+static void
+setup_iostream (CreateIostreamContext *ctx)
+{
+    /* Check in/out streams */
+    if (!ctx->self->priv->istream || !ctx->self->priv->ostream) {
+        g_simple_async_result_set_error (
+            ctx->result,
+            QMI_CORE_ERROR,
+            QMI_CORE_ERROR_FAILED,
+            "Cannot get input/output streams");
+        g_clear_object (&ctx->self->priv->istream);
+        g_clear_object (&ctx->self->priv->ostream);
+        g_clear_object (&ctx->self->priv->socket_connection);
+        g_clear_object (&ctx->self->priv->socket_client);
+        create_iostream_context_complete_and_free (ctx);
+        return;
+    }
+
+    /* Setup input events */
+    ctx->self->priv->input_source = (g_pollable_input_stream_create_source (
+                                         G_POLLABLE_INPUT_STREAM (
+                                             ctx->self->priv->istream),
+                                         NULL));
+    g_source_set_callback (ctx->self->priv->input_source,
+                           (GSourceFunc)input_ready_cb,
+                           ctx->self,
+                           NULL);
+    g_source_attach (ctx->self->priv->input_source, NULL);
+    g_simple_async_result_set_op_res_gboolean (ctx->result, TRUE);
+    create_iostream_context_complete_and_free (ctx);
+}
+
+static void
+create_iostream_with_fd (CreateIostreamContext *ctx)
+{
+    gint fd;
+
+    fd = open (ctx->self->priv->path, O_RDWR | O_EXCL | O_NONBLOCK | O_NOCTTY);
+    if (fd < 0) {
+        g_simple_async_result_set_error (
+            ctx->result,
+            QMI_CORE_ERROR,
+            QMI_CORE_ERROR_FAILED,
+            "Cannot open device file '%s': %s",
+            ctx->self->priv->path_display,
+            strerror (errno));
+        create_iostream_context_complete_and_free (ctx);
+        return;
+    }
+
+    ctx->self->priv->istream = g_unix_input_stream_new  (fd, TRUE);
+    ctx->self->priv->ostream = g_unix_output_stream_new (fd, TRUE);
+
+    setup_iostream (ctx);
+}
+
+static void create_iostream_with_socket (CreateIostreamContext *ctx);
+
+static gboolean
+wait_for_proxy_cb (CreateIostreamContext *ctx)
+{
+    create_iostream_with_socket (ctx);
+    return FALSE;
+}
+
+static void
+create_iostream_with_socket (CreateIostreamContext *ctx)
+{
+    GSocketAddress *socket_address;
+    GError *error = NULL;
+
+    /* Create socket client */
+    ctx->self->priv->socket_client = g_socket_client_new ();
+    g_socket_client_set_family (ctx->self->priv->socket_client, G_SOCKET_FAMILY_UNIX);
+    g_socket_client_set_socket_type (ctx->self->priv->socket_client, G_SOCKET_TYPE_STREAM);
+    g_socket_client_set_protocol (ctx->self->priv->socket_client, G_SOCKET_PROTOCOL_DEFAULT);
+
+    /* Setup socket address */
+    socket_address = (g_unix_socket_address_new_with_type (
+                          QMI_PROXY_SOCKET_PATH,
+                          -1,
+                          G_UNIX_SOCKET_ADDRESS_ABSTRACT));
+
+    /* Connect to address */
+    ctx->self->priv->socket_connection = (g_socket_client_connect (
+                                              ctx->self->priv->socket_client,
+                                              G_SOCKET_CONNECTABLE (socket_address),
+                                              NULL,
+                                              &error));
+    g_object_unref (socket_address);
+
+    if (!ctx->self->priv->socket_connection) {
+        gchar **argc;
+
+        g_debug ("cannot connect to proxy: %s", error->message);
+        g_clear_error (&error);
+        g_clear_object (&ctx->self->priv->socket_client);
+
+        /* Don't retry forever */
+        ctx->spawn_retries++;
+        if (ctx->spawn_retries > MAX_SPAWN_RETRIES) {
+            g_simple_async_result_set_error (ctx->result,
+                                             QMI_CORE_ERROR,
+                                             QMI_CORE_ERROR_FAILED,
+                                             "Couldn't spawn the qmi-proxy");
+            create_iostream_context_complete_and_free (ctx);
+            return;
+        }
+
+        g_debug ("spawning new qmi-proxy (try %u)...", ctx->spawn_retries);
+
+        argc = g_new0 (gchar *, 2);
+        argc[0] = g_strdup (LIBEXEC_PATH "/qmi-proxy");
+        if (!g_spawn_async (NULL, /* working directory */
+                            argc,
+                            NULL, /* envp */
+                            G_SPAWN_STDOUT_TO_DEV_NULL | G_SPAWN_STDERR_TO_DEV_NULL,
+                            NULL, /* child_setup */
+                            NULL, /* child_setup_user_data */
+                            NULL,
+                            &error)) {
+            g_debug ("error spawning qmi-proxy: %s", error->message);
+            g_clear_error (&error);
+        }
+        g_strfreev (argc);
+
+        /* Wait some ms and retry */
+        g_timeout_add (100, (GSourceFunc)wait_for_proxy_cb, ctx);
+        return;
+    }
+
+    ctx->self->priv->istream = g_io_stream_get_input_stream (G_IO_STREAM (ctx->self->priv->socket_connection));
+    if (ctx->self->priv->istream)
+        g_object_ref (ctx->self->priv->istream);
+
+    ctx->self->priv->ostream = g_io_stream_get_output_stream (G_IO_STREAM (ctx->self->priv->socket_connection));
+    if (ctx->self->priv->ostream)
+        g_object_ref (ctx->self->priv->ostream);
+
+    setup_iostream (ctx);
+}
+
+static void
+create_iostream (QmiDevice *self,
+                 gboolean proxy,
+                 GAsyncReadyCallback callback,
+                 gpointer user_data)
+{
+    CreateIostreamContext *ctx;
+
+    ctx = g_slice_new (CreateIostreamContext);
+    ctx->self = g_object_ref (self);
+    ctx->result = g_simple_async_result_new (G_OBJECT (self),
+                                             callback,
+                                             user_data,
+                                             create_iostream);
+    ctx->spawn_retries = 0;
+
+    if (self->priv->istream || self->priv->ostream) {
+        g_simple_async_result_set_error (ctx->result,
+                                         QMI_CORE_ERROR,
+                                         QMI_CORE_ERROR_WRONG_STATE,
+                                         "Already open");
+        create_iostream_context_complete_and_free (ctx);
+        return;
+    }
+
+    g_assert (self->priv->file);
+    g_assert (self->priv->path);
+
+    if (proxy)
+        create_iostream_with_socket (ctx);
+    else
+        create_iostream_with_fd (ctx);
+}
+
+/*****************************************************************************/
+/* Open device */
+
+typedef enum {
+    DEVICE_OPEN_CONTEXT_STEP_FIRST = 0,
+    DEVICE_OPEN_CONTEXT_STEP_CREATE_IOSTREAM,
+    DEVICE_OPEN_CONTEXT_STEP_FLAGS_PROXY,
+    DEVICE_OPEN_CONTEXT_STEP_FLAGS_VERSION_INFO,
+    DEVICE_OPEN_CONTEXT_STEP_FLAGS_SYNC,
+    DEVICE_OPEN_CONTEXT_STEP_FLAGS_NETPORT,
+    DEVICE_OPEN_CONTEXT_STEP_LAST
+} DeviceOpenContextStep;
+
+typedef struct {
+    QmiDevice *self;
+    GSimpleAsyncResult *result;
     GCancellable *cancellable;
+    DeviceOpenContextStep step;
     QmiDeviceOpenFlags flags;
     guint timeout;
     guint version_check_retries;
@@ -1484,7 +1625,7 @@ qmi_device_open_finish (QmiDevice *self,
     return !g_simple_async_result_propagate_error (G_SIMPLE_ASYNC_RESULT (res), error);
 }
 
-static void process_open_flags (DeviceOpenContext *ctx);
+static void device_open_context_step (DeviceOpenContext *ctx);
 
 static void
 ctl_set_data_format_ready (QmiClientCtl *client,
@@ -1513,9 +1654,11 @@ ctl_set_data_format_ready (QmiClientCtl *client,
     g_debug ("[%s] Network port data format operation finished",
              ctx->self->priv->path_display);
 
-    /* Keep on with next flags */
-    process_open_flags (ctx);
     qmi_message_ctl_set_data_format_output_unref (output);
+
+    /* Go on */
+    ctx->step++;
+    device_open_context_step (ctx);
 }
 
 static void
@@ -1545,9 +1688,11 @@ sync_ready (QmiClientCtl *client_ctl,
     g_debug ("[%s] Sync operation finished",
              ctx->self->priv->path_display);
 
-    /* Keep on with next flags */
-    process_open_flags (ctx);
     qmi_message_ctl_sync_output_unref (output);
+
+    /* Go on */
+    ctx->step++;
+    device_open_context_step (ctx);
 }
 
 static void
@@ -1626,9 +1771,60 @@ open_version_info_ready (QmiClientCtl *client_ctl,
                      info->minor_version);
     }
 
-    /* Keep on with next flags */
-    process_open_flags (ctx);
     qmi_message_ctl_get_version_info_output_unref (output);
+
+    /* Go on */
+    ctx->step++;
+    device_open_context_step (ctx);
+}
+
+static void
+internal_proxy_open_ready (QmiClientCtl *client_ctl,
+                           GAsyncResult *res,
+                           DeviceOpenContext *ctx)
+{
+    QmiMessageCtlInternalProxyOpenOutput *output;
+    GError *error = NULL;
+
+    /* Check result of the async operation */
+    output = qmi_client_ctl_internal_proxy_open_finish (client_ctl, res, &error);
+    if (!output) {
+        g_simple_async_result_take_error (ctx->result, error);
+        device_open_context_complete_and_free (ctx);
+        return;
+    }
+
+    /* Check result of the QMI operation */
+    if (!qmi_message_ctl_internal_proxy_open_output_get_result (output, &error)) {
+        g_simple_async_result_take_error (ctx->result, error);
+        device_open_context_complete_and_free (ctx);
+        qmi_message_ctl_internal_proxy_open_output_unref (output);
+        return;
+    }
+
+    qmi_message_ctl_internal_proxy_open_output_unref (output);
+
+    /* Go on */
+    ctx->step++;
+    device_open_context_step (ctx);
+}
+
+static void
+create_iostream_ready (QmiDevice *self,
+                       GAsyncResult *res,
+                       DeviceOpenContext *ctx)
+{
+    GError *error = NULL;
+
+    if (!create_iostream_finish (self, res, &error)) {
+        g_simple_async_result_take_error (ctx->result, error);
+        device_open_context_complete_and_free (ctx);
+        return;
+    }
+
+    /* Go on */
+    ctx->step++;
+    device_open_context_step (ctx);
 }
 
 #define NETPORT_FLAGS (QMI_DEVICE_OPEN_FLAGS_NET_802_3 | \
@@ -1637,72 +1833,117 @@ open_version_info_ready (QmiClientCtl *client_ctl,
                        QMI_DEVICE_OPEN_FLAGS_NET_NO_QOS_HEADER)
 
 static void
-process_open_flags (DeviceOpenContext *ctx)
+device_open_context_step (DeviceOpenContext *ctx)
 {
-    /* Query version info? */
-    if (ctx->flags & QMI_DEVICE_OPEN_FLAGS_VERSION_INFO) {
-        ctx->flags &= ~QMI_DEVICE_OPEN_FLAGS_VERSION_INFO;
-        /* Setup how many times to retry... We'll retry once per second */
-        ctx->version_check_retries = ctx->timeout > 0 ? ctx->timeout : 1;
-        g_debug ("[%s] Checking version info (%u retries)...",
-                 ctx->self->priv->path_display,
-                 ctx->version_check_retries);
-        qmi_client_ctl_get_version_info (ctx->self->priv->client_ctl,
-                                         NULL,
-                                         1,
-                                         ctx->cancellable,
-                                         (GAsyncReadyCallback)open_version_info_ready,
-                                         ctx);
+    switch (ctx->step) {
+    case DEVICE_OPEN_CONTEXT_STEP_FIRST:
+        ctx->step++;
+        /* Fall down */
+
+    case DEVICE_OPEN_CONTEXT_STEP_CREATE_IOSTREAM:
+        create_iostream (ctx->self,
+                         !!(ctx->flags & QMI_DEVICE_OPEN_FLAGS_PROXY),
+                         (GAsyncReadyCallback)create_iostream_ready,
+                         ctx);
         return;
+
+    case DEVICE_OPEN_CONTEXT_STEP_FLAGS_PROXY:
+        /* Initialize communication with proxy? */
+        if (ctx->flags & QMI_DEVICE_OPEN_FLAGS_PROXY) {
+            QmiMessageCtlInternalProxyOpenInput *input;
+
+            input = qmi_message_ctl_internal_proxy_open_input_new ();
+            qmi_message_ctl_internal_proxy_open_input_set_device_path (input, ctx->self->priv->path, NULL);
+            qmi_client_ctl_internal_proxy_open (ctx->self->priv->client_ctl,
+                                                input,
+                                                5,
+                                                ctx->cancellable,
+                                                (GAsyncReadyCallback)internal_proxy_open_ready,
+                                                ctx);
+            qmi_message_ctl_internal_proxy_open_input_unref (input);
+            return;
+        }
+        ctx->step++;
+        /* Fall down */
+
+    case DEVICE_OPEN_CONTEXT_STEP_FLAGS_VERSION_INFO:
+        /* Query version info? */
+        if (ctx->flags & QMI_DEVICE_OPEN_FLAGS_VERSION_INFO) {
+            /* Setup how many times to retry... We'll retry once per second */
+            ctx->version_check_retries = ctx->timeout > 0 ? ctx->timeout : 1;
+            g_debug ("[%s] Checking version info (%u retries)...",
+                     ctx->self->priv->path_display,
+                     ctx->version_check_retries);
+            qmi_client_ctl_get_version_info (ctx->self->priv->client_ctl,
+                                             NULL,
+                                             1,
+                                             ctx->cancellable,
+                                             (GAsyncReadyCallback)open_version_info_ready,
+                                             ctx);
+            return;
+        }
+        ctx->step++;
+        /* Fall down */
+
+    case DEVICE_OPEN_CONTEXT_STEP_FLAGS_SYNC:
+        /* Sync? */
+        if (ctx->flags & QMI_DEVICE_OPEN_FLAGS_SYNC) {
+            g_debug ("[%s] Running sync...",
+                     ctx->self->priv->path_display);
+            qmi_client_ctl_sync (ctx->self->priv->client_ctl,
+                                 NULL,
+                                 ctx->timeout,
+                                 ctx->cancellable,
+                                 (GAsyncReadyCallback)sync_ready,
+                                 ctx);
+            return;
+        }
+        ctx->step++;
+        /* Fall down */
+
+    case DEVICE_OPEN_CONTEXT_STEP_FLAGS_NETPORT:
+        /* Network port setup */
+        if (ctx->flags & NETPORT_FLAGS) {
+            QmiMessageCtlSetDataFormatInput *input;
+            QmiCtlDataFormat qos = QMI_CTL_DATA_FORMAT_QOS_FLOW_HEADER_ABSENT;
+            QmiCtlDataLinkProtocol link_protocol = QMI_CTL_DATA_LINK_PROTOCOL_802_3;
+
+            g_debug ("[%s] Setting network port data format...",
+                     ctx->self->priv->path_display);
+
+            input = qmi_message_ctl_set_data_format_input_new ();
+
+            if (ctx->flags & QMI_DEVICE_OPEN_FLAGS_NET_QOS_HEADER)
+                qos = QMI_CTL_DATA_FORMAT_QOS_FLOW_HEADER_PRESENT;
+            qmi_message_ctl_set_data_format_input_set_format (input, qos, NULL);
+
+            if (ctx->flags & QMI_DEVICE_OPEN_FLAGS_NET_RAW_IP)
+                link_protocol = QMI_CTL_DATA_LINK_PROTOCOL_RAW_IP;
+            qmi_message_ctl_set_data_format_input_set_protocol (input, link_protocol, NULL);
+
+            qmi_client_ctl_set_data_format (ctx->self->priv->client_ctl,
+                                            input,
+                                            5,
+                                            NULL,
+                                            (GAsyncReadyCallback)ctl_set_data_format_ready,
+                                            ctx);
+            qmi_message_ctl_set_data_format_input_unref (input);
+            return;
+        }
+        ctx->step++;
+        /* Fall down */
+
+    case DEVICE_OPEN_CONTEXT_STEP_LAST:
+        /* Nothing else to process, done we are */
+        g_simple_async_result_set_op_res_gboolean (ctx->result, TRUE);
+        device_open_context_complete_and_free (ctx);
+        return;
+
+    default:
+        break;
     }
 
-    /* Sync? */
-    if (ctx->flags & QMI_DEVICE_OPEN_FLAGS_SYNC) {
-        g_debug ("[%s] Running sync...",
-                 ctx->self->priv->path_display);
-        ctx->flags &= ~QMI_DEVICE_OPEN_FLAGS_SYNC;
-        qmi_client_ctl_sync (ctx->self->priv->client_ctl,
-                             NULL,
-                             ctx->timeout,
-                             ctx->cancellable,
-                             (GAsyncReadyCallback)sync_ready,
-                             ctx);
-        return;
-    }
-
-    /* Network port setup */
-    if (ctx->flags & NETPORT_FLAGS) {
-        QmiMessageCtlSetDataFormatInput *input;
-        QmiCtlDataFormat qos = QMI_CTL_DATA_FORMAT_QOS_FLOW_HEADER_ABSENT;
-        QmiCtlDataLinkProtocol link_protocol = QMI_CTL_DATA_LINK_PROTOCOL_802_3;
-
-        g_debug ("[%s] Setting network port data format...",
-                 ctx->self->priv->path_display);
-
-        input = qmi_message_ctl_set_data_format_input_new ();
-
-        if (ctx->flags & QMI_DEVICE_OPEN_FLAGS_NET_QOS_HEADER)
-            qos = QMI_CTL_DATA_FORMAT_QOS_FLOW_HEADER_PRESENT;
-        qmi_message_ctl_set_data_format_input_set_format (input, qos, NULL);
-
-        if (ctx->flags & QMI_DEVICE_OPEN_FLAGS_NET_RAW_IP)
-            link_protocol = QMI_CTL_DATA_LINK_PROTOCOL_RAW_IP;
-        qmi_message_ctl_set_data_format_input_set_protocol (input, link_protocol, NULL);
-
-        ctx->flags &= ~NETPORT_FLAGS;
-        qmi_client_ctl_set_data_format (ctx->self->priv->client_ctl,
-                                        input,
-                                        5,
-                                        NULL,
-                                        (GAsyncReadyCallback)ctl_set_data_format_ready,
-                                        ctx);
-        qmi_message_ctl_set_data_format_input_unref (input);
-        return;
-    }
-
-    /* No more flags to process, done we are */
-    g_simple_async_result_set_op_res_gboolean (ctx->result, TRUE);
-    device_open_context_complete_and_free (ctx);
+    g_assert_not_reached ();
 }
 
 /**
@@ -1728,7 +1969,6 @@ qmi_device_open (QmiDevice *self,
                  gpointer user_data)
 {
     DeviceOpenContext *ctx;
-    GError *error = NULL;
 
     /* Raw IP and 802.3 are mutually exclusive */
     g_return_if_fail (!((flags & QMI_DEVICE_OPEN_FLAGS_NET_802_3) &&
@@ -1750,50 +1990,44 @@ qmi_device_open (QmiDevice *self,
                                              callback,
                                              user_data,
                                              qmi_device_open);
+    ctx->step = DEVICE_OPEN_CONTEXT_STEP_FIRST;
     ctx->flags = flags;
     ctx->timeout = timeout;
     ctx->cancellable = (cancellable ? g_object_ref (cancellable) : NULL);
 
-    if (!create_iochannel (self, &error)) {
-        g_prefix_error (&error,
-                        "Cannot open QMI device: ");
-        g_simple_async_result_take_error (ctx->result, error);
-        device_open_context_complete_and_free (ctx);
-        return;
-    }
-
-    /* Process all open flags */
-    process_open_flags (ctx);
+    /* Start processing */
+    device_open_context_step (ctx);
 }
 
 /*****************************************************************************/
-/* Close channel */
+/* Close stream */
 
 static gboolean
-destroy_iochannel (QmiDevice *self,
-                   GError **error)
+destroy_iostream (QmiDevice *self,
+                  GError **error)
 {
     GError *inner_error = NULL;
 
     /* Already closed? */
-    if (!self->priv->iochannel)
+    if (!self->priv->istream && !self->priv->ostream)
         return TRUE;
 
-    g_io_channel_shutdown (self->priv->iochannel, TRUE, &inner_error);
+    if (self->priv->input_source) {
+        g_source_destroy (self->priv->input_source);
+        g_source_unref (self->priv->input_source);
+        self->priv->input_source = NULL;
+    }
+
+    if (self->priv->buffer) {
+        g_byte_array_unref (self->priv->buffer);
+        self->priv->buffer = NULL;
+    }
 
     /* Failures when closing still make the device to get closed */
-    g_io_channel_unref (self->priv->iochannel);
-    self->priv->iochannel = NULL;
-
-    if (self->priv->watch_id) {
-        g_source_remove (self->priv->watch_id);
-        self->priv->watch_id = 0;
-    }
-
-    if (self->priv->response) {
-        g_byte_array_unref (self->priv->response);
-        self->priv->response = NULL;
-    }
+    g_clear_object (&self->priv->istream);
+    g_clear_object (&self->priv->ostream);
+    g_clear_object (&self->priv->socket_connection);
+    g_clear_object (&self->priv->socket_client);
 
     if (inner_error) {
         g_propagate_error (error, inner_error);
@@ -1820,9 +2054,8 @@ qmi_device_close (QmiDevice *self,
 {
     g_return_val_if_fail (QMI_IS_DEVICE (self), FALSE);
 
-    if (!destroy_iochannel (self, error)) {
-        g_prefix_error (error,
-                        "Cannot close QMI device: ");
+    if (!destroy_iostream (self, error)) {
+        g_prefix_error (error, "Cannot close QMI device: ");
         return FALSE;
     }
 
@@ -1880,16 +2113,24 @@ qmi_device_command (QmiDevice *self,
     Transaction *tr;
     gconstpointer raw_message;
     gsize raw_message_len;
-    gsize written;
-    GIOStatus write_status;
 
     g_return_if_fail (QMI_IS_DEVICE (self));
     g_return_if_fail (message != NULL);
 
+    /* Use a proper transaction id for CTL messages if they don't have one */
+    if (qmi_message_get_service (message) == QMI_SERVICE_CTL &&
+        qmi_message_get_transaction_id (message) == 0) {
+        qmi_message_set_transaction_id (
+            message,
+            qmi_client_get_next_transaction_id (
+                QMI_CLIENT (
+                    self->priv->client_ctl)));
+    }
+
     tr = transaction_new (self, message, cancellable, callback, user_data);
 
     /* Device must be open */
-    if (!self->priv->iochannel) {
+    if (!self->priv->istream || !self->priv->ostream) {
         error = g_error_new (QMI_CORE_ERROR,
                              QMI_CORE_ERROR_WRONG_STATE,
                              "Device must be open to send commands");
@@ -1958,41 +2199,21 @@ qmi_device_command (QmiDevice *self,
         g_free (printable);
     }
 
-    written = 0;
-    write_status = G_IO_STATUS_AGAIN;
-    while (write_status == G_IO_STATUS_AGAIN) {
-        write_status = g_io_channel_write_chars (self->priv->iochannel,
-                                                 raw_message,
-                                                 (gssize)raw_message_len,
-                                                 &written,
-                                                 &error);
-        switch (write_status) {
-        case G_IO_STATUS_ERROR:
-            g_prefix_error (&error, "Cannot write message: ");
-
-            /* Match transaction so that we remove it from our tracking table */
-            tr = device_match_transaction (self, message);
-            transaction_complete_and_free (tr, NULL, error);
-            g_error_free (error);
-            return;
-
-        case G_IO_STATUS_EOF:
-            /* We shouldn't get EOF when writing */
-            g_assert_not_reached ();
-            break;
-
-        case G_IO_STATUS_NORMAL:
-            /* All good, we'll exit the loop now */
-            break;
-
-        case G_IO_STATUS_AGAIN:
-            /* We're in a non-blocking channel and therefore we're up to receive
-             * EAGAIN; just retry in this case. TODO: in an idle? */
-            break;
-        }
+    if (!g_output_stream_write_all (self->priv->ostream,
+                                    raw_message,
+                                    raw_message_len,
+                                    NULL, /* bytes_written */
+                                    NULL, /* cancellable */
+                                    &error)) {
+        g_prefix_error (&error, "Cannot write message: ");
+        /* Match transaction so that we remove it from our tracking table */
+        tr = device_match_transaction (self, message);
+        transaction_complete_and_free (tr, NULL, error);
+        g_error_free (error);
     }
 
-    /* Just return, we'll get response asynchronously */
+    /* Flush explicitly if correctly written */
+    g_output_stream_flush (self->priv->ostream, NULL, NULL);
 }
 
 /*****************************************************************************/
@@ -2292,12 +2513,23 @@ finalize (GObject *object)
 
     g_free (self->priv->path);
     g_free (self->priv->path_display);
-    if (self->priv->watch_id)
-        g_source_remove (self->priv->watch_id);
-    if (self->priv->response)
-        g_byte_array_unref (self->priv->response);
-    if (self->priv->iochannel)
-        g_io_channel_unref (self->priv->iochannel);
+
+    if (self->priv->input_source) {
+        g_source_destroy (self->priv->input_source);
+        g_source_unref (self->priv->input_source);
+    }
+
+    if (self->priv->buffer)
+        g_byte_array_unref (self->priv->buffer);
+
+    if (self->priv->istream)
+        g_object_unref (self->priv->istream);
+    if (self->priv->ostream)
+        g_object_unref (self->priv->ostream);
+    if (self->priv->socket_connection)
+        g_object_unref (self->priv->socket_connection);
+    if (self->priv->socket_client)
+        g_object_unref (self->priv->socket_client);
 
     G_OBJECT_CLASS (qmi_device_parent_class)->finalize (object);
 }
@@ -2328,4 +2560,23 @@ qmi_device_class_init (QmiDeviceClass *klass)
                              G_TYPE_FILE,
                              G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY);
     g_object_class_install_property (object_class, PROP_FILE, properties[PROP_FILE]);
+
+    /**
+     * QmiClientDms::event-report:
+     * @object: A #QmiClientDms.
+     * @output: A #QmiIndicationDmsEventReportOutput.
+     *
+     * The ::event-report signal gets emitted when a '<link linkend="libqmi-glib-DMS-Event-Report.top_of_page">Event Report</link>' indication is received.
+     */
+    signals[SIGNAL_INDICATION] =
+        g_signal_new (QMI_DEVICE_SIGNAL_INDICATION,
+                      G_OBJECT_CLASS_TYPE (G_OBJECT_CLASS (klass)),
+                      G_SIGNAL_RUN_LAST,
+                      0,
+                      NULL,
+                      NULL,
+                      NULL,
+                      G_TYPE_NONE,
+                      1,
+                      G_TYPE_BYTE_ARRAY);
 }

@@ -42,6 +42,7 @@ qmi_client_get_type
 <FILE>qmi-device</FILE>
 <TITLE>QmiDevice</TITLE>
 QMI_DEVICE_FILE
+QMI_DEVICE_SIGNAL_INDICATION
 QmiDevice
 qmi_device_new
 qmi_device_new_finish
@@ -76,6 +77,26 @@ QMI_IS_DEVICE_CLASS
 QMI_TYPE_DEVICE
 QmiDevicePrivate
 qmi_device_get_type
+</SECTION>
+
+<SECTION>
+<FILE>qmi-proxy</FILE>
+<TITLE>QmiProxy</TITLE>
+QMI_PROXY_SOCKET_PATH
+QMI_PROXY_N_CLIENTS
+QmiProxy
+qmi_proxy_new
+qmi_proxy_get_n_clients
+<SUBSECTION Standard>
+QmiProxyClass
+QMI_PROXY
+QMI_PROXY_CLASS
+QMI_PROXY_GET_CLASS
+QMI_IS_PROXY
+QMI_IS_PROXY_CLASS
+QMI_TYPE_PROXY
+QmiProxyPrivate
+qmi_proxy_get_type
 </SECTION>
 
 <SECTION>
@@ -728,8 +749,10 @@ QMI_MESSAGE_QMUX_MARKER
 QmiMessage
 qmi_message_new
 qmi_message_new_from_raw
+qmi_message_response_new
 qmi_message_ref
 qmi_message_unref
+qmi_message_is_request
 qmi_message_is_response
 qmi_message_is_indication
 qmi_message_get_service
@@ -743,6 +766,7 @@ QmiMessageForeachRawTlvFn
 qmi_message_foreach_raw_tlv
 qmi_message_get_raw_tlv
 qmi_message_add_raw_tlv
+qmi_message_set_transaction_id
 qmi_message_get_printable
 qmi_message_get_tlv_printable
 </SECTION>
