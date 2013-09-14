@@ -53,6 +53,8 @@ static gboolean get_packet_service_status_flag;
 static gboolean get_packet_statistics_flag;
 static gboolean get_data_bearer_technology_flag;
 static gboolean get_current_data_bearer_technology_flag;
+static gchar *get_profile_list_str;
+static gchar *get_default_settings_str;
 static gboolean reset_flag;
 static gboolean noop_flag;
 
@@ -84,6 +86,14 @@ static GOptionEntry entries[] = {
     { "wds-get-current-data-bearer-technology", 0, 0, G_OPTION_ARG_NONE, &get_current_data_bearer_technology_flag,
       "Get current data bearer technology",
       NULL
+    },
+    { "wds-get-profile-list", 0, 0, G_OPTION_ARG_STRING, &get_profile_list_str,
+      "Get profile list",
+      "[3gpp|3gpp2]"
+    },
+    { "wds-get-default-settings", 0, 0, G_OPTION_ARG_STRING, &get_default_settings_str,
+      "Get default settings",
+      "[3gpp|3gpp2]"
     },
     { "wds-reset", 0, 0, G_OPTION_ARG_NONE, &reset_flag,
       "Reset the service state",
@@ -126,6 +136,8 @@ qmicli_wds_options_enabled (void)
                  get_packet_statistics_flag +
                  get_data_bearer_technology_flag +
                  get_current_data_bearer_technology_flag +
+                 !!get_profile_list_str +
+                 !!get_default_settings_str +
                  reset_flag +
                  noop_flag);
 
@@ -617,6 +629,226 @@ get_current_data_bearer_technology_ready (QmiClientWds *client,
     shutdown (TRUE);
 }
 
+typedef struct {
+    guint i;
+    GArray *profile_list;
+} GetProfileListContext;
+
+static void get_next_profile_settings (GetProfileListContext *inner_ctx);
+
+static void
+get_profile_settings_ready (QmiClientWds *client,
+                            GAsyncResult *res,
+                            GetProfileListContext *inner_ctx)
+{
+    QmiMessageWdsGetProfileSettingsOutput *output;
+    GError *error = NULL;
+
+    output = qmi_client_wds_get_profile_settings_finish (client, res, &error);
+    if (!output) {
+        g_printerr ("error: operation failed: %s\n", error->message);
+        g_error_free (error);
+    } else if (!qmi_message_wds_get_profile_settings_output_get_result (output, &error)) {
+        QmiWdsDsProfileError ds_profile_error;
+
+        if (g_error_matches (error,
+                             QMI_PROTOCOL_ERROR,
+                             QMI_PROTOCOL_ERROR_EXTENDED_INTERNAL) &&
+            qmi_message_wds_get_profile_settings_output_get_extended_error_code (
+                output,
+                &ds_profile_error,
+                NULL)) {
+            g_printerr ("error: couldn't get profile settings: ds profile error: %s\n",
+                        qmi_wds_ds_profile_error_get_string (ds_profile_error));
+        } else {
+            g_printerr ("error: couldn't get profile settings: %s\n",
+                        error->message);
+        }
+        g_error_free (error);
+        qmi_message_wds_get_profile_settings_output_unref (output);
+    } else {
+        const gchar *str;
+        QmiWdsPdpType pdp_type;
+        QmiWdsAuthentication auth;
+
+        if (qmi_message_wds_get_profile_settings_output_get_apn_name (output, &str, NULL))
+            g_print ("\t\tAPN: '%s'\n", str);
+        if (qmi_message_wds_get_profile_settings_output_get_pdp_type (output, &pdp_type, NULL))
+            g_print ("\t\tPDP type: '%s'\n", qmi_wds_pdp_type_get_string (pdp_type));
+        if (qmi_message_wds_get_profile_settings_output_get_username (output, &str, NULL))
+            g_print ("\t\tUsername: '%s'\n", str);
+        if (qmi_message_wds_get_profile_settings_output_get_password (output, &str, NULL))
+            g_print ("\t\tPassword: '%s'\n", str);
+        if (qmi_message_wds_get_profile_settings_output_get_authentication (output, &auth, NULL)) {
+            gchar *aux;
+
+            aux = qmi_wds_authentication_build_string_from_mask (auth);
+            g_print ("\t\tAuth: '%s'\n", aux);
+            g_free (aux);
+        }
+        qmi_message_wds_get_profile_settings_output_unref (output);
+    }
+
+    /* Keep on */
+    inner_ctx->i++;
+    get_next_profile_settings (inner_ctx);
+}
+
+static void
+get_next_profile_settings (GetProfileListContext *inner_ctx)
+{
+    QmiMessageWdsGetProfileListOutputProfileListProfile *profile;
+    QmiMessageWdsGetProfileSettingsInput *input;
+
+    if (inner_ctx->i >= inner_ctx->profile_list->len) {
+        /* All done */
+        g_array_unref (inner_ctx->profile_list);
+        g_slice_free (GetProfileListContext, inner_ctx);
+        shutdown (TRUE);
+        return;
+    }
+
+    profile = &g_array_index (inner_ctx->profile_list, QmiMessageWdsGetProfileListOutputProfileListProfile, inner_ctx->i);
+    g_print ("\t[%u] %s - %s\n",
+             profile->profile_index,
+             qmi_wds_profile_type_get_string (profile->profile_type),
+             profile->profile_name);
+
+    input = qmi_message_wds_get_profile_settings_input_new ();
+    qmi_message_wds_get_profile_settings_input_set_profile_id (
+        input,
+        profile->profile_type,
+        profile->profile_index,
+        NULL);
+    qmi_client_wds_get_profile_settings (ctx->client,
+                                         input,
+                                         3,
+                                         NULL,
+                                         (GAsyncReadyCallback)get_profile_settings_ready,
+                                         inner_ctx);
+    qmi_message_wds_get_profile_settings_input_unref (input);
+}
+
+static void
+get_profile_list_ready (QmiClientWds *client,
+                        GAsyncResult *res)
+{
+    GError *error = NULL;
+    QmiMessageWdsGetProfileListOutput *output;
+    GetProfileListContext *inner_ctx;
+    GArray *profile_list = NULL;
+
+    output = qmi_client_wds_get_profile_list_finish (client, res, &error);
+    if (!output) {
+        g_printerr ("error: operation failed: %s\n",
+                    error->message);
+        g_error_free (error);
+        shutdown (FALSE);
+        return;
+    }
+
+    if (!qmi_message_wds_get_profile_list_output_get_result (output, &error)) {
+        QmiWdsDsProfileError ds_profile_error;
+
+        if (g_error_matches (error,
+                             QMI_PROTOCOL_ERROR,
+                             QMI_PROTOCOL_ERROR_EXTENDED_INTERNAL) &&
+            qmi_message_wds_get_profile_list_output_get_extended_error_code (
+                output,
+                &ds_profile_error,
+                NULL)) {
+            g_printerr ("error: couldn't get profile list: ds profile error: %s\n",
+                        qmi_wds_ds_profile_error_get_string (ds_profile_error));
+        } else {
+            g_printerr ("error: couldn't get profile list: %s\n",
+                        error->message);
+        }
+
+        g_error_free (error);
+        qmi_message_wds_get_profile_list_output_unref (output);
+        shutdown (FALSE);
+        return;
+    }
+
+    qmi_message_wds_get_profile_list_output_get_profile_list (output, &profile_list, NULL);
+
+    if (!profile_list || !profile_list->len) {
+        g_print ("Profile list empty\n");
+        qmi_message_wds_get_profile_list_output_unref (output);
+        shutdown (TRUE);
+        return;
+    }
+
+    g_print ("Profile list retrieved:\n");
+
+    inner_ctx = g_slice_new (GetProfileListContext);
+    inner_ctx->profile_list = g_array_ref (profile_list);
+    inner_ctx->i = 0;
+    get_next_profile_settings (inner_ctx);
+}
+
+static void
+get_default_settings_ready (QmiClientWds *client,
+                            GAsyncResult *res)
+{
+    QmiMessageWdsGetDefaultSettingsOutput *output;
+    GError *error = NULL;
+    const gchar *str;
+    QmiWdsPdpType pdp_type;
+    QmiWdsAuthentication auth;
+
+    output = qmi_client_wds_get_default_settings_finish (client, res, &error);
+    if (!output) {
+        g_printerr ("error: operation failed: %s\n", error->message);
+        g_error_free (error);
+        shutdown (FALSE);
+        return;
+    }
+
+    if (!qmi_message_wds_get_default_settings_output_get_result (output, &error)) {
+        QmiWdsDsProfileError ds_profile_error;
+
+        if (g_error_matches (error,
+                             QMI_PROTOCOL_ERROR,
+                             QMI_PROTOCOL_ERROR_EXTENDED_INTERNAL) &&
+            qmi_message_wds_get_default_settings_output_get_extended_error_code (
+                output,
+                &ds_profile_error,
+                NULL)) {
+            g_printerr ("error: couldn't get default settings: ds default error: %s\n",
+                        qmi_wds_ds_profile_error_get_string (ds_profile_error));
+        } else {
+            g_printerr ("error: couldn't get default settings: %s\n",
+                        error->message);
+        }
+        g_error_free (error);
+        qmi_message_wds_get_default_settings_output_unref (output);
+        shutdown (FALSE);
+        return;
+    }
+
+    g_print ("Default settings retrieved:\n");
+
+    if (qmi_message_wds_get_default_settings_output_get_apn_name (output, &str, NULL))
+        g_print ("\tAPN: '%s'\n", str);
+    if (qmi_message_wds_get_default_settings_output_get_pdp_type (output, &pdp_type, NULL))
+        g_print ("\tPDP type: '%s'\n", qmi_wds_pdp_type_get_string (pdp_type));
+    if (qmi_message_wds_get_default_settings_output_get_username (output, &str, NULL))
+        g_print ("\tUsername: '%s'\n", str);
+    if (qmi_message_wds_get_default_settings_output_get_password (output, &str, NULL))
+        g_print ("\tPassword: '%s'\n", str);
+    if (qmi_message_wds_get_default_settings_output_get_authentication (output, &auth, NULL)) {
+        gchar *aux;
+
+        aux = qmi_wds_authentication_build_string_from_mask (auth);
+        g_print ("\tAuth: '%s'\n", aux);
+        g_free (aux);
+    }
+
+    qmi_message_wds_get_default_settings_output_unref (output);
+    shutdown (TRUE);
+}
+
 static void
 reset_ready (QmiClientWds *client,
              GAsyncResult *res)
@@ -802,6 +1034,60 @@ qmicli_wds_run (QmiDevice *device,
                                                            ctx->cancellable,
                                                            (GAsyncReadyCallback)get_current_data_bearer_technology_ready,
                                                            NULL);
+        return;
+    }
+
+    /* Request to list profiles? */
+    if (get_profile_list_str) {
+        QmiMessageWdsGetProfileListInput *input;
+
+        input = qmi_message_wds_get_profile_list_input_new ();
+        if (g_str_equal (get_profile_list_str, "3gpp"))
+            qmi_message_wds_get_profile_list_input_set_profile_type (input, QMI_WDS_PROFILE_TYPE_3GPP, NULL);
+        else if (g_str_equal (get_profile_list_str, "3gpp2"))
+            qmi_message_wds_get_profile_list_input_set_profile_type (input, QMI_WDS_PROFILE_TYPE_3GPP2, NULL);
+        else {
+            g_printerr ("error: invalid profile type '%s'. Expected '3gpp' or '3gpp2'.'\n",
+                        get_profile_list_str);
+            shutdown (FALSE);
+            return;
+        }
+
+        g_debug ("Asynchronously get profile list...");
+        qmi_client_wds_get_profile_list (ctx->client,
+                                         input,
+                                         10,
+                                         ctx->cancellable,
+                                         (GAsyncReadyCallback)get_profile_list_ready,
+                                         NULL);
+        qmi_message_wds_get_profile_list_input_unref (input);
+        return;
+    }
+
+    /* Request to print default settings? */
+    if (get_default_settings_str) {
+        QmiMessageWdsGetDefaultSettingsInput *input;
+
+        input = qmi_message_wds_get_default_settings_input_new ();
+        if (g_str_equal (get_default_settings_str, "3gpp"))
+            qmi_message_wds_get_default_settings_input_set_profile_type (input, QMI_WDS_PROFILE_TYPE_3GPP, NULL);
+        else if (g_str_equal (get_default_settings_str, "3gpp2"))
+            qmi_message_wds_get_default_settings_input_set_profile_type (input, QMI_WDS_PROFILE_TYPE_3GPP2, NULL);
+        else {
+            g_printerr ("error: invalid default type '%s'. Expected '3gpp' or '3gpp2'.'\n",
+                        get_default_settings_str);
+            shutdown (FALSE);
+            return;
+        }
+
+        g_debug ("Asynchronously get default settings...");
+        qmi_client_wds_get_default_settings (ctx->client,
+                                             input,
+                                             10,
+                                             ctx->cancellable,
+                                             (GAsyncReadyCallback)get_default_settings_ready,
+                                             NULL);
+        qmi_message_wds_get_default_settings_input_unref (input);
         return;
     }
 
