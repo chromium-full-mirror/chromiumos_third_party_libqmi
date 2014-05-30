@@ -142,6 +142,7 @@
       <xi:include href="xml/qmi-message-nas-config-signal-info.xml"/>
       <xi:include href="xml/qmi-message-nas-get-cdma-position-info.xml"/>
       <xi:include href="xml/qmi-message-nas-get-tx-rx-info.xml"/>
+      <xi:include href="xml/qmi-message-nas-get-cell-location-info.xml"/>
     </section>
   </chapter>
 
@@ -232,6 +233,7 @@
       <xi:include href="xml/qmi-message-uim-read-transparent.xml"/>
       <xi:include href="xml/qmi-message-uim-read-record.xml"/>
       <xi:include href="xml/qmi-message-uim-get-file-attributes.xml"/>
+      <xi:include href="xml/qmi-message-uim-get-card-status.xml"/>
     </section>
   </chapter>
 
@@ -253,6 +255,17 @@
       <xi:include href="xml/qmi-message-oma-send-selection.xml"/>
       <xi:include href="xml/qmi-message-oma-get-feature-setting.xml"/>
       <xi:include href="xml/qmi-message-oma-set-feature-setting.xml"/>
+    </section>
+  </chapter>
+
+  <chapter>
+    <title>Wireless Data Administrative Service (WDA)</title>
+    <xi:include href="xml/qmi-client-wda.xml"/>
+    <xi:include href="xml/qmi-enums-wda.xml"/>
+    <section>
+      <title>WDA Requests</title>
+      <xi:include href="xml/qmi-message-wda-set-data-format.xml"/>
+      <xi:include href="xml/qmi-message-wda-get-data-format.xml"/>
     </section>
   </chapter>
 
