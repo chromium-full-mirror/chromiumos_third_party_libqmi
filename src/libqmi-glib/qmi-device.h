@@ -47,7 +47,9 @@ typedef struct _QmiDevice QmiDevice;
 typedef struct _QmiDeviceClass QmiDeviceClass;
 typedef struct _QmiDevicePrivate QmiDevicePrivate;
 
-#define QMI_DEVICE_FILE "device-file"
+#define QMI_DEVICE_FILE          "device-file"
+#define QMI_DEVICE_NO_FILE_CHECK "device-no-file-check"
+#define QMI_DEVICE_PROXY_PATH    "device-proxy-path"
 
 #define QMI_DEVICE_SIGNAL_INDICATION "indication"
 

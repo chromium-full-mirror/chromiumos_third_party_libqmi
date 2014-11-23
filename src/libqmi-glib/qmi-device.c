@@ -17,7 +17,8 @@
  * Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
  * Boston, MA 02110-1301 USA.
  *
- * Copyright (C) 2012 Aleksander Morgado <aleksander@lanedo.com>
+ * Copyright (C) 2012 Lanedo GmbH
+ * Copyright (C) 2012 - 2014 Aleksander Morgado <aleksander@aleksander.es>
  */
 
 #include <errno.h>
@@ -68,6 +69,8 @@ G_DEFINE_TYPE_EXTENDED (QmiDevice, qmi_device, G_TYPE_OBJECT, 0,
 enum {
     PROP_0,
     PROP_FILE,
+    PROP_NO_FILE_CHECK,
+    PROP_PROXY_PATH,
     PROP_LAST
 };
 
@@ -84,6 +87,8 @@ struct _QmiDevicePrivate {
     GFile *file;
     gchar *path;
     gchar *path_display;
+    gboolean no_file_check;
+    gchar *proxy_path;
 
     /* Implicit CTL client */
     QmiClientCtl *client_ctl;
@@ -122,7 +127,7 @@ typedef struct {
 typedef struct {
     QmiMessage *message;
     GSimpleAsyncResult *result;
-    guint timeout_id;
+    GSource *timeout_source;
     GCancellable *cancellable;
     gulong cancellable_id;
     TransactionWaitContext *wait_ctx;
@@ -156,8 +161,8 @@ transaction_complete_and_free (Transaction *tr,
 {
     g_assert (reply != NULL || error != NULL);
 
-    if (tr->timeout_id)
-        g_source_remove (tr->timeout_id);
+    if (tr->timeout_source)
+        g_source_destroy (tr->timeout_source);
 
     if (tr->cancellable) {
         if (tr->cancellable_id)
@@ -222,7 +227,7 @@ transaction_timed_out (TransactionWaitContext *ctx)
     GError *error = NULL;
 
     tr = device_release_transaction (ctx->self, ctx->key);
-    tr->timeout_id = 0;
+    tr->timeout_source = NULL;
 
     /* Complete transaction with a timeout error */
     error = g_error_new (QMI_CORE_ERROR,
@@ -272,9 +277,10 @@ device_store_transaction (QmiDevice *self,
     tr->wait_ctx->self = self;
     tr->wait_ctx->key = key; /* valid as long as the transaction is in the HT */
 
-    tr->timeout_id = g_timeout_add_seconds (timeout,
-                                            (GSourceFunc)transaction_timed_out,
-                                            tr->wait_ctx);
+    tr->timeout_source = g_timeout_source_new_seconds (timeout);
+    g_source_set_callback (tr->timeout_source, (GSourceFunc)transaction_timed_out, tr->wait_ctx, NULL);
+    g_source_attach (tr->timeout_source, g_main_context_get_thread_default ());
+    g_source_unref (tr->timeout_source);
 
     if (tr->cancellable) {
         tr->cancellable_id = g_cancellable_connect (tr->cancellable,
@@ -1230,12 +1236,17 @@ report_indication (QmiClient *client,
                    QmiMessage *message)
 {
     IdleIndicationContext *ctx;
+    GSource *source;
 
     /* Setup an idle to Pass the indication down to the client */
     ctx = g_slice_new (IdleIndicationContext);
     ctx->client = g_object_ref (client);
     ctx->message = qmi_message_ref (message);
-    g_idle_add ((GSourceFunc)process_indication_idle, ctx);
+
+    source = g_idle_source_new ();
+    g_source_set_callback (source, (GSourceFunc)process_indication_idle, ctx, NULL);
+    g_source_attach (source, g_main_context_get_thread_default ());
+    g_source_unref (source);
 }
 
 static void
@@ -1437,7 +1448,7 @@ setup_iostream (CreateIostreamContext *ctx)
                            (GSourceFunc)input_ready_cb,
                            ctx->self,
                            NULL);
-    g_source_attach (ctx->self->priv->input_source, NULL);
+    g_source_attach (ctx->self->priv->input_source, g_main_context_get_thread_default ());
     g_simple_async_result_set_op_res_gboolean (ctx->result, TRUE);
     create_iostream_context_complete_and_free (ctx);
 }
@@ -1489,7 +1500,7 @@ create_iostream_with_socket (CreateIostreamContext *ctx)
 
     /* Setup socket address */
     socket_address = (g_unix_socket_address_new_with_type (
-                          QMI_PROXY_SOCKET_PATH,
+                          ctx->self->priv->proxy_path,
                           -1,
                           G_UNIX_SOCKET_ADDRESS_ABSTRACT));
 
@@ -1503,6 +1514,7 @@ create_iostream_with_socket (CreateIostreamContext *ctx)
 
     if (!ctx->self->priv->socket_connection) {
         gchar **argc;
+        GSource *source;
 
         g_debug ("cannot connect to proxy: %s", error->message);
         g_clear_error (&error);
@@ -1537,7 +1549,10 @@ create_iostream_with_socket (CreateIostreamContext *ctx)
         g_strfreev (argc);
 
         /* Wait some ms and retry */
-        g_timeout_add (100, (GSourceFunc)wait_for_proxy_cb, ctx);
+        source = g_timeout_source_new (100);
+        g_source_set_callback (source, (GSourceFunc)wait_for_proxy_cb, ctx, NULL);
+        g_source_attach (source, g_main_context_get_thread_default ());
+        g_source_unref (source);
         return;
     }
 
@@ -2252,14 +2267,14 @@ QmiDevice *
 qmi_device_new_finish (GAsyncResult *res,
                        GError **error)
 {
-  GObject *ret;
-  GObject *source_object;
+    GObject *ret;
+    GObject *source_object;
 
-  source_object = g_async_result_get_source_object (res);
-  ret = g_async_initable_new_finish (G_ASYNC_INITABLE (source_object), res, error);
-  g_object_unref (source_object);
+    source_object = g_async_result_get_source_object (res);
+    ret = g_async_initable_new_finish (G_ASYNC_INITABLE (source_object), res, error);
+    g_object_unref (source_object);
 
-  return (ret ? QMI_DEVICE (ret) : NULL);
+    return (ret ? QMI_DEVICE (ret) : NULL);
 }
 
 /**
@@ -2326,6 +2341,36 @@ sync_indication_cb (QmiClientCtl *client_ctl,
 }
 
 static void
+client_ctl_setup (InitContext *ctx)
+{
+    GError *error = NULL;
+
+    /* Create the implicit CTL client */
+    ctx->self->priv->client_ctl = g_object_new (QMI_TYPE_CLIENT_CTL,
+                                                QMI_CLIENT_DEVICE,  ctx->self,
+                                                QMI_CLIENT_SERVICE, QMI_SERVICE_CTL,
+                                                QMI_CLIENT_CID,     QMI_CID_NONE,
+                                                NULL);
+
+    /* Register the CTL client to get indications */
+    register_client (ctx->self,
+                     QMI_CLIENT (ctx->self->priv->client_ctl),
+                     &error);
+    g_assert_no_error (error);
+
+    /* Connect to 'Sync' indications */
+    ctx->self->priv->sync_indication_id =
+        g_signal_connect (ctx->self->priv->client_ctl,
+                          "sync",
+                          G_CALLBACK (sync_indication_cb),
+                          ctx->self);
+
+    /* Done we are */
+    g_simple_async_result_set_op_res_gboolean (ctx->result, TRUE);
+    init_context_complete_and_free (ctx);
+}
+
+static void
 query_info_async_ready (GFile *file,
                         GAsyncResult *res,
                         InitContext *ctx)
@@ -2353,29 +2398,8 @@ query_info_async_ready (GFile *file,
     }
     g_object_unref (info);
 
-    /* Create the implicit CTL client */
-    ctx->self->priv->client_ctl = g_object_new (QMI_TYPE_CLIENT_CTL,
-                                                QMI_CLIENT_DEVICE,  ctx->self,
-                                                QMI_CLIENT_SERVICE, QMI_SERVICE_CTL,
-                                                QMI_CLIENT_CID,     QMI_CID_NONE,
-                                                NULL);
-
-    /* Register the CTL client to get indications */
-    register_client (ctx->self,
-                     QMI_CLIENT (ctx->self->priv->client_ctl),
-                     &error);
-    g_assert_no_error (error);
-
-    /* Connect to 'Sync' indications */
-    ctx->self->priv->sync_indication_id =
-        g_signal_connect (ctx->self->priv->client_ctl,
-                          "sync",
-                          G_CALLBACK (sync_indication_cb),
-                          ctx->self);
-
-    /* Done we are */
-    g_simple_async_result_set_op_res_gboolean (ctx->result, TRUE);
-    init_context_complete_and_free (ctx);
+    /* Go on with client CTL setup */
+    client_ctl_setup (ctx);
 }
 
 static void
@@ -2406,6 +2430,12 @@ initable_init_async (GAsyncInitable *initable,
         return;
     }
 
+    /* If no file check requested, don't do it */
+    if (ctx->self->priv->no_file_check) {
+        client_ctl_setup (ctx);
+        return;
+    }
+
     /* Check the file type. Note that this is just a quick check to avoid
      * creating QmiDevices pointing to a location already known not to be a QMI
      * device. */
@@ -2432,8 +2462,17 @@ set_property (GObject *object,
     case PROP_FILE:
         g_assert (self->priv->file == NULL);
         self->priv->file = g_value_dup_object (value);
-        self->priv->path = g_file_get_path (self->priv->file);
-        self->priv->path_display = g_filename_display_name (self->priv->path);
+        if (self->priv->file) {
+            self->priv->path = g_file_get_path (self->priv->file);
+            self->priv->path_display = g_filename_display_name (self->priv->path);
+        }
+        break;
+    case PROP_NO_FILE_CHECK:
+        self->priv->no_file_check = g_value_get_boolean (value);
+        break;
+    case PROP_PROXY_PATH:
+        g_free (self->priv->proxy_path);
+        self->priv->proxy_path = g_value_dup_string (value);
         break;
     default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -2470,6 +2509,7 @@ qmi_device_init (QmiDevice *self)
                                                             g_direct_equal,
                                                             NULL,
                                                             g_object_unref);
+    self->priv->proxy_path = g_strdup (QMI_PROXY_SOCKET_PATH);
 }
 
 static gboolean
@@ -2533,6 +2573,7 @@ finalize (GObject *object)
 
     g_free (self->priv->path);
     g_free (self->priv->path_display);
+    g_free (self->priv->proxy_path);
 
     if (self->priv->input_source) {
         g_source_destroy (self->priv->input_source);
@@ -2580,6 +2621,22 @@ qmi_device_class_init (QmiDeviceClass *klass)
                              G_TYPE_FILE,
                              G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY);
     g_object_class_install_property (object_class, PROP_FILE, properties[PROP_FILE]);
+
+    properties[PROP_NO_FILE_CHECK] =
+        g_param_spec_boolean (QMI_DEVICE_NO_FILE_CHECK,
+                              "No file check",
+                              "Don't check for file existence when creating the Qmi device.",
+                              FALSE,
+                              G_PARAM_WRITABLE | G_PARAM_CONSTRUCT_ONLY);
+    g_object_class_install_property (object_class, PROP_NO_FILE_CHECK, properties[PROP_NO_FILE_CHECK]);
+
+    properties[PROP_PROXY_PATH] =
+        g_param_spec_string (QMI_DEVICE_PROXY_PATH,
+                             "Proxy path",
+                             "Path of the abstract socket where the proxy is available.",
+                             QMI_PROXY_SOCKET_PATH,
+                             G_PARAM_WRITABLE | G_PARAM_CONSTRUCT_ONLY);
+    g_object_class_install_property (object_class, PROP_PROXY_PATH, properties[PROP_PROXY_PATH]);
 
     /**
      * QmiClientDms::event-report:

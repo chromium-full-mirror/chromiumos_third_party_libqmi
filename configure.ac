@@ -79,6 +79,12 @@ AC_SUBST(GLIB_MKENUMS)
 dnl Documentation
 GTK_DOC_CHECK(1.0)
 
+# QMI username
+AC_ARG_ENABLE(qmi-username,
+              AS_HELP_STRING([--enable-qmi-username=<username>], [user allowed to access QMI devices]),,
+              enable_qmi_username="root")
+AC_DEFINE_UNQUOTED(QMI_USERNAME, "$enable_qmi_username", [Define the QMI username])
+
 dnl Man page
 AC_PATH_PROG(HELP2MAN, help2man, false)
 AM_CONDITIONAL(BUILDOPT_MAN, test x$HELP2MAN != xfalse)
@@ -110,8 +116,9 @@ echo "
     libqmi (libqmi-glib, qmicli) $VERSION
     ==============================================
 
-    compiler:                ${CC}
-    cflags:                  ${CFLAGS}
-    Maintainer mode:         ${USE_MAINTAINER_MODE}
-    Documentation:           ${enable_gtk_doc}
+    compiler:         ${CC}
+    cflags:           ${CFLAGS}
+    Maintainer mode:  ${USE_MAINTAINER_MODE}
+    Documentation:    ${enable_gtk_doc}
+    QMI username:     ${enable_qmi_username}
 "
