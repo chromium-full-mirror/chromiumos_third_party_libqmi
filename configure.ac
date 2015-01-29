@@ -3,8 +3,8 @@ AC_PREREQ([2.68])
 
 dnl The QMI version number
 m4_define([qmi_major_version], [1])
-m4_define([qmi_minor_version], [11])
-m4_define([qmi_micro_version], [1])
+m4_define([qmi_minor_version], [13])
+m4_define([qmi_micro_version], [3])
 m4_define([qmi_version],
           [qmi_major_version.qmi_minor_version.qmi_micro_version])
 
@@ -16,9 +16,9 @@ dnl        If the interface has grown (that is, the new library is compatible
 dnl            with old code), increment a.
 dnl        If the interface has changed in an incompatible way (that is,
 dnl            functions have changed or been removed), then zero a.
-m4_define([qmi_glib_lt_current],  [3])
+m4_define([qmi_glib_lt_current],  [4])
 m4_define([qmi_glib_lt_revision], [0])
-m4_define([qmi_glib_lt_age],      [2])
+m4_define([qmi_glib_lt_age],      [3])
 
 
 AC_INIT([libqmi], [qmi_version], [libqmi-devel@lists.freedesktop.org])
@@ -80,10 +80,29 @@ dnl Documentation
 GTK_DOC_CHECK(1.0)
 
 # QMI username
+QMI_USERNAME="root"
 AC_ARG_ENABLE(qmi-username,
-              AS_HELP_STRING([--enable-qmi-username=<username>], [user allowed to access QMI devices]),,
-              enable_qmi_username="root")
-AC_DEFINE_UNQUOTED(QMI_USERNAME, "$enable_qmi_username", [Define the QMI username])
+              AS_HELP_STRING([--enable-qmi-username=<username>], [user allowed to access QMI devices]))
+if test -n "$enable_qmi_username" ; then
+    QMI_USERNAME_ENABLED=yes
+    AC_DEFINE(QMI_USERNAME_ENABLED, 1, [Define if we enable QMI username])
+    QMI_USERNAME="$enable_qmi_username"
+    AC_SUBST(QMI_USERNAME)
+    AC_DEFINE_UNQUOTED(QMI_USERNAME, "$QMI_USERNAME", [Define the QMI username])
+else
+    QMI_USERNAME_ENABLED=no
+fi
+
+AM_CONDITIONAL([QMI_USERNAME_ENABLED], [test "x$QMI_USERNAME_ENABLED" = "xyes"])
+
+# udev base directory
+AC_ARG_WITH(udev-base-dir, AS_HELP_STRING([--with-udev-base-dir=DIR], [where udev base directory is]))
+if test -n "$with_udev_base_dir" ; then
+    UDEV_BASE_DIR="$with_udev_base_dir"
+else
+    UDEV_BASE_DIR="/lib/udev"
+fi
+AC_SUBST(UDEV_BASE_DIR)
 
 dnl Man page
 AC_PATH_PROG(HELP2MAN, help2man, false)
@@ -110,15 +129,21 @@ AC_CONFIG_FILES([Makefile
                  docs/reference/libqmi-glib/Makefile
                  docs/reference/libqmi-glib/version.xml
                  docs/man/Makefile])
+
+if test "x$QMI_USERNAME_ENABLED" = "xyes"; then
+    AC_CONFIG_FILES([src/qmi-proxy/76-qmi-proxy-device-ownership.rules])
+fi
+
 AC_OUTPUT
 
 echo "
     libqmi (libqmi-glib, qmicli) $VERSION
     ==============================================
 
-    compiler:         ${CC}
-    cflags:           ${CFLAGS}
-    Maintainer mode:  ${USE_MAINTAINER_MODE}
-    Documentation:    ${enable_gtk_doc}
-    QMI username:     ${enable_qmi_username}
+    compiler:             ${CC}
+    cflags:               ${CFLAGS}
+    Maintainer mode:      ${USE_MAINTAINER_MODE}
+    udev base directory:  ${UDEV_BASE_DIR}
+    Documentation:        ${enable_gtk_doc}
+    QMI username:         ${QMI_USERNAME_ENABLED} (${QMI_USERNAME})
 "

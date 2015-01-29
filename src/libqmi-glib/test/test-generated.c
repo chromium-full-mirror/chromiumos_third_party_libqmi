@@ -257,6 +257,87 @@ test_generated_dms_uim_verify_pin (TestFixture *fixture)
 }
 
 /*****************************************************************************/
+/* DMS Get Time
+ *
+ * Note: the original device time in the real-life binary message used had the
+ * time source set to QMI_DMS_TIME_SOURCE_DEVICE. This value has been modified
+ * to explicitly make the 6-byte long uint read different from an 8-byte long
+ * read of the same buffer, as QMI_DMS_TIME_SOURCE_DEVICE is actually 0x0000.
+ */
+
+static void
+dms_get_time_ready (QmiClientDms *client,
+                    GAsyncResult *res,
+                    TestFixture  *fixture)
+{
+    QmiMessageDmsGetTimeOutput *output;
+    GError *error = NULL;
+    gboolean st;
+    guint64 device_time_time_count;
+    QmiDmsTimeSource device_time_time_source;
+    guint64 system_time;
+    guint64 user_time;
+
+    output = qmi_client_dms_get_time_finish (client, res, &error);
+    g_assert_no_error (error);
+    g_assert (output);
+
+    st = qmi_message_dms_get_time_output_get_result (output, &error);
+    g_assert_no_error (error);
+    g_assert (st);
+
+    st = qmi_message_dms_get_time_output_get_device_time (output, &device_time_time_count, &device_time_time_source, &error);
+    g_assert_no_error (error);
+    g_assert (st);
+    g_assert_cmpuint (device_time_time_count, == , 884789480513);
+    g_assert_cmpuint (device_time_time_source, ==, QMI_DMS_TIME_SOURCE_HDR_NETWORK);
+
+    st = qmi_message_dms_get_time_output_get_system_time (output, &system_time, &error);
+    g_assert_no_error (error);
+    g_assert (st);
+    g_assert_cmpuint (system_time, ==, 1105986850641);
+
+    st = qmi_message_dms_get_time_output_get_user_time (output, &user_time, &error);
+    g_assert_no_error (error);
+    g_assert (st);
+    g_assert_cmpuint (user_time, ==, 11774664);
+
+    qmi_message_dms_get_time_output_unref (output);
+
+    test_fixture_loop_stop (fixture);
+}
+
+static void
+test_generated_dms_get_time (TestFixture *fixture)
+{
+    guint8 expected[] = {
+        0x01,
+        0x0C, 0x00, 0x00, 0x02, 0x01, 0x00, 0x01, 0x00, 0x2F, 0x00,
+        0x00, 0x00
+    };
+    guint8 response[] = {
+        0x01,
+        0x34, 0x00, 0x80, 0x02, 0x01, 0x02, 0x01, 0x00, 0x2F, 0x00,
+        0x28, 0x00,
+        0x02, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x01, 0x08, 0x00, 0x41, 0x0C, 0x90, 0x01, 0xCE, 0x00, 0x02, 0x00, /* Note: last 0x0200 for HDR network source */
+        0x10, 0x08, 0x00, 0x51, 0x0F, 0xF4, 0x81, 0x01, 0x01, 0x00, 0x00,
+        0x11, 0x08, 0x00, 0xC8, 0xAA, 0xB3, 0x00, 0x00, 0x00, 0x00, 0x00
+    };
+
+    test_port_context_set_command (fixture->ctx,
+                                   expected, G_N_ELEMENTS (expected),
+                                   response, G_N_ELEMENTS (response),
+                                   fixture->service_info[QMI_SERVICE_DMS].transaction_id++);
+
+    qmi_client_dms_get_time (QMI_CLIENT_DMS (fixture->service_info[QMI_SERVICE_DMS].client), NULL, 3, NULL,
+                             (GAsyncReadyCallback) dms_get_time_ready,
+                             fixture);
+
+    test_fixture_loop_run (fixture);
+}
+
+/*****************************************************************************/
 /* NAS Network Scan */
 typedef struct {
     guint16 mcc;
@@ -441,6 +522,28 @@ nas_network_scan_ready (QmiClientNas *client,
 }
 
 static void
+nas_get_cell_location_info_ready (QmiClientNas *client,
+                                  GAsyncResult *res,
+                                  TestFixture  *fixture)
+{
+    QmiMessageNasGetCellLocationInfoOutput *output;
+    GError *error = NULL;
+    gboolean st;
+
+    output = qmi_client_nas_get_cell_location_info_finish (client, res, &error);
+    g_assert_no_error (error);
+    g_assert (output);
+
+    st = qmi_message_nas_get_cell_location_info_output_get_result (output, &error);
+    g_assert_no_error (error);
+    g_assert (st);
+
+    qmi_message_nas_get_cell_location_info_output_unref (output);
+
+    test_fixture_loop_stop (fixture);
+}
+
+static void
 test_generated_nas_network_scan (TestFixture *fixture)
 {
     guint8 expected[] = {
@@ -505,6 +608,42 @@ test_generated_nas_network_scan (TestFixture *fixture)
     test_fixture_loop_run (fixture);
 }
 
+static void
+test_generated_nas_get_cell_location_info (TestFixture *fixture)
+{
+    guint8 expected[] = {
+        0x01,
+        0x0C, 0x00, 0x00, 0x03, 0x01,
+        0x00, 0x01, 0x00, 0x43, 0x00, 0x00, 0x00
+    };
+    guint8 response[] = {
+        0x01,
+        0x53, 0x00, 0x80, 0x03, 0x01,
+        0x02, 0x01, 0x00, 0x43, 0x00, 0x47, 0x00, 0x02,
+        0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x3D,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF,
+        0xFF, 0x28, 0x00, 0x03, 0x7D, 0x6F, 0x00, 0x00,
+        0x32, 0xF4, 0x51, 0xB3, 0x00, 0x4D, 0x00, 0x11,
+        0x2A, 0x00, 0x8A, 0x3C, 0x00, 0x00, 0x32, 0xF4,
+        0x51, 0xB3, 0x00, 0x63, 0x00, 0x30, 0x14, 0x00,
+        0x89, 0x3C, 0x00, 0x00, 0x32, 0xF4, 0x51, 0xB3,
+        0x00, 0x59, 0x00, 0x11, 0x0D, 0x00
+    };
+
+    test_port_context_set_command (fixture->ctx,
+                                   expected, G_N_ELEMENTS (expected),
+                                   response, G_N_ELEMENTS (response),
+                                   fixture->service_info[QMI_SERVICE_NAS].transaction_id++);
+
+    qmi_client_nas_get_cell_location_info (QMI_CLIENT_NAS (fixture->service_info[QMI_SERVICE_NAS].client), NULL, 3, NULL,
+                                           (GAsyncReadyCallback) nas_get_cell_location_info_ready,
+                                           fixture);
+
+    test_fixture_loop_run (fixture);
+}
+
+
 /*****************************************************************************/
 
 int main (int argc, char **argv)
@@ -516,12 +655,13 @@ int main (int argc, char **argv)
     TEST_ADD ("/libqmi-glib/generated/core", test_generated_core);
 
     /* DMS */
-    TEST_ADD ("/libqmi-glib/generated/dms/get-ids",            test_generated_dms_get_ids);
-    TEST_ADD ("/libqmi-glib/generated/dms/uim-get-pin-status", test_generated_dms_uim_get_pin_status);
-    TEST_ADD ("/libqmi-glib/generated/dms/uim-verify-pin",     test_generated_dms_uim_verify_pin);
+    TEST_ADD ("/libqmi-glib/generated/dms/get-ids",                test_generated_dms_get_ids);
+    TEST_ADD ("/libqmi-glib/generated/dms/uim-get-pin-status",     test_generated_dms_uim_get_pin_status);
+    TEST_ADD ("/libqmi-glib/generated/dms/uim-verify-pin",         test_generated_dms_uim_verify_pin);
+    TEST_ADD ("/libqmi-glib/generated/dms/get-time",               test_generated_dms_get_time);
     /* NAS */
-    TEST_ADD ("/libqmi-glib/generated/nas/network-scan",       test_generated_nas_network_scan);
-
+    TEST_ADD ("/libqmi-glib/generated/nas/network-scan",           test_generated_nas_network_scan);
+    TEST_ADD ("/libqmi-glib/generated/nas/get-cell-location-info", test_generated_nas_get_cell_location_info);
 
     return g_test_run ();
 }

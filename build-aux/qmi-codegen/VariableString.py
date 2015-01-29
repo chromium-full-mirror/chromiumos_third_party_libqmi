@@ -16,6 +16,7 @@
 # Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 #
 # Copyright (C) 2012 Lanedo GmbH
+# Copyright (C) 2012-2015 Aleksander Morgado <aleksander@aleksander.es>
 #
 
 import string
@@ -83,10 +84,24 @@ class VariableString(Variable):
 
         if self.is_fixed_size:
             translations['fixed_size'] = self.fixed_size
-            template = (
-                '${lp}if (!qmi_message_tlv_read_fixed_size_string (message, init_offset, &offset, ${fixed_size}, &${variable_name}[0], ${error}))\n'
-                '${lp}    goto ${tlv_out};\n'
-                '${lp}${variable_name}[${fixed_size}] = \'\\0\';\n')
+
+            # Fixed sized strings exposed in public fields will need to be
+            # explicitly allocated in heap
+            if self.public:
+                translations['fixed_size_plus_one'] = int(self.fixed_size) + 1
+                template = (
+                    '${lp}${variable_name} = g_malloc (${fixed_size_plus_one});\n'
+                    '${lp}if (!qmi_message_tlv_read_fixed_size_string (message, init_offset, &offset, ${fixed_size}, &${variable_name}[0], ${error})) {\n'
+                    '${lp}    g_free (${variable_name});\n'
+                    '${lp}    ${variable_name} = NULL;\n'
+                    '${lp}    goto ${tlv_out};\n'
+                    '${lp}}\n'
+                    '${lp}${variable_name}[${fixed_size}] = \'\\0\';\n')
+            else:
+                template = (
+                    '${lp}if (!qmi_message_tlv_read_fixed_size_string (message, init_offset, &offset, ${fixed_size}, &${variable_name}[0], ${error}))\n'
+                    '${lp}    goto ${tlv_out};\n'
+                    '${lp}${variable_name}[${fixed_size}] = \'\\0\';\n')
         else:
             translations['n_size_prefix_bytes'] = self.n_size_prefix_bytes
             translations['max_size'] = self.max_size if self.max_size != '' else '0'
@@ -123,14 +138,16 @@ class VariableString(Variable):
 
         if self.is_fixed_size:
             translations['fixed_size'] = self.fixed_size
+            translations['fixed_size_plus_one'] = int(self.fixed_size) + 1
             template = (
                 '\n'
                 '${lp}{\n'
-                '${lp}    gchar tmp[${fixed_size}];\n'
+                '${lp}    gchar tmp[${fixed_size_plus_one}];\n'
                 '\n'
                 '${lp}    if (!qmi_message_tlv_read_fixed_size_string (message, init_offset, &offset, ${fixed_size}, &tmp[0], &error))\n'
                 '${lp}        goto out;\n'
-                '${lp}    g_string_append_len (printable, tmp, ${fixed_size});\n'
+                '${lp}    tmp[${fixed_size}] = \'\\0\';\n'
+                '${lp}    g_string_append (printable, tmp);\n'
                 '${lp}}\n')
         else:
             translations['n_size_prefix_bytes'] = self.n_size_prefix_bytes
@@ -152,11 +169,17 @@ class VariableString(Variable):
     """
     Variable declaration
     """
-    def build_variable_declaration(self, line_prefix, variable_name):
+    def build_variable_declaration(self, public, line_prefix, variable_name):
         translations = { 'lp'   : line_prefix,
                          'name' : variable_name }
 
-        if self.is_fixed_size:
+        if public:
+            # Fixed sized strings given in public structs are given as pointers,
+            # instead of as fixed-sized arrays directly in the struct.
+            template = (
+                '${lp}gchar *${name};\n')
+            self.is_public = True
+        elif self.is_fixed_size:
             translations['fixed_size_plus_one'] = int(self.fixed_size) + 1
             template = (
                 '${lp}gchar ${name}[${fixed_size_plus_one}];\n')
@@ -307,7 +330,7 @@ class VariableString(Variable):
     """
     def build_dispose(self, line_prefix, variable_name):
         # Fixed-size strings don't need dispose
-        if self.is_fixed_size:
+        if self.is_fixed_size and not self.public:
             return ''
 
         translations = { 'lp'            : line_prefix,
@@ -316,3 +339,14 @@ class VariableString(Variable):
         template = (
             '${lp}g_free (${variable_name});\n')
         return string.Template(template).substitute(translations)
+
+
+    """
+    Flag as being public
+    """
+    def flag_public(self):
+        # Call the parent method
+        Variable.flag_public(self)
+        # Fixed-sized strings will need dispose if they are in the public header
+        if self.is_fixed_size:
+            self.needs_dispose = True

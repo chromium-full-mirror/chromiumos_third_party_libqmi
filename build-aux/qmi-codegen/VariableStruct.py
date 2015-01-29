@@ -16,6 +16,7 @@
 # Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 #
 # Copyright (C) 2012 Lanedo GmbH
+# Copyright (C) 2012-2015 Aleksander Morgado <aleksander@aleksander.es>
 #
 
 import string
@@ -48,6 +49,8 @@ class VariableStruct(Variable):
             member = {}
             member['name'] = utils.build_underscore_name(member_dictionary['name'])
             member['object'] = VariableFactory.create_variable(member_dictionary, struct_type_name + ' ' + member['name'], self.container_type)
+            # Specify that the variable will be defined in the public header
+            member['object'].flag_public()
             self.members.append(member)
 
         # We'll need to dispose if at least one of the members needs it
@@ -81,11 +84,7 @@ class VariableStruct(Variable):
         f.write(string.Template(template).substitute(translations))
 
         for member in self.members:
-            translations['variable_format'] = member['object'].public_format
-            translations['variable_name'] = member['name']
-            template = (
-                '    ${variable_format} ${variable_name};\n')
-            f.write(string.Template(template).substitute(translations))
+            f.write(member['object'].build_variable_declaration(True, '    ', member['name']))
 
         template = ('} ${format};\n')
         f.write(string.Template(template).substitute(translations))
@@ -149,7 +148,7 @@ class VariableStruct(Variable):
     """
     Variable declaration
     """
-    def build_variable_declaration(self, line_prefix, variable_name):
+    def build_variable_declaration(self, public, line_prefix, variable_name):
         translations = { 'lp'     : line_prefix,
                          'format' : self.public_format,
                          'name'   : variable_name }

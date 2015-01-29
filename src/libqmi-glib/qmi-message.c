@@ -46,7 +46,10 @@
 #include "qmi-nas.h"
 #include "qmi-wms.h"
 #include "qmi-pds.h"
+#include "qmi-pbm.h"
 #include "qmi-uim.h"
+#include "qmi-oma.h"
+#include "qmi-wda.h"
 
 /**
  * SECTION:qmi-message
@@ -1042,7 +1045,7 @@ qmi_message_tlv_write_gint64 (QmiMessage  *self,
  * takes care of converting the value written to the byte order specified by
  * @endian.
  *
- * Valid values for @n_bytes are: 1, 2, 4, 8.
+ * The value of @n_bytes can be any between 1 and 8.
  *
  * Returns: %TRUE if the variable is successfully added, otherwise %FALSE is returned and @error is set.
  *
@@ -1059,10 +1062,7 @@ qmi_message_tlv_write_sized_guint (QmiMessage  *self,
     goffset offset;
 
     g_return_val_if_fail (self != NULL, FALSE);
-    g_return_val_if_fail ((n_bytes == 1 ||
-                           n_bytes == 2 ||
-                           n_bytes == 4 ||
-                           n_bytes == 8), FALSE);
+    g_return_val_if_fail (n_bytes <= 8, FALSE);
 
     /* Check for overflow of message size */
     if (!tlv_error_if_write_overflow (self, n_bytes, error))
@@ -1627,10 +1627,7 @@ qmi_message_tlv_read_sized_guint (QmiMessage  *self,
     g_return_val_if_fail (self != NULL, FALSE);
     g_return_val_if_fail (offset != NULL, FALSE);
     g_return_val_if_fail (out != NULL, FALSE);
-    g_return_val_if_fail ((n_bytes == 1 ||
-                           n_bytes == 2 ||
-                           n_bytes == 4 ||
-                           n_bytes == 8), FALSE);
+    g_return_val_if_fail (n_bytes <= 8, FALSE);
 
     if (!(ptr = tlv_error_if_read_overflow (self, tlv_offset, *offset, n_bytes, error)))
         return FALSE;
@@ -2152,8 +2149,17 @@ qmi_message_get_printable (QmiMessage *self,
     case QMI_SERVICE_PDS:
         contents = __qmi_message_pds_get_printable (self, line_prefix);
         break;
+    case QMI_SERVICE_PBM:
+        contents = __qmi_message_pbm_get_printable (self, line_prefix);
+        break;
     case QMI_SERVICE_UIM:
         contents = __qmi_message_uim_get_printable (self, line_prefix);
+        break;
+    case QMI_SERVICE_OMA:
+        contents = __qmi_message_oma_get_printable (self, line_prefix);
+        break;
+    case QMI_SERVICE_WDA:
+        contents = __qmi_message_wda_get_printable (self, line_prefix);
         break;
     default:
         break;
@@ -2204,8 +2210,17 @@ qmi_message_get_version_introduced (QmiMessage *self,
     case QMI_SERVICE_PDS:
         return __qmi_message_pds_get_version_introduced (self, major, minor);
 
+    case QMI_SERVICE_PBM:
+        return __qmi_message_pbm_get_version_introduced (self, major, minor);
+
     case QMI_SERVICE_UIM:
         return __qmi_message_uim_get_version_introduced (self, major, minor);
+
+    case QMI_SERVICE_OMA:
+        return __qmi_message_oma_get_version_introduced (self, major, minor);
+
+    case QMI_SERVICE_WDA:
+        return __qmi_message_wda_get_version_introduced (self, major, minor);
 
     default:
         /* For the still unsupported services, cannot do anything */

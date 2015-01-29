@@ -16,6 +16,7 @@
 # Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 #
 # Copyright (C) 2012 Lanedo GmbH
+# Copyright (C) 2012-2015 Aleksander Morgado <aleksander@aleksander.es>
 #
 
 import string
@@ -53,6 +54,11 @@ class Variable:
                 pass
             else:
                 raise ValueError("Invalid endian value %s" % endian)
+
+        """
+        Initially all variables are flagged as not being public
+        """
+        self.public = False
 
     """
     Emits the code to declare specific new types required by the variable.
@@ -94,7 +100,7 @@ class Variable:
     """
     Builds the code to include the declaration of a variable of this kind.
     """
-    def build_variable_declaration(self, line_prefix, variable_name):
+    def build_variable_declaration(self, public, line_prefix, variable_name):
         return ''
 
     """
@@ -150,3 +156,9 @@ class Variable:
     """
     def add_sections(self, sections):
         pass
+
+    """
+    Flag as being public
+    """
+    def flag_public(self):
+        self.public = True

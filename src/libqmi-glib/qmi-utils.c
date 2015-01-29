@@ -81,15 +81,22 @@ gboolean
 __qmi_user_allowed (uid_t uid,
                     GError **error)
 {
+#ifndef QMI_USERNAME_ENABLED
+    if (uid == 0)
+        return TRUE;
+#else
+# ifndef QMI_USERNAME
+#  error QMI username not defined
+# endif
+
     struct passwd *expected_usr = NULL;
+
+    /* Root user is always allowed, regardless of the specified QMI_USERNAME */
+    if (uid == 0)
+        return TRUE;
 
     expected_usr = getpwnam (QMI_USERNAME);
     if (!expected_usr) {
-        g_warning ("Unknown user configured: %s", QMI_USERNAME);
-        /* Falling back to check for root user if the configured user is unknown */
-        if (uid == 0)
-            return TRUE;
-
         g_set_error (error,
                      QMI_CORE_ERROR,
                      QMI_CORE_ERROR_FAILED,
@@ -99,6 +106,7 @@ __qmi_user_allowed (uid_t uid,
 
     if (uid == expected_usr->pw_uid)
         return TRUE;
+#endif
 
     g_set_error (error,
                  QMI_CORE_ERROR,
