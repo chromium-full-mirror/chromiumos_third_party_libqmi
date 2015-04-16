@@ -45,6 +45,7 @@ static Context *ctx;
 static gchar *read_transparent_str;
 static gchar *get_file_attributes_str;
 static gboolean get_card_status_flag;
+static gboolean get_supported_messages_flag;
 static gboolean reset_flag;
 static gboolean noop_flag;
 
@@ -59,6 +60,10 @@ static GOptionEntry entries[] = {
     },
     { "uim-get-card-status", 0, 0, G_OPTION_ARG_NONE, &get_card_status_flag,
       "Get card status",
+      NULL
+    },
+    { "uim-get-supported-messages", 0, 0, G_OPTION_ARG_NONE, &get_supported_messages_flag,
+      "Get supported messages",
       NULL
     },
     { "uim-reset", 0, 0, G_OPTION_ARG_NONE, &reset_flag,
@@ -99,6 +104,7 @@ qmicli_uim_options_enabled (void)
     n_actions = (!!read_transparent_str +
                  !!get_file_attributes_str +
                  get_card_status_flag +
+                 get_supported_messages_flag +
                  reset_flag +
                  noop_flag);
 
@@ -125,11 +131,49 @@ context_free (Context *context)
 }
 
 static void
-shutdown (gboolean operation_status)
+operation_shutdown (gboolean operation_status)
 {
     /* Cleanup context and finish async operation */
     context_free (ctx);
     qmicli_async_operation_done (operation_status);
+}
+
+static void
+get_supported_messages_ready (QmiClientUim *client,
+                              GAsyncResult *res)
+{
+    QmiMessageUimGetSupportedMessagesOutput *output;
+    GError *error = NULL;
+    GArray *bytearray = NULL;
+    gchar *str;
+
+    output = qmi_client_uim_get_supported_messages_finish (client, res, &error);
+    if (!output) {
+        g_printerr ("error: operation failed: %s\n", error->message);
+        g_error_free (error);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    if (!qmi_message_uim_get_supported_messages_output_get_result (output, &error)) {
+        g_printerr ("error: couldn't get supported UIM messages: %s\n", error->message);
+        g_error_free (error);
+        qmi_message_uim_get_supported_messages_output_unref (output);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    g_print ("[%s] Successfully got supported UIM messages:\n",
+             qmi_device_get_path_display (ctx->device));
+
+    qmi_message_uim_get_supported_messages_output_get_list (output, &bytearray, NULL);
+    str = qmicli_get_supported_messages_list (bytearray ? (const guint8 *)bytearray->data : NULL,
+                                              bytearray ? bytearray->len : 0);
+    g_print ("%s", str);
+    g_free (str);
+
+    qmi_message_uim_get_supported_messages_output_unref (output);
+    operation_shutdown (TRUE);
 }
 
 static void
@@ -143,7 +187,7 @@ reset_ready (QmiClientUim *client,
     if (!output) {
         g_printerr ("error: operation failed: %s\n", error->message);
         g_error_free (error);
-        shutdown (FALSE);
+        operation_shutdown (FALSE);
         return;
     }
 
@@ -151,7 +195,7 @@ reset_ready (QmiClientUim *client,
         g_printerr ("error: couldn't reset the UIM service: %s\n", error->message);
         g_error_free (error);
         qmi_message_uim_reset_output_unref (output);
-        shutdown (FALSE);
+        operation_shutdown (FALSE);
         return;
     }
 
@@ -159,13 +203,13 @@ reset_ready (QmiClientUim *client,
              qmi_device_get_path_display (ctx->device));
 
     qmi_message_uim_reset_output_unref (output);
-    shutdown (TRUE);
+    operation_shutdown (TRUE);
 }
 
 static gboolean
 noop_cb (gpointer unused)
 {
-    shutdown (TRUE);
+    operation_shutdown (TRUE);
     return FALSE;
 }
 
@@ -186,7 +230,7 @@ get_card_status_ready (QmiClientUim *client,
     if (!output) {
         g_printerr ("error: operation failed: %s\n", error->message);
         g_error_free (error);
-        shutdown (FALSE);
+        operation_shutdown (FALSE);
         return;
     }
 
@@ -194,7 +238,7 @@ get_card_status_ready (QmiClientUim *client,
         g_printerr ("error: couldn't get card status: %s\n", error->message);
         g_error_free (error);
         qmi_message_uim_get_card_status_output_unref (output);
-        shutdown (FALSE);
+        operation_shutdown (FALSE);
         return;
     }
 
@@ -316,7 +360,7 @@ get_card_status_ready (QmiClientUim *client,
     }
 
     qmi_message_uim_get_card_status_output_unref (output);
-    shutdown (TRUE);
+    operation_shutdown (TRUE);
 }
 
 static gboolean
@@ -383,7 +427,7 @@ read_transparent_ready (QmiClientUim *client,
     if (!output) {
         g_printerr ("error: operation failed: %s\n", error->message);
         g_error_free (error);
-        shutdown (FALSE);
+        operation_shutdown (FALSE);
         return;
     }
 
@@ -404,7 +448,7 @@ read_transparent_ready (QmiClientUim *client,
         }
 
         qmi_message_uim_read_transparent_output_unref (output);
-        shutdown (FALSE);
+        operation_shutdown (FALSE);
         return;
     }
 
@@ -438,7 +482,7 @@ read_transparent_ready (QmiClientUim *client,
     }
 
     qmi_message_uim_read_transparent_output_unref (output);
-    shutdown (TRUE);
+    operation_shutdown (TRUE);
 }
 
 static QmiMessageUimReadTransparentInput *
@@ -497,7 +541,7 @@ get_file_attributes_ready (QmiClientUim *client,
     if (!output) {
         g_printerr ("error: operation failed: %s\n", error->message);
         g_error_free (error);
-        shutdown (FALSE);
+        operation_shutdown (FALSE);
         g_free (file_name);
         return;
     }
@@ -521,7 +565,7 @@ get_file_attributes_ready (QmiClientUim *client,
         }
 
         qmi_message_uim_get_file_attributes_output_unref (output);
-        shutdown (FALSE);
+        operation_shutdown (FALSE);
         g_free (file_name);
         return;
     }
@@ -607,7 +651,7 @@ get_file_attributes_ready (QmiClientUim *client,
     }
 
     qmi_message_uim_get_file_attributes_output_unref (output);
-    shutdown (TRUE);
+    operation_shutdown (TRUE);
 }
 
 static QmiMessageUimGetFileAttributesInput *
@@ -652,7 +696,7 @@ qmicli_uim_run (QmiDevice *device,
 
         input = read_transparent_build_input (read_transparent_str);
         if (!input) {
-            shutdown (FALSE);
+            operation_shutdown (FALSE);
             return;
         }
 
@@ -674,7 +718,7 @@ qmicli_uim_run (QmiDevice *device,
 
         input = get_file_attributes_build_input (get_file_attributes_str);
         if (!input) {
-            shutdown (FALSE);
+            operation_shutdown (FALSE);
             return;
         }
 
@@ -699,6 +743,18 @@ qmicli_uim_run (QmiDevice *device,
                                         ctx->cancellable,
                                         (GAsyncReadyCallback)get_card_status_ready,
                                         NULL);
+        return;
+    }
+
+    /* Request to list supported messages? */
+    if (get_supported_messages_flag) {
+        g_debug ("Asynchronously getting supported UIM messages...");
+        qmi_client_uim_get_supported_messages (ctx->client,
+                                               NULL,
+                                               10,
+                                               ctx->cancellable,
+                                               (GAsyncReadyCallback)get_supported_messages_ready,
+                                               NULL);
         return;
     }
 

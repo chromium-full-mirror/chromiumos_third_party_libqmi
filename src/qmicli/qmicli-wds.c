@@ -24,6 +24,7 @@
 #include <stdlib.h>
 #include <locale.h>
 #include <string.h>
+#include <arpa/inet.h>
 
 #include <glib.h>
 #include <gio/gio.h>
@@ -31,6 +32,7 @@
 #include <libqmi-glib.h>
 
 #include "qmicli.h"
+#include "qmicli-helpers.h"
 
 /* Context */
 typedef struct {
@@ -49,12 +51,14 @@ static Context *ctx;
 static gchar *start_network_str;
 static gboolean follow_network_flag;
 static gchar *stop_network_str;
+static gboolean get_current_settings_flag;
 static gboolean get_packet_service_status_flag;
 static gboolean get_packet_statistics_flag;
 static gboolean get_data_bearer_technology_flag;
 static gboolean get_current_data_bearer_technology_flag;
 static gchar *get_profile_list_str;
 static gchar *get_default_settings_str;
+static gboolean get_supported_messages_flag;
 static gboolean reset_flag;
 static gboolean noop_flag;
 
@@ -70,6 +74,10 @@ static GOptionEntry entries[] = {
     { "wds-stop-network", 0, 0, G_OPTION_ARG_STRING, &stop_network_str,
       "Stop network",
       "[Packet data handle]"
+    },
+    { "wds-get-current-settings", 0, 0, G_OPTION_ARG_NONE, &get_current_settings_flag,
+      "Get current settings",
+      NULL
     },
     { "wds-get-packet-service-status", 0, 0, G_OPTION_ARG_NONE, &get_packet_service_status_flag,
       "Get packet service status",
@@ -94,6 +102,10 @@ static GOptionEntry entries[] = {
     { "wds-get-default-settings", 0, 0, G_OPTION_ARG_STRING, &get_default_settings_str,
       "Get default settings",
       "[3gpp|3gpp2]"
+    },
+    { "wds-get-supported-messages", 0, 0, G_OPTION_ARG_NONE, &get_supported_messages_flag,
+      "Get supported messages",
+      NULL
     },
     { "wds-reset", 0, 0, G_OPTION_ARG_NONE, &reset_flag,
       "Reset the service state",
@@ -132,12 +144,14 @@ qmicli_wds_options_enabled (void)
 
     n_actions = (!!start_network_str +
                  !!stop_network_str +
+                 get_current_settings_flag +
                  get_packet_service_status_flag +
                  get_packet_statistics_flag +
                  get_data_bearer_technology_flag +
                  get_current_data_bearer_technology_flag +
                  !!get_profile_list_str +
                  !!get_default_settings_str +
+                 get_supported_messages_flag +
                  reset_flag +
                  noop_flag);
 
@@ -172,7 +186,7 @@ context_free (Context *context)
 }
 
 static void
-shutdown (gboolean operation_status)
+operation_shutdown (gboolean operation_status)
 {
     /* Cleanup context and finish async operation */
     context_free (ctx);
@@ -191,7 +205,7 @@ stop_network_ready (QmiClientWds *client,
         g_printerr ("error: operation failed: %s\n",
                     error->message);
         g_error_free (error);
-        shutdown (FALSE);
+        operation_shutdown (FALSE);
         return;
     }
 
@@ -199,7 +213,7 @@ stop_network_ready (QmiClientWds *client,
         g_printerr ("error: couldn't stop network: %s\n", error->message);
         g_error_free (error);
         qmi_message_wds_stop_network_output_unref (output);
-        shutdown (FALSE);
+        operation_shutdown (FALSE);
         return;
     }
 
@@ -209,7 +223,7 @@ stop_network_ready (QmiClientWds *client,
     g_print ("[%s] Network stopped\n",
              qmi_device_get_path_display (ctx->device));
     qmi_message_wds_stop_network_output_unref (output);
-    shutdown (TRUE);
+    operation_shutdown (TRUE);
 }
 
 static void
@@ -312,7 +326,7 @@ start_network_ready (QmiClientWds *client,
         g_printerr ("error: operation failed: %s\n",
                     error->message);
         g_error_free (error);
-        shutdown (FALSE);
+        operation_shutdown (FALSE);
         return;
     }
 
@@ -347,7 +361,7 @@ start_network_ready (QmiClientWds *client,
 
         g_error_free (error);
         qmi_message_wds_start_network_output_unref (output);
-        shutdown (FALSE);
+        operation_shutdown (FALSE);
         return;
     }
 
@@ -376,7 +390,148 @@ start_network_ready (QmiClientWds *client,
     }
 
     /* Nothing else to do */
-    shutdown (TRUE);
+    operation_shutdown (TRUE);
+}
+
+static void
+get_current_settings_ready (QmiClientWds *client,
+                            GAsyncResult *res)
+{
+    GError *error = NULL;
+    QmiMessageWdsGetCurrentSettingsOutput *output;
+    QmiWdsIpFamily ip_family = QMI_WDS_IP_FAMILY_UNSPECIFIED;
+    guint32 mtu = 0;
+    GArray *array;
+    guint32 addr = 0;
+    struct in_addr in_addr_val;
+    struct in6_addr in6_addr_val;
+    gchar buf4[INET_ADDRSTRLEN];
+    gchar buf6[INET6_ADDRSTRLEN];
+    guint8 prefix = 0;
+    guint i;
+
+    output = qmi_client_wds_get_current_settings_finish (client, res, &error);
+    if (!output) {
+        g_printerr ("error: operation failed: %s\n", error->message);
+        g_error_free (error);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    if (!qmi_message_wds_get_current_settings_output_get_result (output, &error)) {
+        g_printerr ("error: couldn't get current settings: %s\n", error->message);
+        g_error_free (error);
+        qmi_message_wds_get_current_settings_output_unref (output);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    g_print ("[%s] Current settings retrieved:\n",
+             qmi_device_get_path_display (ctx->device));
+
+    if (qmi_message_wds_get_current_settings_output_get_ip_family (output, &ip_family, NULL))
+        g_print ("           IP Family: %s\n",
+                 ((ip_family == QMI_WDS_IP_FAMILY_IPV4) ? "IPv4" :
+                  ((ip_family == QMI_WDS_IP_FAMILY_IPV6) ? "IPv6" :
+                   "unknown")));
+
+    /* IPv4... */
+
+    if (qmi_message_wds_get_current_settings_output_get_ipv4_address (output, &addr, NULL)) {
+        in_addr_val.s_addr = GUINT32_TO_BE (addr);
+        memset (buf4, 0, sizeof (buf4));
+        inet_ntop (AF_INET, &in_addr_val, buf4, sizeof (buf4));
+        g_print ("        IPv4 address: %s\n", buf4);
+    }
+
+    if (qmi_message_wds_get_current_settings_output_get_ipv4_gateway_subnet_mask (output, &addr, NULL)) {
+        in_addr_val.s_addr = GUINT32_TO_BE (addr);
+        memset (buf4, 0, sizeof (buf4));
+        inet_ntop (AF_INET, &in_addr_val, buf4, sizeof (buf4));
+        g_print ("    IPv4 subnet mask: %s\n", buf4);
+    }
+
+    if (qmi_message_wds_get_current_settings_output_get_ipv4_gateway_address (output, &addr, NULL)) {
+        in_addr_val.s_addr = GUINT32_TO_BE (addr);
+        memset (buf4, 0, sizeof (buf4));
+        inet_ntop (AF_INET, &in_addr_val, buf4, sizeof (buf4));
+        g_print ("IPv4 gateway address: %s\n", buf4);
+    }
+
+    if (qmi_message_wds_get_current_settings_output_get_primary_ipv4_dns_address (output, &addr, NULL)) {
+        in_addr_val.s_addr = GUINT32_TO_BE (addr);
+        memset (buf4, 0, sizeof (buf4));
+        inet_ntop (AF_INET, &in_addr_val, buf4, sizeof (buf4));
+        g_print ("    IPv4 primary DNS: %s\n", buf4);
+    }
+
+    if (qmi_message_wds_get_current_settings_output_get_secondary_ipv4_dns_address (output, &addr, NULL)) {
+        in_addr_val.s_addr = GUINT32_TO_BE (addr);
+        memset (buf4, 0, sizeof (buf4));
+        inet_ntop (AF_INET, &in_addr_val, buf4, sizeof (buf4));
+        g_print ("  IPv4 secondary DNS: %s\n", buf4);
+    }
+
+    /* IPv6... */
+
+    if (qmi_message_wds_get_current_settings_output_get_ipv6_address (output, &array, &prefix, NULL)) {
+        for (i = 0; i < array->len; i++)
+            in6_addr_val.s6_addr16[i] = GUINT16_TO_BE (g_array_index (array, guint16, i));
+        memset (buf6, 0, sizeof (buf6));
+        inet_ntop (AF_INET6, &in6_addr_val, buf6, sizeof (buf6));
+        g_print ("        IPv6 address: %s/%d\n", buf6, prefix);
+    }
+
+    if (qmi_message_wds_get_current_settings_output_get_ipv6_gateway_address (output, &array, &prefix, NULL)) {
+        for (i = 0; i < array->len; i++)
+            in6_addr_val.s6_addr16[i] = GUINT16_TO_BE (g_array_index (array, guint16, i));
+        memset (buf6, 0, sizeof (buf6));
+        inet_ntop (AF_INET6, &in6_addr_val, buf6, sizeof (buf6));
+        g_print ("IPv6 gateway address: %s/%d\n", buf6, prefix);
+    }
+
+    if (qmi_message_wds_get_current_settings_output_get_ipv6_primary_dns_address (output, &array, NULL)) {
+        for (i = 0; i < array->len; i++)
+            in6_addr_val.s6_addr16[i] = GUINT16_TO_BE (g_array_index (array, guint16, i));
+        memset (buf6, 0, sizeof (buf6));
+        inet_ntop (AF_INET6, &in6_addr_val, buf6, sizeof (buf6));
+        g_print ("    IPv6 primary DNS: %s\n", buf6);
+    }
+
+    if (qmi_message_wds_get_current_settings_output_get_ipv6_secondary_dns_address (output, &array, NULL)) {
+        for (i = 0; i < array->len; i++)
+            in6_addr_val.s6_addr16[i] = GUINT16_TO_BE (g_array_index (array, guint16, i));
+        memset (buf6, 0, sizeof (buf6));
+        inet_ntop (AF_INET6, &in6_addr_val, buf6, sizeof (buf6));
+        g_print ("  IPv6 secondary DNS: %s\n", buf6);
+    }
+
+    /* Other... */
+
+    if (qmi_message_wds_get_current_settings_output_get_mtu (output, &mtu, NULL))
+        g_print ("                 MTU: %u\n", mtu);
+
+    if (qmi_message_wds_get_current_settings_output_get_domain_name_list (output, &array, &error)) {
+        GString *s = NULL;
+
+        if (array) {
+            for (i = 0; i < array->len; i++) {
+                if (!s)
+                    s = g_string_new ("");
+                else
+                    g_string_append (s, ", ");
+                g_string_append (s, g_array_index (array, const gchar *, i));
+            }
+        }
+        if (s) {
+            g_print ("             Domains: %s\n", s->str);
+            g_string_free (s, TRUE);
+        } else
+            g_print ("             Domains: none\n");
+    }
+
+    qmi_message_wds_get_current_settings_output_unref (output);
+    operation_shutdown (TRUE);
 }
 
 static void
@@ -392,7 +547,7 @@ get_packet_service_status_ready (QmiClientWds *client,
         g_printerr ("error: operation failed: %s\n",
                     error->message);
         g_error_free (error);
-        shutdown (FALSE);
+        operation_shutdown (FALSE);
         return;
     }
 
@@ -400,7 +555,7 @@ get_packet_service_status_ready (QmiClientWds *client,
         g_printerr ("error: couldn't get packet service status: %s\n", error->message);
         g_error_free (error);
         qmi_message_wds_get_packet_service_status_output_unref (output);
-        shutdown (FALSE);
+        operation_shutdown (FALSE);
         return;
     }
 
@@ -414,7 +569,7 @@ get_packet_service_status_ready (QmiClientWds *client,
              qmi_wds_connection_status_get_string (status));
 
     qmi_message_wds_get_packet_service_status_output_unref (output);
-    shutdown (TRUE);
+    operation_shutdown (TRUE);
 }
 
 static void
@@ -431,7 +586,7 @@ get_packet_statistics_ready (QmiClientWds *client,
         g_printerr ("error: operation failed: %s\n",
                     error->message);
         g_error_free (error);
-        shutdown (FALSE);
+        operation_shutdown (FALSE);
         return;
     }
 
@@ -439,7 +594,7 @@ get_packet_statistics_ready (QmiClientWds *client,
         g_printerr ("error: couldn't get packet statistics: %s\n", error->message);
         g_error_free (error);
         qmi_message_wds_get_packet_statistics_output_unref (output);
-        shutdown (FALSE);
+        operation_shutdown (FALSE);
         return;
     }
 
@@ -481,7 +636,7 @@ get_packet_statistics_ready (QmiClientWds *client,
         g_print ("\tRX bytes OK (last): %" G_GUINT64_FORMAT "\n", val64);
 
     qmi_message_wds_get_packet_statistics_output_unref (output);
-    shutdown (TRUE);
+    operation_shutdown (TRUE);
 }
 
 static void
@@ -497,7 +652,7 @@ get_data_bearer_technology_ready (QmiClientWds *client,
         g_printerr ("error: operation failed: %s\n",
                     error->message);
         g_error_free (error);
-        shutdown (FALSE);
+        operation_shutdown (FALSE);
         return;
     }
 
@@ -520,7 +675,7 @@ get_data_bearer_technology_ready (QmiClientWds *client,
 
         g_error_free (error);
         qmi_message_wds_get_data_bearer_technology_output_unref (output);
-        shutdown (FALSE);
+        operation_shutdown (FALSE);
         return;
     }
 
@@ -532,7 +687,7 @@ get_data_bearer_technology_ready (QmiClientWds *client,
              qmi_device_get_path_display (ctx->device),
              qmi_wds_data_bearer_technology_get_string (current));
     qmi_message_wds_get_data_bearer_technology_output_unref (output);
-    shutdown (TRUE);
+    operation_shutdown (TRUE);
 }
 
 static void
@@ -582,7 +737,7 @@ get_current_data_bearer_technology_ready (QmiClientWds *client,
         g_printerr ("error: operation failed: %s\n",
                     error->message);
         g_error_free (error);
-        shutdown (FALSE);
+        operation_shutdown (FALSE);
         return;
     }
 
@@ -607,7 +762,7 @@ get_current_data_bearer_technology_ready (QmiClientWds *client,
 
         g_error_free (error);
         qmi_message_wds_get_current_data_bearer_technology_output_unref (output);
-        shutdown (FALSE);
+        operation_shutdown (FALSE);
         return;
     }
 
@@ -626,7 +781,7 @@ get_current_data_bearer_technology_ready (QmiClientWds *client,
     }
 
     qmi_message_wds_get_current_data_bearer_technology_output_unref (output);
-    shutdown (TRUE);
+    operation_shutdown (TRUE);
 }
 
 typedef struct {
@@ -704,7 +859,7 @@ get_next_profile_settings (GetProfileListContext *inner_ctx)
         /* All done */
         g_array_unref (inner_ctx->profile_list);
         g_slice_free (GetProfileListContext, inner_ctx);
-        shutdown (TRUE);
+        operation_shutdown (TRUE);
         return;
     }
 
@@ -743,7 +898,7 @@ get_profile_list_ready (QmiClientWds *client,
         g_printerr ("error: operation failed: %s\n",
                     error->message);
         g_error_free (error);
-        shutdown (FALSE);
+        operation_shutdown (FALSE);
         return;
     }
 
@@ -766,7 +921,7 @@ get_profile_list_ready (QmiClientWds *client,
 
         g_error_free (error);
         qmi_message_wds_get_profile_list_output_unref (output);
-        shutdown (FALSE);
+        operation_shutdown (FALSE);
         return;
     }
 
@@ -775,7 +930,7 @@ get_profile_list_ready (QmiClientWds *client,
     if (!profile_list || !profile_list->len) {
         g_print ("Profile list empty\n");
         qmi_message_wds_get_profile_list_output_unref (output);
-        shutdown (TRUE);
+        operation_shutdown (TRUE);
         return;
     }
 
@@ -801,7 +956,7 @@ get_default_settings_ready (QmiClientWds *client,
     if (!output) {
         g_printerr ("error: operation failed: %s\n", error->message);
         g_error_free (error);
-        shutdown (FALSE);
+        operation_shutdown (FALSE);
         return;
     }
 
@@ -823,7 +978,7 @@ get_default_settings_ready (QmiClientWds *client,
         }
         g_error_free (error);
         qmi_message_wds_get_default_settings_output_unref (output);
-        shutdown (FALSE);
+        operation_shutdown (FALSE);
         return;
     }
 
@@ -846,7 +1001,45 @@ get_default_settings_ready (QmiClientWds *client,
     }
 
     qmi_message_wds_get_default_settings_output_unref (output);
-    shutdown (TRUE);
+    operation_shutdown (TRUE);
+}
+
+static void
+get_supported_messages_ready (QmiClientWds *client,
+                              GAsyncResult *res)
+{
+    QmiMessageWdsGetSupportedMessagesOutput *output;
+    GError *error = NULL;
+    GArray *bytearray = NULL;
+    gchar *str;
+
+    output = qmi_client_wds_get_supported_messages_finish (client, res, &error);
+    if (!output) {
+        g_printerr ("error: operation failed: %s\n", error->message);
+        g_error_free (error);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    if (!qmi_message_wds_get_supported_messages_output_get_result (output, &error)) {
+        g_printerr ("error: couldn't get supported WDS messages: %s\n", error->message);
+        g_error_free (error);
+        qmi_message_wds_get_supported_messages_output_unref (output);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    g_print ("[%s] Successfully got supported WDS messages:\n",
+             qmi_device_get_path_display (ctx->device));
+
+    qmi_message_wds_get_supported_messages_output_get_list (output, &bytearray, NULL);
+    str = qmicli_get_supported_messages_list (bytearray ? (const guint8 *)bytearray->data : NULL,
+                                              bytearray ? bytearray->len : 0);
+    g_print ("%s", str);
+    g_free (str);
+
+    qmi_message_wds_get_supported_messages_output_unref (output);
+    operation_shutdown (TRUE);
 }
 
 static void
@@ -860,7 +1053,7 @@ reset_ready (QmiClientWds *client,
     if (!output) {
         g_printerr ("error: operation failed: %s\n", error->message);
         g_error_free (error);
-        shutdown (FALSE);
+        operation_shutdown (FALSE);
         return;
     }
 
@@ -868,7 +1061,7 @@ reset_ready (QmiClientWds *client,
         g_printerr ("error: couldn't reset the WDS service: %s\n", error->message);
         g_error_free (error);
         qmi_message_wds_reset_output_unref (output);
-        shutdown (FALSE);
+        operation_shutdown (FALSE);
         return;
     }
 
@@ -876,13 +1069,13 @@ reset_ready (QmiClientWds *client,
              qmi_device_get_path_display (ctx->device));
 
     qmi_message_wds_reset_output_unref (output);
-    shutdown (TRUE);
+    operation_shutdown (TRUE);
 }
 
 static gboolean
 noop_cb (gpointer unused)
 {
-    shutdown (TRUE);
+    operation_shutdown (TRUE);
     return FALSE;
 }
 
@@ -962,12 +1155,39 @@ qmicli_wds_run (QmiDevice *device,
             packet_data_handle > G_MAXUINT32) {
             g_printerr ("error: invalid packet data handle given '%s'\n",
                         stop_network_str);
-            shutdown (FALSE);
+            operation_shutdown (FALSE);
             return;
         }
 
         g_debug ("Asynchronously stopping network...");
         internal_stop_network (ctx->cancellable, (guint32)packet_data_handle);
+        return;
+    }
+
+    /* Request to get current settings? */
+    if (get_current_settings_flag) {
+        QmiMessageWdsGetCurrentSettingsInput *input;
+
+        input = qmi_message_wds_get_current_settings_input_new ();
+        qmi_message_wds_get_current_settings_input_set_requested_settings (
+            input,
+            (QMI_WDS_GET_CURRENT_SETTINGS_REQUESTED_SETTINGS_DNS_ADDRESS      |
+             QMI_WDS_GET_CURRENT_SETTINGS_REQUESTED_SETTINGS_GRANTED_QOS      |
+             QMI_WDS_GET_CURRENT_SETTINGS_REQUESTED_SETTINGS_IP_ADDRESS       |
+             QMI_WDS_GET_CURRENT_SETTINGS_REQUESTED_SETTINGS_GATEWAY_INFO     |
+             QMI_WDS_GET_CURRENT_SETTINGS_REQUESTED_SETTINGS_MTU              |
+             QMI_WDS_GET_CURRENT_SETTINGS_REQUESTED_SETTINGS_DOMAIN_NAME_LIST |
+             QMI_WDS_GET_CURRENT_SETTINGS_REQUESTED_SETTINGS_IP_FAMILY),
+            NULL);
+
+        g_debug ("Asynchronously getting current settings...");
+        qmi_client_wds_get_current_settings (client,
+                                             input,
+                                             10,
+                                             ctx->cancellable,
+                                             (GAsyncReadyCallback)get_current_settings_ready,
+                                             NULL);
+        qmi_message_wds_get_current_settings_input_unref (input);
         return;
     }
 
@@ -1049,7 +1269,7 @@ qmicli_wds_run (QmiDevice *device,
         else {
             g_printerr ("error: invalid profile type '%s'. Expected '3gpp' or '3gpp2'.'\n",
                         get_profile_list_str);
-            shutdown (FALSE);
+            operation_shutdown (FALSE);
             return;
         }
 
@@ -1076,7 +1296,7 @@ qmicli_wds_run (QmiDevice *device,
         else {
             g_printerr ("error: invalid default type '%s'. Expected '3gpp' or '3gpp2'.'\n",
                         get_default_settings_str);
-            shutdown (FALSE);
+            operation_shutdown (FALSE);
             return;
         }
 
@@ -1088,6 +1308,18 @@ qmicli_wds_run (QmiDevice *device,
                                              (GAsyncReadyCallback)get_default_settings_ready,
                                              NULL);
         qmi_message_wds_get_default_settings_input_unref (input);
+        return;
+    }
+
+    /* Request to list supported messages? */
+    if (get_supported_messages_flag) {
+        g_debug ("Asynchronously getting supported WDS messages...");
+        qmi_client_wds_get_supported_messages (ctx->client,
+                                               NULL,
+                                               10,
+                                               ctx->cancellable,
+                                               (GAsyncReadyCallback)get_supported_messages_ready,
+                                               NULL);
         return;
     }
 
