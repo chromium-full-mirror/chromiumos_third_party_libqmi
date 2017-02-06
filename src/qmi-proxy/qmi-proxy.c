@@ -174,8 +174,6 @@ int main (int argc, char **argv)
 
     setlocale (LC_ALL, "");
 
-    g_type_init ();
-
     /* Setup option context, process it and destroy it */
     context = g_option_context_new ("- Proxy for QMI devices");
     g_option_context_add_main_entries (context, main_entries, NULL);
@@ -184,7 +182,7 @@ int main (int argc, char **argv)
                     error->message);
         exit (EXIT_FAILURE);
     }
-	g_option_context_free (context);
+    g_option_context_free (context);
 
     if (version_flag)
         print_version_and_exit ();

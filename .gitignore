@@ -53,6 +53,8 @@ Makefile.in
 /src/qmi-proxy/qmi-proxy
 /src/qmi-proxy/76-qmi-proxy-device-ownership.rules
 
+/src/qmi-firmware-update/qmi-firmware-update
+
 /build-aux/qmi-codegen/*.pyc
 
 /docs/reference/libqmi-glib/version.xml
@@ -74,3 +76,8 @@ Makefile.in
 /docs/man/qmi-network.1
 
 /utils/qmi-network
+/utils/swi-update
+
+/src/qmi-firmware-update/qfu-enum-types.*
+
+/src/qmi-firmware-update/test/test-utils

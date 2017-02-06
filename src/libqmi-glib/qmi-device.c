@@ -18,9 +18,12 @@
  * Boston, MA 02110-1301 USA.
  *
  * Copyright (C) 2012 Lanedo GmbH
- * Copyright (C) 2012 - 2014 Aleksander Morgado <aleksander@aleksander.es>
+ * Copyright (C) 2012-2017 Aleksander Morgado <aleksander@aleksander.es>
  */
 
+#include <config.h>
+
+#include <stdio.h>
 #include <errno.h>
 #include <string.h>
 #include <fcntl.h>
@@ -31,6 +34,10 @@
 #include <gio/gunixoutputstream.h>
 #include <gio/gunixsocketaddress.h>
 
+#if defined MBIM_QMUX_ENABLED
+#include <libmbim-glib.h>
+#endif
+
 #include "qmi-device.h"
 #include "qmi-message.h"
 #include "qmi-ctl.h"
@@ -38,6 +45,7 @@
 #include "qmi-wds.h"
 #include "qmi-nas.h"
 #include "qmi-wms.h"
+#include "qmi-pdc.h"
 #include "qmi-pds.h"
 #include "qmi-pbm.h"
 #include "qmi-uim.h"
@@ -92,6 +100,10 @@ struct _QmiDevicePrivate {
     gboolean no_file_check;
     gchar *proxy_path;
 
+#if defined MBIM_QMUX_ENABLED
+    MbimDevice *mbimdev;
+#endif
+
     /* WWAN interface */
     gboolean no_wwan_check;
     gchar *wwan_iface;
@@ -131,25 +143,28 @@ typedef struct {
 } TransactionWaitContext;
 
 typedef struct {
-    QmiMessage *message;
-    GSimpleAsyncResult *result;
-    GSource *timeout_source;
-    GCancellable *cancellable;
-    gulong cancellable_id;
+    QmiMessage             *message;
+    QmiMessageContext      *message_context;
+    GSimpleAsyncResult     *result;
+    GSource                *timeout_source;
+    GCancellable           *cancellable;
+    gulong                  cancellable_id;
     TransactionWaitContext *wait_ctx;
 } Transaction;
 
 static Transaction *
-transaction_new (QmiDevice *self,
-                 QmiMessage *message,
-                 GCancellable *cancellable,
-                 GAsyncReadyCallback callback,
-                 gpointer user_data)
+transaction_new (QmiDevice           *self,
+                 QmiMessage          *message,
+                 QmiMessageContext   *message_context,
+                 GCancellable        *cancellable,
+                 GAsyncReadyCallback  callback,
+                 gpointer             user_data)
 {
     Transaction *tr;
 
     tr = g_slice_new0 (Transaction);
     tr->message = qmi_message_ref (message);
+    tr->message_context = (message_context ? qmi_message_context_ref (message_context) : NULL);
     tr->result = g_simple_async_result_new (G_OBJECT (self),
                                             callback,
                                             user_data,
@@ -188,6 +203,8 @@ transaction_complete_and_free (Transaction *tr,
 
     g_simple_async_result_complete_in_idle (tr->result);
     g_object_unref (tr->result);
+    if (tr->message_context)
+        qmi_message_context_unref (tr->message_context);
     qmi_message_unref (tr->message);
     g_slice_free (Transaction, tr);
 }
@@ -212,7 +229,7 @@ build_transaction_key (QmiMessage *message)
 
 static Transaction *
 device_release_transaction (QmiDevice *self,
-                            gpointer key)
+                            gconstpointer key)
 {
     Transaction *tr = NULL;
 
@@ -253,6 +270,12 @@ transaction_cancelled (GCancellable *cancellable,
     GError *error = NULL;
 
     tr = device_release_transaction (ctx->self, ctx->key);
+
+    /* The transaction may have already been cancelled before we stored it in
+     * the tracking table */
+    if (!tr)
+        return;
+
     tr->cancellable_id = 0;
 
     /* Complete transaction with an abort error */
@@ -269,11 +292,8 @@ device_store_transaction (QmiDevice *self,
                           guint timeout,
                           GError **error)
 {
-    gpointer key;
-
-    if (G_UNLIKELY (!self->priv->transactions))
-        self->priv->transactions = g_hash_table_new (g_direct_hash,
-                                                     g_direct_equal);
+    gpointer     key;
+    Transaction *existing;
 
     key = build_transaction_key (tr->message);
 
@@ -283,12 +303,17 @@ device_store_transaction (QmiDevice *self,
     tr->wait_ctx->self = self;
     tr->wait_ctx->key = key; /* valid as long as the transaction is in the HT */
 
-    tr->timeout_source = g_timeout_source_new_seconds (timeout);
-    g_source_set_callback (tr->timeout_source, (GSourceFunc)transaction_timed_out, tr->wait_ctx, NULL);
-    g_source_attach (tr->timeout_source, g_main_context_get_thread_default ());
-    g_source_unref (tr->timeout_source);
+    /* Timeout is optional (e.g. disabled when MBIM is used) */
+    if (timeout > 0) {
+        tr->timeout_source = g_timeout_source_new_seconds (timeout);
+        g_source_set_callback (tr->timeout_source, (GSourceFunc)transaction_timed_out, tr->wait_ctx, NULL);
+        g_source_attach (tr->timeout_source, g_main_context_get_thread_default ());
+        g_source_unref (tr->timeout_source);
+    }
 
     if (tr->cancellable) {
+        /* Note: transaction_cancelled() will also be called directly if the
+         * cancellable is already cancelled */
         tr->cancellable_id = g_cancellable_connect (tr->cancellable,
                                                     (GCallback)transaction_cancelled,
                                                     tr->wait_ctx,
@@ -300,6 +325,22 @@ device_store_transaction (QmiDevice *self,
                          "Request is already cancelled");
             return FALSE;
         }
+    }
+
+    /* If we have already a transaction with the same ID complete the existing
+     * one with an error before the new one is added, or we'll end up with
+     * dangling timeouts and cancellation handlers that may be fired off later
+     * on. */
+    existing = device_release_transaction (self, key);
+    if (existing) {
+        GError *inner_error;
+
+        /* Complete transaction with an abort error */
+        inner_error = g_error_new (QMI_PROTOCOL_ERROR,
+                                   QMI_PROTOCOL_ERROR_ABORTED,
+                                   "Transaction overwritten");
+        transaction_complete_and_free (existing, NULL, inner_error);
+        g_error_free (inner_error);
     }
 
     /* Keep in the HT */
@@ -471,8 +512,10 @@ check_message_supported (QmiDevice *self,
                          GError **error)
 {
     const QmiMessageCtlGetVersionInfoOutputServiceListService *info;
-    guint major = 0;
-    guint minor = 0;
+    guint message_major = 0;
+    guint message_minor = 0;
+    guint device_major = 0;
+    guint device_minor = 0;
 
     /* If we didn't check supported services, just assume it is supported */
     if (!self->priv->supported_services)
@@ -484,7 +527,7 @@ check_message_supported (QmiDevice *self,
 
     /* If we cannot get in which version this message was introduced, we'll just
      * assume it's supported */
-    if (!qmi_message_get_version_introduced (message, &major, &minor))
+    if (!qmi_message_get_version_introduced (message, &message_major, &message_minor))
         return TRUE;
 
     /* Get version info. It MUST exist because we allowed creating a client
@@ -492,18 +535,34 @@ check_message_supported (QmiDevice *self,
     info = find_service_version_info (self, qmi_message_get_service (message));
     g_assert (info != NULL);
     g_assert (info->service == qmi_message_get_service (message));
+    device_major = info->major_version;
+    device_minor = info->minor_version;
+
+    /* Some device firmware versions (Quectel EC21) lie about their supported
+     * DMS version, so assume a reasonable DMS version if the WDS version is
+     * high enough */
+    if (info->service == QMI_SERVICE_DMS && device_major == 1 && device_minor == 0) {
+        const QmiMessageCtlGetVersionInfoOutputServiceListService *wds;
+
+        wds = find_service_version_info (self, QMI_SERVICE_WDS);
+        g_assert (wds != NULL);
+        if (wds->major_version >= 1 && wds->minor_version >= 9) {
+            device_major = 1;
+            device_minor = 3;
+        }
+    }
 
     /* If the version of the message is greater than the version of the service,
      * report unsupported */
-    if (major > info->major_version ||
-        (major == info->major_version &&
-         minor > info->minor_version)) {
+    if (message_major > device_major ||
+        (message_major == device_major &&
+         message_minor > device_minor)) {
         g_set_error (error,
                      QMI_CORE_ERROR,
                      QMI_CORE_ERROR_UNSUPPORTED,
                      "QMI service '%s' version '%u.%u' required, got version '%u.%u'",
                      qmi_service_get_string (qmi_message_get_service (message)),
-                     major, minor,
+                     message_major, message_minor,
                      info->major_version,
                      info->minor_version);
         return FALSE;
@@ -678,9 +737,11 @@ reload_wwan_iface_name (QmiDevice *self)
  * @self: a #QmiDevice.
  *
  * Get the WWAN interface name associated with this /dev/cdc-wdm control port.
- * This value will be loaded the first time it's asked for it.
+ * This value will be loaded every time it's asked for it.
  *
  * Returns: UTF-8 encoded network interface name, or %NULL if not available.
+ *
+ * Since: 1.14
  */
 const gchar *
 qmi_device_get_wwan_iface (QmiDevice *self)
@@ -689,6 +750,186 @@ qmi_device_get_wwan_iface (QmiDevice *self)
 
     reload_wwan_iface_name (self);
     return self->priv->wwan_iface;
+}
+
+/*****************************************************************************/
+/* Expected data format */
+
+static gboolean
+get_expected_data_format (QmiDevice *self,
+                          const gchar *sysfs_path,
+                          GError **error)
+{
+    QmiDeviceExpectedDataFormat expected = QMI_DEVICE_EXPECTED_DATA_FORMAT_UNKNOWN;
+    gchar value = '\0';
+    FILE *f;
+
+    g_debug ("[%s] Reading expected data format from: %s",
+             self->priv->path_display,
+             sysfs_path);
+
+    if (!(f = fopen (sysfs_path, "r"))) {
+        g_set_error (error, G_IO_ERROR, g_io_error_from_errno (errno),
+                     "Failed to open file '%s': %s",
+                     sysfs_path, g_strerror (errno));
+        goto out;
+    }
+
+    if (fread (&value, 1, 1, f) != 1) {
+        g_set_error (error, G_IO_ERROR, g_io_error_from_errno (errno),
+                     "Failed to read from file '%s': %s",
+                     sysfs_path, g_strerror (errno));
+        goto out;
+    }
+
+    if (value == 'Y')
+        expected = QMI_DEVICE_EXPECTED_DATA_FORMAT_RAW_IP;
+    else if (value == 'N')
+        expected = QMI_DEVICE_EXPECTED_DATA_FORMAT_802_3;
+    else
+        g_set_error (error, QMI_CORE_ERROR, QMI_CORE_ERROR_FAILED,
+                     "Unexpected sysfs file contents");
+
+ out:
+    g_prefix_error (error, "Expected data format not retrieved properly: ");
+    if (f)
+        fclose (f);
+    return expected;
+}
+
+static gboolean
+set_expected_data_format (QmiDevice *self,
+                          const gchar *sysfs_path,
+                          QmiDeviceExpectedDataFormat requested,
+                          GError **error)
+{
+    gboolean status = FALSE;
+    gchar value;
+    FILE *f;
+
+    g_debug ("[%s] Writing expected data format to: %s",
+             self->priv->path_display,
+             sysfs_path);
+
+    if (requested == QMI_DEVICE_EXPECTED_DATA_FORMAT_RAW_IP)
+        value = 'Y';
+    else if (requested == QMI_DEVICE_EXPECTED_DATA_FORMAT_802_3)
+        value = 'N';
+    else
+        g_assert_not_reached ();
+
+    if (!(f = fopen (sysfs_path, "w"))) {
+        g_set_error (error, G_IO_ERROR, g_io_error_from_errno (errno),
+                     "Failed to open file '%s' for R/W: %s",
+                     sysfs_path, g_strerror (errno));
+        goto out;
+    }
+
+    if (fwrite (&value, 1, 1, f) != 1) {
+        g_set_error (error, G_IO_ERROR, g_io_error_from_errno (errno),
+                     "Failed to write to file '%s': %s",
+                     sysfs_path, g_strerror (errno));
+        goto out;
+    }
+
+    status = TRUE;
+
+ out:
+    g_prefix_error (error, "Expected data format not updated properly: ");
+    if (f)
+        fclose (f);
+    return status;
+}
+
+static QmiDeviceExpectedDataFormat
+common_get_set_expected_data_format (QmiDevice *self,
+                                     QmiDeviceExpectedDataFormat requested,
+                                     GError **error)
+{
+    gchar *sysfs_path = NULL;
+    QmiDeviceExpectedDataFormat expected = QMI_DEVICE_EXPECTED_DATA_FORMAT_UNKNOWN;
+    gboolean readonly;
+
+    readonly = (requested == QMI_DEVICE_EXPECTED_DATA_FORMAT_UNKNOWN);
+
+    /* Make sure we load the WWAN iface name */
+    reload_wwan_iface_name (self);
+    if (!self->priv->wwan_iface) {
+        g_set_error (error, QMI_CORE_ERROR, QMI_CORE_ERROR_FAILED,
+                     "Unknown wwan iface");
+        goto out;
+    }
+
+    /* Build sysfs file path and open it */
+    sysfs_path = g_strdup_printf ("/sys/class/net/%s/qmi/raw_ip", self->priv->wwan_iface);
+
+    /* Set operation? */
+    if (!readonly && !set_expected_data_format (self, sysfs_path, requested, error))
+        goto out;
+
+    /* Get/Set operations */
+    if ((expected = get_expected_data_format (self, sysfs_path, error)) == QMI_DEVICE_EXPECTED_DATA_FORMAT_UNKNOWN)
+        goto out;
+
+    /* If we requested an update but we didn't read that value, report an error */
+    if (!readonly && (requested != expected)) {
+        g_set_error (error, QMI_CORE_ERROR, QMI_CORE_ERROR_FAILED,
+                     "Expected data format not updated properly to '%s': got '%s' instead",
+                     qmi_device_expected_data_format_get_string (requested),
+                     qmi_device_expected_data_format_get_string (expected));
+        expected = QMI_DEVICE_EXPECTED_DATA_FORMAT_UNKNOWN;
+    }
+
+ out:
+    g_free (sysfs_path);
+    return expected;
+}
+
+/**
+ * qmi_device_get_expected_data_format:
+ * @self: a #QmiDevice.
+ * @error: Return location for error or %NULL.
+ *
+ * Retrieves the data format currently expected by the kernel in the network
+ * interface.
+ *
+ * If @QMI_DEVICE_EXPECTED_DATA_FORMAT_UNKNOWN is returned, the user should assume
+ * that 802.3 is the expected format.
+ *
+ * Returns: a valid #QmiDeviceExpectedDataFormat, or @QMI_DEVICE_EXPECTED_DATA_FORMAT_UNKNOWN if @error is set.
+ *
+ * Since: 1.14
+ */
+QmiDeviceExpectedDataFormat
+qmi_device_get_expected_data_format (QmiDevice  *self,
+                                     GError    **error)
+{
+    g_return_val_if_fail (QMI_IS_DEVICE (self), QMI_DEVICE_EXPECTED_DATA_FORMAT_UNKNOWN);
+
+    return common_get_set_expected_data_format (self, QMI_DEVICE_EXPECTED_DATA_FORMAT_UNKNOWN, error);
+}
+
+/**
+ * qmi_device_set_expected_data_format:
+ * @self: a #QmiDevice.
+ * @format: a known #QmiDeviceExpectedDataFormat.
+ * @error: Return location for error or %NULL.
+ *
+ * Configures the data format currently expected by the kernel in the network
+ * interface.
+ *
+ * Returns: %TRUE if successful, or #NULL if @error is set.
+ *
+ * Since: 1.14
+ */
+gboolean
+qmi_device_set_expected_data_format (QmiDevice *self,
+                                     QmiDeviceExpectedDataFormat format,
+                                     GError **error)
+{
+    g_return_val_if_fail (QMI_IS_DEVICE (self), FALSE);
+
+    return (common_get_set_expected_data_format (self, format, error) != QMI_DEVICE_EXPECTED_DATA_FORMAT_UNKNOWN);
 }
 
 /*****************************************************************************/
@@ -968,6 +1209,10 @@ qmi_device_allocate_client (QmiDevice *self,
 
     case QMI_SERVICE_PDS:
         ctx->client_type = QMI_TYPE_CLIENT_PDS;
+        break;
+
+    case QMI_SERVICE_PDC:
+        ctx->client_type = QMI_TYPE_CLIENT_PDC;
         break;
 
     case QMI_SERVICE_PBM:
@@ -1350,32 +1595,69 @@ report_indication (QmiClient *client,
 }
 
 static void
+trace_message (QmiDevice         *self,
+               QmiMessage        *message,
+               gboolean           sent_or_received,
+               const gchar       *message_str,
+               QmiMessageContext *message_context)
+{
+    gchar       *printable;
+    const gchar *prefix_str;
+    const gchar *action_str;
+    gchar       *vendor_str = NULL;
+
+    if (!qmi_utils_get_traces_enabled ())
+        return;
+
+    if (sent_or_received) {
+        prefix_str = "<<<<<< ";
+        action_str = "sent";
+    } else {
+        prefix_str = "<<<<<< ";
+        action_str = "received";
+    }
+
+    printable = __qmi_utils_str_hex (((GByteArray *)message)->data,
+                                     ((GByteArray *)message)->len,
+                                     ':');
+    g_debug ("[%s] %s message...\n"
+             "%sRAW:\n"
+             "%s  length = %u\n"
+             "%s  data   = %s\n",
+             self->priv->path_display, action_str,
+             prefix_str,
+             prefix_str, ((GByteArray *)message)->len,
+             prefix_str, printable);
+    g_free (printable);
+
+    if (message_context) {
+        guint16 vendor_id;
+
+        vendor_id = qmi_message_context_get_vendor_id (message_context);
+        if (vendor_id != QMI_MESSAGE_VENDOR_GENERIC)
+            vendor_str = g_strdup_printf ("vendor-specific (0x%04x)", vendor_id);
+    }
+
+    printable = qmi_message_get_printable_full (message, message_context, prefix_str);
+    g_debug ("[%s] %s %s %s (translated)...\n%s",
+             self->priv->path_display,
+             action_str,
+             vendor_str ? vendor_str : "generic",
+             message_str,
+             printable);
+    g_free (printable);
+
+    g_free (vendor_str);
+}
+
+static void
 process_message (QmiDevice *self,
                  QmiMessage *message)
 {
-    if (qmi_utils_get_traces_enabled ()) {
-        gchar *printable;
-
-        printable = __qmi_utils_str_hex (((GByteArray *)message)->data,
-                                         ((GByteArray *)message)->len,
-                                         ':');
-        g_debug ("[%s] Received message...\n"
-                 ">>>>>> RAW:\n"
-                 ">>>>>>   length = %u\n"
-                 ">>>>>>   data   = %s\n",
-                 self->priv->path_display,
-                 ((GByteArray *)message)->len,
-                 printable);
-        g_free (printable);
-
-        printable = qmi_message_get_printable (message, ">>>>>> ");
-        g_debug ("[%s] Received message (translated)...\n%s",
-                 self->priv->path_display,
-                 printable);
-        g_free (printable);
-    }
-
     if (qmi_message_is_indication (message)) {
+        /* Indication traces translated without an explicit vendor */
+        trace_message (self, message, FALSE, "indication", NULL);
+
         /* Generic emission of the indication */
         g_signal_emit (self, signals[SIGNAL_INDICATION], 0, message);
 
@@ -1407,16 +1689,23 @@ process_message (QmiDevice *self,
         Transaction *tr;
 
         tr = device_match_transaction (self, message);
-        if (!tr)
+        if (!tr) {
+            /* Unmatched transactions translated without an explicit context */
+            trace_message (self, message, FALSE, "response", NULL);
             g_debug ("[%s] No transaction matched in received message",
                      self->priv->path_display);
-        else
+        } else {
+            /* Matched transactions translated with the same context as the request */
+            trace_message (self, message, FALSE, "response", tr->message_context);
             /* Report the reply message */
             transaction_complete_and_free (tr, message, NULL);
+        }
 
         return;
     }
 
+    /* Unexpected message types translated without an explicit context */
+    trace_message (self, message, FALSE, "unexpected message", NULL);
     g_debug ("[%s] Message received but it is neither an indication nor a response. Skipping it.",
              self->priv->path_display);
 }
@@ -1451,6 +1740,20 @@ parse_response (QmiDevice *self)
                        self->priv->path_display,
                        error->message);
             g_error_free (error);
+
+            if (qmi_utils_get_traces_enabled ()) {
+                gchar *printable;
+                guint len = MIN (self->priv->buffer->len, 2048);
+
+                printable = __qmi_utils_str_hex (self->priv->buffer->data, len, ':');
+                g_debug ("<<<<<< RAW INVALID MESSAGE:\n"
+                         "<<<<<<   length = %u\n"
+                         "<<<<<<   data   = %s\n",
+                         self->priv->buffer->len, /* show full buffer len */
+                         printable);
+                g_free (printable);
+            }
+
         } else {
             /* Play with the received message */
             process_message (self, message);
@@ -1492,7 +1795,6 @@ input_ready_cb (GInputStream *istream,
         self->priv->buffer = g_byte_array_sized_new (r);
     g_byte_array_append (self->priv->buffer, buffer, r);
 
-    /* Try to parse input messages */
     parse_response (self);
 
     return TRUE;
@@ -1706,6 +2008,10 @@ create_iostream (QmiDevice *self,
 
 typedef enum {
     DEVICE_OPEN_CONTEXT_STEP_FIRST = 0,
+#if defined MBIM_QMUX_ENABLED
+    DEVICE_OPEN_CONTEXT_STEP_DEVICE_MBIM,
+    DEVICE_OPEN_CONTEXT_STEP_OPEN_DEVICE_MBIM,
+#endif
     DEVICE_OPEN_CONTEXT_STEP_CREATE_IOSTREAM,
     DEVICE_OPEN_CONTEXT_STEP_FLAGS_PROXY,
     DEVICE_OPEN_CONTEXT_STEP_FLAGS_VERSION_INFO,
@@ -1955,6 +2261,93 @@ create_iostream_ready (QmiDevice *self,
     device_open_context_step (ctx);
 }
 
+#if defined MBIM_QMUX_ENABLED
+
+static void
+mbim_device_open_ready (MbimDevice *dev,
+                        GAsyncResult *res,
+                        DeviceOpenContext *ctx)
+{
+    GError *error = NULL;
+
+    if (!mbim_device_open_finish (dev, res, &error)) {
+        g_simple_async_result_take_error (ctx->result, error);
+        device_open_context_complete_and_free (ctx);
+        return;
+    }
+
+    g_debug ("[%s] MBIM device open", ctx->self->priv->path_display);
+
+    /* Go on */
+    ctx->step++;
+    device_open_context_step (ctx);
+}
+
+static void
+open_mbim_device (DeviceOpenContext *ctx)
+{
+    MbimDeviceOpenFlags open_flags = MBIM_DEVICE_OPEN_FLAGS_NONE;
+
+    /* If QMI proxy was requested, use MBIM proxy instead */
+    if (ctx->flags & QMI_DEVICE_OPEN_FLAGS_PROXY)
+        open_flags |= MBIM_DEVICE_OPEN_FLAGS_PROXY;
+
+    /* We pass the original timeout of the request to the open operation */
+    g_debug ("[%s] opening MBIM device...", ctx->self->priv->path_display);
+    mbim_device_open_full (ctx->self->priv->mbimdev,
+                           open_flags,
+                           ctx->timeout,
+                           ctx->cancellable,
+                           (GAsyncReadyCallback) mbim_device_open_ready,
+                           ctx);
+}
+
+static void
+mbim_device_new_ready (GObject *source,
+                       GAsyncResult *res,
+                       DeviceOpenContext *ctx)
+{
+    GError *error = NULL;
+
+    ctx->self->priv->mbimdev = mbim_device_new_finish (res, &error);
+    if (!ctx->self->priv->mbimdev) {
+        g_simple_async_result_take_error (ctx->result, error);
+        device_open_context_complete_and_free (ctx);
+        return;
+    }
+
+    g_debug ("[%s] MBIM device created", ctx->self->priv->path_display);
+
+    /* Go on */
+    ctx->step++;
+    device_open_context_step (ctx);
+}
+
+static void
+create_mbim_device (DeviceOpenContext *ctx)
+{
+    GFile *file;
+
+    if (ctx->self->priv->mbimdev) {
+        g_simple_async_result_set_error (ctx->result,
+                                         QMI_CORE_ERROR,
+                                         QMI_CORE_ERROR_WRONG_STATE,
+                                         "Already open");
+        device_open_context_complete_and_free (ctx);
+        return;
+    }
+
+    g_debug ("[%s] creating MBIM device...", ctx->self->priv->path_display);
+    file = g_file_new_for_path (ctx->self->priv->path);
+    mbim_device_new (file,
+                     ctx->cancellable,
+                     (GAsyncReadyCallback) mbim_device_new_ready,
+                     ctx);
+    g_object_unref (file);
+}
+
+#endif
+
 #define NETPORT_FLAGS (QMI_DEVICE_OPEN_FLAGS_NET_802_3 | \
                        QMI_DEVICE_OPEN_FLAGS_NET_RAW_IP | \
                        QMI_DEVICE_OPEN_FLAGS_NET_QOS_HEADER | \
@@ -1968,16 +2361,38 @@ device_open_context_step (DeviceOpenContext *ctx)
         ctx->step++;
         /* Fall down */
 
+#if defined MBIM_QMUX_ENABLED
+    case DEVICE_OPEN_CONTEXT_STEP_DEVICE_MBIM:
+        if (ctx->flags & QMI_DEVICE_OPEN_FLAGS_MBIM) {
+            create_mbim_device (ctx);
+            return;
+        }
+        ctx->step++;
+        /* Fall down */
+
+    case DEVICE_OPEN_CONTEXT_STEP_OPEN_DEVICE_MBIM:
+        if (ctx->flags & QMI_DEVICE_OPEN_FLAGS_MBIM) {
+            open_mbim_device (ctx);
+            return;
+        }
+        ctx->step++;
+        /* Fall down */
+#endif
+
     case DEVICE_OPEN_CONTEXT_STEP_CREATE_IOSTREAM:
-        create_iostream (ctx->self,
-                         !!(ctx->flags & QMI_DEVICE_OPEN_FLAGS_PROXY),
-                         (GAsyncReadyCallback)create_iostream_ready,
-                         ctx);
-        return;
+        if (!(ctx->flags & QMI_DEVICE_OPEN_FLAGS_MBIM)) {
+            create_iostream (ctx->self,
+                             !!(ctx->flags & QMI_DEVICE_OPEN_FLAGS_PROXY),
+                             (GAsyncReadyCallback)create_iostream_ready,
+                             ctx);
+            return;
+        }
+        ctx->step++;
+        /* Fall down */
 
     case DEVICE_OPEN_CONTEXT_STEP_FLAGS_PROXY:
         /* Initialize communication with proxy? */
-        if (ctx->flags & QMI_DEVICE_OPEN_FLAGS_PROXY) {
+        if (ctx->flags & QMI_DEVICE_OPEN_FLAGS_PROXY && !(ctx->flags & QMI_DEVICE_OPEN_FLAGS_MBIM)) {
             QmiMessageCtlInternalProxyOpenInput *input;
 
             input = qmi_message_ctl_internal_proxy_open_input_new ();
@@ -2172,6 +2587,63 @@ destroy_iostream (QmiDevice *self,
     return TRUE;
 }
 
+#if defined MBIM_QMUX_ENABLED
+
+typedef struct {
+    GError    *error;
+    GMainLoop *loop;
+} SyncMbimClose;
+
+static void
+mbim_device_close_ready (MbimDevice    *dev,
+                         GAsyncResult  *res,
+                         SyncMbimClose *ctx)
+{
+    mbim_device_close_finish (dev, res, &ctx->error);
+    g_main_loop_quit (ctx->loop);
+}
+
+static gboolean
+destroy_mbim_device (QmiDevice  *self,
+                     GError    **error)
+{
+    GMainContext  *main_ctx;
+    SyncMbimClose  ctx;
+
+    main_ctx = g_main_context_new ();
+    g_main_context_push_thread_default (main_ctx);
+
+    ctx.loop = g_main_loop_new (main_ctx, FALSE);
+    ctx.error = NULL;
+
+    /* Schedule in new main context */
+    mbim_device_close (self->priv->mbimdev,
+                       15,
+                       NULL,
+                       (GAsyncReadyCallback) mbim_device_close_ready,
+                       &ctx);
+
+    /* Cleanup right away, we don't want multiple close attempts on the
+     * device */
+    g_clear_object (&self->priv->mbimdev);
+
+    /* Run */
+    g_main_loop_run (ctx.loop);
+    g_main_loop_unref (ctx.loop);
+    g_main_context_pop_thread_default (main_ctx);
+    g_main_context_unref (main_ctx);
+
+    /* Report error, if any found */
+    if (ctx.error) {
+        g_propagate_error (error, ctx.error);
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+#endif
+
 /**
  * qmi_device_close:
  * @self: a #QmiDevice
@@ -2189,6 +2661,11 @@ qmi_device_close (QmiDevice *self,
 {
     g_return_val_if_fail (QMI_IS_DEVICE (self), FALSE);
 
+#if defined MBIM_QMUX_ENABLED
+    if (self->priv->mbimdev)
+        return destroy_mbim_device (self, error);
+#endif
+
     if (!destroy_iostream (self, error)) {
         g_prefix_error (error, "Cannot close QMI device: ");
         return FALSE;
@@ -2197,23 +2674,149 @@ qmi_device_close (QmiDevice *self,
     return TRUE;
 }
 
+#if defined MBIM_QMUX_ENABLED
+
+typedef struct {
+    QmiDevice     *self;
+    gconstpointer  transaction_key;
+} MbimTransactionContext;
+
+static MbimTransactionContext *
+mbim_transaction_context_new (QmiDevice     *self,
+                              gconstpointer  transaction_key)
+{
+    MbimTransactionContext *ctx;
+
+    ctx = g_slice_new (MbimTransactionContext);
+    ctx->self = g_object_ref (self);
+    ctx->transaction_key = transaction_key;
+    return ctx;
+}
+
+static void
+mbim_transaction_context_free (MbimTransactionContext *ctx)
+{
+    g_object_unref (ctx->self);
+    g_slice_free (MbimTransactionContext, ctx);
+}
+
+static void
+mbim_device_command_ready (MbimDevice             *dev,
+                           GAsyncResult           *res,
+                           MbimTransactionContext *ctx)
+{
+    MbimMessage *response;
+    GError *error = NULL;
+    const guint8 *buf;
+    guint32 len;
+    Transaction *tr;
+
+    /* It is possible that the transaction doesn't exist, when it gets cancelled
+     * by the user before the response arrives. In such a case, we just return
+     * without processing the response */
+    tr = g_hash_table_lookup (ctx->self->priv->transactions, ctx->transaction_key);
+    if (!tr) {
+        mbim_device_command_finish (dev, res, NULL);
+        mbim_transaction_context_free (ctx);
+        return;
+    }
+
+    response = mbim_device_command_finish (dev, res, &error);
+    if (!response || !mbim_message_response_get_result (response, MBIM_MESSAGE_TYPE_COMMAND_DONE, &error)) {
+        g_prefix_error (&error, "MBIM error: ");
+        tr = device_release_transaction (ctx->self, ctx->transaction_key);
+        transaction_complete_and_free (tr, NULL, error);
+        if (response)
+            mbim_message_unref (response);
+        mbim_transaction_context_free (ctx);
+        return;
+    }
+
+    g_debug ("[%s] Received MBIM message", ctx->self->priv->path_display);
+
+    /* Store the raw information buffer in the internal reception buffer,
+     * as if we had read from a iochannel. */
+    buf = mbim_message_command_done_get_raw_information_buffer (response, &len);
+    if (!G_UNLIKELY (ctx->self->priv->buffer))
+        ctx->self->priv->buffer = g_byte_array_sized_new (len);
+    g_byte_array_append (ctx->self->priv->buffer, buf, len);
+
+    /* And parse it as QMI; it should remove and cleanup the transaction */
+    parse_response (ctx->self);
+    mbim_message_unref (response);
+
+    /* After processing the QMI message, we check whether the transaction id was
+     * removed from our tables, and if it wasn't (e.g. the QMI message embedded
+     * in MBIM wasn't the proper one), we remove it ourselves. This is so that
+     * we don't leave unused transactions in the HT, given that we've disabled
+     * the transaction timeout for MBIM based ones */
+    tr = device_release_transaction (ctx->self, ctx->transaction_key);
+    if (tr) {
+        /* Complete transaction with a timeout error */
+        error = g_error_new (QMI_CORE_ERROR,
+                             QMI_CORE_ERROR_UNEXPECTED_MESSAGE,
+                             "Transaction received unexpected message");
+        transaction_complete_and_free (tr, NULL, error);
+        g_error_free (error);
+    }
+
+    mbim_transaction_context_free (ctx);
+}
+
+static gboolean
+mbim_command (QmiDevice      *self,
+              gconstpointer   raw_message,
+              gsize           raw_message_len,
+              gconstpointer   transaction_key,
+              guint           timeout,
+              GCancellable   *cancellable,
+              GError        **error)
+{
+    MbimMessage *mbim_message;
+
+    g_debug ("[%s] sending message as MBIM...", self->priv->path_display);
+
+    mbim_message = (mbim_message_qmi_msg_set_new (raw_message_len, raw_message, error));
+    if (!mbim_message)
+        return FALSE;
+
+    /* Note:
+     *
+     * Pass a full reference to the original QMI device to the MBIM command
+     * operation, so that we make sure the parent object is valid regardless
+     * of when the underlying device is fully disposed. This is required
+     * because device close is async().
+     */
+    mbim_device_command (self->priv->mbimdev,
+                         mbim_message,
+                         timeout,
+                         cancellable,
+                         (GAsyncReadyCallback) mbim_device_command_ready,
+                         mbim_transaction_context_new (self, transaction_key));
+
+    mbim_message_unref (mbim_message);
+    return TRUE;
+}
+
+#endif
+
 /*****************************************************************************/
 /* Command */
 
 /**
- * qmi_device_command_finish:
+ * qmi_device_command_full_finish:
  * @self: a #QmiDevice.
  * @res: a #GAsyncResult.
  * @error: Return location for error or %NULL.
  *
- * Finishes an operation started with qmi_device_command().
+ * Finishes an operation started with qmi_device_command_full().
  *
  * Returns: a #QmiMessage response, or #NULL if @error is set. The returned value should be freed with qmi_message_unref().
  */
 QmiMessage *
-qmi_device_command_finish (QmiDevice *self,
-                           GAsyncResult *res,
-                           GError **error)
+qmi_device_command_full_finish (QmiDevice     *self,
+                                GAsyncResult  *res,
+                                GError       **error)
 {
     if (g_simple_async_result_propagate_error (G_SIMPLE_ASYNC_RESULT (res), error))
         return NULL;
@@ -2222,10 +2825,28 @@ qmi_device_command_finish (QmiDevice *self,
                                 G_SIMPLE_ASYNC_RESULT (res)));
 }
 
+static void
+transaction_early_error (QmiDevice   *self,
+                         Transaction *tr,
+                         gboolean     stored,
+                         GError      *error)
+{
+    g_assert (error);
+
+    if (stored) {
+        /* Match transaction so that we remove it from our tracking table */
+        tr = device_match_transaction (self, tr->message);
+        g_assert (tr);
+    }
+    transaction_complete_and_free (tr, NULL, error);
+    g_error_free (error);
+}
+
 /**
- * qmi_device_command:
+ * qmi_device_command_full:
  * @self: a #QmiDevice.
  * @message: the message to send.
+ * @message_context: the context of the message.
  * @timeout: maximum time, in seconds, to wait for the response.
  * @cancellable: a #GCancellable, or %NULL.
  * @callback: a #GAsyncReadyCallback to call when the operation is finished.
@@ -2233,24 +2854,32 @@ qmi_device_command_finish (QmiDevice *self,
  *
  * Asynchronously sends a #QmiMessage to the device.
  *
+ * The message will be processed according to the specific @message_context
+ * given.
+ *
  * When the operation is finished @callback will be called. You can then call
- * qmi_device_command_finish() to get the result of the operation.
+ * qmi_device_command_full_finish() to get the result of the operation.
+ *
+ * If no @context given, the behavior is the same as qmi_device_command().
  */
 void
-qmi_device_command (QmiDevice *self,
-                    QmiMessage *message,
-                    guint timeout,
-                    GCancellable *cancellable,
-                    GAsyncReadyCallback callback,
-                    gpointer user_data)
+qmi_device_command_full (QmiDevice           *self,
+                         QmiMessage          *message,
+                         QmiMessageContext   *message_context,
+                         guint                timeout,
+                         GCancellable        *cancellable,
+                         GAsyncReadyCallback  callback,
+                         gpointer             user_data)
 {
     GError *error = NULL;
     Transaction *tr;
     gconstpointer raw_message;
     gsize raw_message_len;
+    guint transaction_timeout;
 
     g_return_if_fail (QMI_IS_DEVICE (self));
     g_return_if_fail (message != NULL);
+    g_return_if_fail (timeout > 0);
 
     /* Use a proper transaction id for CTL messages if they don't have one */
     if (qmi_message_get_service (message) == QMI_SERVICE_CTL &&
@@ -2262,16 +2891,20 @@ qmi_device_command (QmiDevice *self,
                     self->priv->client_ctl)));
     }
 
-    tr = transaction_new (self, message, cancellable, callback, user_data);
+    tr = transaction_new (self, message, message_context, cancellable, callback, user_data);
 
     /* Device must be open */
     if (!self->priv->istream || !self->priv->ostream) {
-        error = g_error_new (QMI_CORE_ERROR,
-                             QMI_CORE_ERROR_WRONG_STATE,
-                             "Device must be open to send commands");
-        transaction_complete_and_free (tr, NULL, error);
-        g_error_free (error);
-        return;
+#if defined MBIM_QMUX_ENABLED
+        if (!self->priv->mbimdev)
+#endif
+        {
+            error = g_error_new (QMI_CORE_ERROR,
+                                 QMI_CORE_ERROR_WRONG_STATE,
+                                 "Device must be open to send commands");
+            transaction_early_error (self, tr, FALSE, error);
+            return;
+        }
     }
 
     /* Non-CTL services should use a proper CID */
@@ -2281,8 +2914,7 @@ qmi_device_command (QmiDevice *self,
                              QMI_CORE_ERROR_FAILED,
                              "Cannot send message in service '%s' without a CID",
                              qmi_service_get_string (qmi_message_get_service (message)));
-        transaction_complete_and_free (tr, NULL, error);
-        g_error_free (error);
+        transaction_early_error (self, tr, FALSE, error);
         return;
     }
 
@@ -2290,8 +2922,7 @@ qmi_device_command (QmiDevice *self,
      * (only applicable if we did version info check when opening) */
     if (!check_message_supported (self, message, &error)) {
         g_prefix_error (&error, "Cannot send message: ");
-        transaction_complete_and_free (tr, NULL, error);
-        g_error_free (error);
+        transaction_early_error (self, tr, FALSE, error);
         return;
     }
 
@@ -2299,40 +2930,45 @@ qmi_device_command (QmiDevice *self,
     raw_message = qmi_message_get_raw (message, &raw_message_len, &error);
     if (!raw_message) {
         g_prefix_error (&error, "Cannot get raw message: ");
-        transaction_complete_and_free (tr, NULL, error);
-        g_error_free (error);
+        transaction_early_error (self, tr, FALSE, error);
         return;
     }
+
+    /* For transactions using the MBIM backend, no explicit timeout is set.
+     * Instead, we rely on the timeout management in libmbim. */
+    transaction_timeout = timeout;
+#if defined MBIM_QMUX_ENABLED
+    if (self->priv->mbimdev)
+        transaction_timeout = 0;
+#endif
 
     /* Setup context to match response */
-    if (!device_store_transaction (self, tr, timeout, &error)) {
+    if (!device_store_transaction (self, tr, transaction_timeout, &error)) {
         g_prefix_error (&error, "Cannot store transaction: ");
-        transaction_complete_and_free (tr, NULL, error);
-        g_error_free (error);
+        transaction_early_error (self, tr, FALSE, error);
         return;
     }
 
-    if (qmi_utils_get_traces_enabled ()) {
-        gchar *printable;
+    /* From now on, if we want to complete the transaction with an early error,
+     *  it needs to be removed from the tracking table as well. */
 
-        printable = __qmi_utils_str_hex (((GByteArray *)message)->data,
-                                         ((GByteArray *)message)->len,
-                                         ':');
-        g_debug ("[%s] Sent message...\n"
-                 "<<<<<< RAW:\n"
-                 "<<<<<<   length = %u\n"
-                 "<<<<<<   data   = %s\n",
-                 self->priv->path_display,
-                 ((GByteArray *)message)->len,
-                 printable);
-        g_free (printable);
+    trace_message (self, message, TRUE, "request", message_context);
 
-        printable = qmi_message_get_printable (message, "<<<<<< ");
-        g_debug ("[%s] Sent message (translated)...\n%s",
-                 self->priv->path_display,
-                 printable);
-        g_free (printable);
+#if defined MBIM_QMUX_ENABLED
+    if (self->priv->mbimdev) {
+        if (!mbim_command (self,
+                           raw_message,
+                           raw_message_len,
+                           build_transaction_key (message),
+                           timeout,
+                           cancellable,
+                           &error)) {
+            g_prefix_error (&error, "Cannot create MBIM command: ");
+            transaction_early_error (self, tr, TRUE, error);
+        }
+        return;
     }
+#endif
 
     if (!g_output_stream_write_all (self->priv->ostream,
                                     raw_message,
@@ -2341,14 +2977,62 @@ qmi_device_command (QmiDevice *self,
                                     NULL, /* cancellable */
                                     &error)) {
         g_prefix_error (&error, "Cannot write message: ");
-        /* Match transaction so that we remove it from our tracking table */
-        tr = device_match_transaction (self, message);
-        transaction_complete_and_free (tr, NULL, error);
-        g_error_free (error);
+        transaction_early_error (self, tr, TRUE, error);
+        return;
     }
 
     /* Flush explicitly if correctly written */
     g_output_stream_flush (self->priv->ostream, NULL, NULL);
+}
+
+/*****************************************************************************/
+/* Generic command */
+
+/**
+ * qmi_device_command_finish:
+ * @self: a #QmiDevice.
+ * @res: a #GAsyncResult.
+ * @error: Return location for error or %NULL.
+ *
+ * Finishes an operation started with qmi_device_command().
+ *
+ * Returns: a #QmiMessage response, or #NULL if @error is set. The returned value should be freed with qmi_message_unref().
+ *
+ * Deprecated: 1.18.
+ */
+QmiMessage *
+qmi_device_command_finish (QmiDevice     *self,
+                           GAsyncResult  *res,
+                           GError       **error)
+{
+    return qmi_device_command_full_finish (self, res, error);
+}
+
+/**
+ * qmi_device_command:
+ * @self: a #QmiDevice.
+ * @message: the message to send.
+ * @timeout: maximum time, in seconds, to wait for the response.
+ * @cancellable: a #GCancellable, or %NULL.
+ * @callback: a #GAsyncReadyCallback to call when the operation is finished.
+ * @user_data: the data to pass to callback function.
+ *
+ * Asynchronously sends a generic #QmiMessage to the device with no context.
+ *
+ * When the operation is finished @callback will be called. You can then call
+ * qmi_device_command_finish() to get the result of the operation.
+ *
+ * Deprecated: 1.18: Use qmi_device_command_full() instead.
+ */
+void
+qmi_device_command (QmiDevice           *self,
+                    QmiMessage          *message,
+                    guint                timeout,
+                    GCancellable        *cancellable,
+                    GAsyncReadyCallback  callback,
+                    gpointer             user_data)
+{
+    qmi_device_command_full (self, message, NULL, timeout, cancellable, callback, user_data);
 }
 
 /*****************************************************************************/
@@ -2608,6 +3292,9 @@ qmi_device_init (QmiDevice *self)
     self->priv = G_TYPE_INSTANCE_GET_PRIVATE ((self),
                                               QMI_TYPE_DEVICE,
                                               QmiDevicePrivate);
+
+    self->priv->transactions = g_hash_table_new (g_direct_hash,
+                                                 g_direct_equal);
 
     self->priv->registered_clients = g_hash_table_new_full (g_direct_hash,
                                                             g_direct_equal,

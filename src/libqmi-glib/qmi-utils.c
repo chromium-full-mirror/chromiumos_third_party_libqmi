@@ -18,8 +18,8 @@
  * Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
  * Boston, MA 02110-1301 USA.
  *
- * Copyright (C) 2012 Aleksander Morgado <aleksander@lanedo.com>
- * Copyright (C) 2012 Dan Williams <dcbw@redhat.com>
+ * Copyright (C) 2012-2015 Aleksander Morgado <aleksander@aleksander.es>
+ * Copyright (C) 2012-2015 Dan Williams <dcbw@redhat.com>
  */
 
 #include <config.h>
@@ -47,32 +47,32 @@ __qmi_utils_str_hex (gconstpointer mem,
                      gchar delimiter)
 {
     const guint8 *data = mem;
-	gsize i;
-	gsize j;
-	gsize new_str_length;
-	gchar *new_str;
+    gsize i;
+    gsize j;
+    gsize new_str_length;
+    gchar *new_str;
 
-	/* Get new string length. If input string has N bytes, we need:
-	 * - 1 byte for last NUL char
-	 * - 2N bytes for hexadecimal char representation of each byte...
-	 * - N-1 bytes for the separator ':'
-	 * So... a total of (1+2N+N-1) = 3N bytes are needed... */
-	new_str_length =  3 * size;
+    /* Get new string length. If input string has N bytes, we need:
+     * - 1 byte for last NUL char
+     * - 2N bytes for hexadecimal char representation of each byte...
+     * - N-1 bytes for the separator ':'
+     * So... a total of (1+2N+N-1) = 3N bytes are needed... */
+    new_str_length =  3 * size;
 
-	/* Allocate memory for new array and initialize contents to NUL */
-	new_str = g_malloc0 (new_str_length);
+    /* Allocate memory for new array and initialize contents to NUL */
+    new_str = g_malloc0 (new_str_length);
 
-	/* Print hexadecimal representation of each byte... */
-	for (i = 0, j = 0; i < size; i++, j += 3) {
-		/* Print character in output string... */
-		snprintf (&new_str[j], 3, "%02X", data[i]);
-		/* And if needed, add separator */
-		if (i != (size - 1) )
-			new_str[j + 2] = delimiter;
-	}
+    /* Print hexadecimal representation of each byte... */
+    for (i = 0, j = 0; i < size; i++, j += 3) {
+        /* Print character in output string... */
+        snprintf (&new_str[j], 3, "%02X", data[i]);
+        /* And if needed, add separator */
+        if (i != (size - 1) )
+            new_str[j + 2] = delimiter;
+    }
 
-	/* Set output string */
-	return new_str;
+    /* Set output string */
+    return new_str;
 }
 
 /*****************************************************************************/

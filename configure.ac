@@ -3,8 +3,8 @@ AC_PREREQ([2.68])
 
 dnl The QMI version number
 m4_define([qmi_major_version], [1])
-m4_define([qmi_minor_version], [13])
-m4_define([qmi_micro_version], [4])
+m4_define([qmi_minor_version], [17])
+m4_define([qmi_micro_version], [900])
 m4_define([qmi_version],
           [qmi_major_version.qmi_minor_version.qmi_micro_version])
 
@@ -16,9 +16,9 @@ dnl        If the interface has grown (that is, the new library is compatible
 dnl            with old code), increment a.
 dnl        If the interface has changed in an incompatible way (that is,
 dnl            functions have changed or been removed), then zero a.
-m4_define([qmi_glib_lt_current],  [4])
+m4_define([qmi_glib_lt_current],  [6])
 m4_define([qmi_glib_lt_revision], [0])
-m4_define([qmi_glib_lt_age],      [3])
+m4_define([qmi_glib_lt_age],      [1])
 
 
 AC_INIT([libqmi], [qmi_version], [libqmi-devel@lists.freedesktop.org])
@@ -64,9 +64,13 @@ AC_SUBST(QMI_GLIB_LT_CURRENT)
 AC_SUBST(QMI_GLIB_LT_REVISION)
 AC_SUBST(QMI_GLIB_LT_AGE)
 
-dnl Dependencies
+dnl Required dependency versions
+GLIB_REQUIRED=2.36
+GUDEV_REQUIRED=147
+
+dnl GLib, GIO...
 PKG_CHECK_MODULES(GLIB,
-                  glib-2.0 >= 2.32
+                  glib-2.0 >= $GLIB_REQUIRED
                   gobject-2.0
                   gio-2.0
                   gio-unix-2.0)
@@ -75,6 +79,26 @@ AC_SUBST(GLIB_LIBS)
 
 GLIB_MKENUMS=`$PKG_CONFIG --variable=glib_mkenums glib-2.0`
 AC_SUBST(GLIB_MKENUMS)
+
+dnl GUdev
+PKG_CHECK_MODULES(GUDEV,
+                  [gudev-1.0 >= $GUDEV_REQUIRED],
+                  [have_gudev=yes],[have_gudev=no])
+AC_SUBST(GUDEV_CFLAGS)
+AC_SUBST(GUDEV_LIBS)
+
+dnl qmi-firmware-update is optional, enabled by default
+AC_ARG_ENABLE([firmware-update],
+              AS_HELP_STRING([--enable-firmware-update],
+                             [enable compilation of `qmi-firmware-update' [default=yes]]),
+              [build_firmware_update=$enableval],
+              [build_firmware_update=yes])
+if test "x$build_firmware_update" = "xyes"; then
+   if test "x$have_gudev" = "xno"; then
+      AC_MSG_ERROR([Cannot build `qmi-firmware-update' if GUDev >= GUDEV_REQUIRED is not available. Install it, or otherwise configure using --disable-firmware-update to disable building `qmi-firmware-update'.])
+   fi
+fi
+AM_CONDITIONAL([BUILD_FIRMWARE_UPDATE], [test "x$build_firmware_update" = "xyes"])
 
 dnl Documentation
 GTK_DOC_CHECK(1.0)
@@ -94,6 +118,31 @@ else
 fi
 
 AM_CONDITIONAL([QMI_USERNAME_ENABLED], [test "x$QMI_USERNAME_ENABLED" = "xyes"])
+
+# MBIM QMUX service support
+MBIM_GLIB_VERSION=1.14.0
+PKG_CHECK_MODULES([MBIM], [mbim-glib >= ${MBIM_GLIB_VERSION}], [have_mbim=yes], [have_mbim=no])
+AC_ARG_ENABLE(mbim-qmux,
+              AS_HELP_STRING([--enable-mbim-qmux], [Enable support for QMI over MBIM QMUX service [default=auto]]),
+              [enable_mbim_qmux=$enableval],
+              [enable_mbim_qmux=auto])
+
+if test "x$enable_mbim_qmux" = "xauto"; then
+    enable_mbim_qmux=$have_mbim
+fi
+
+if test "x$enable_mbim_qmux" = "xyes"; then
+    if test "x$have_mbim" = "xno"; then
+        AC_MSG_ERROR([Couldn't find `libmbim-glib` >= ${MBIM_GLIB_VERSION}. Install it, or otherwise configure using --disable-mbim-qmux to disable the QMI over MBIM QMUX service.])
+    fi
+    AC_DEFINE(MBIM_QMUX_ENABLED, 1, [Define if MBIM QMUX support enabled])
+    AC_SUBST(MBIM_CFLAGS)
+    AC_SUBST(MBIM_LIBS)
+    QMI_MBIM_QMUX_SUPPORTED=1
+else
+    QMI_MBIM_QMUX_SUPPORTED=0
+fi
+AC_SUBST(QMI_MBIM_QMUX_SUPPORTED)
 
 # udev base directory
 AC_ARG_WITH(udev-base-dir, AS_HELP_STRING([--with-udev-base-dir=DIR], [where udev base directory is]))
@@ -123,6 +172,8 @@ AC_CONFIG_FILES([Makefile
                  src/qmicli/Makefile
                  src/qmicli/test/Makefile
                  src/qmi-proxy/Makefile
+                 src/qmi-firmware-update/Makefile
+                 src/qmi-firmware-update/test/Makefile
                  utils/Makefile
                  docs/Makefile
                  docs/reference/Makefile
@@ -140,10 +191,16 @@ echo "
     libqmi (libqmi-glib, qmicli) $VERSION
     ==============================================
 
-    compiler:             ${CC}
-    cflags:               ${CFLAGS}
-    Maintainer mode:      ${USE_MAINTAINER_MODE}
-    udev base directory:  ${UDEV_BASE_DIR}
-    Documentation:        ${enable_gtk_doc}
-    QMI username:         ${QMI_USERNAME_ENABLED} (${QMI_USERNAME})
+    compiler:              ${CC}
+    cflags:                ${CFLAGS}
+    Maintainer mode:       ${USE_MAINTAINER_MODE}
+    udev base directory:   ${UDEV_BASE_DIR}
+    Documentation:         ${enable_gtk_doc}
+    QMI username:          ${QMI_USERNAME_ENABLED} (${QMI_USERNAME})
+    QMUX over MBIM:        ${enable_mbim_qmux}
+
+    Built items:
+      libqmi-glib:         yes
+      qmicli:              yes
+      qmi-firmware-update: ${build_firmware_update}
 "

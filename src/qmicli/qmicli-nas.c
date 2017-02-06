@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * Copyright (C) 2012 Aleksander Morgado <aleksander@gnu.org>
+ * Copyright (C) 2012-2015 Aleksander Morgado <aleksander@aleksander.es>
  */
 
 #include "config.h"
@@ -53,6 +53,9 @@ static gboolean get_system_selection_preference_flag;
 static gchar *set_system_selection_preference_str;
 static gboolean network_scan_flag;
 static gboolean get_cell_location_info_flag;
+static gboolean force_network_search_flag;
+static gboolean get_lte_cphy_ca_info_flag;
+static gboolean get_rf_band_info_flag;
 static gboolean get_supported_messages_flag;
 static gboolean reset_flag;
 static gboolean noop_flag;
@@ -102,6 +105,18 @@ static GOptionEntry entries[] = {
       "Get Cell Location Info",
       NULL
     },
+    { "nas-force-network-search", 0, 0, G_OPTION_ARG_NONE, &force_network_search_flag,
+      "Force network search",
+      NULL
+    },
+    { "nas-get-lte-cphy-ca-info", 0, 0, G_OPTION_ARG_NONE, &get_lte_cphy_ca_info_flag,
+      "Get LTE Cphy CA Info",
+      NULL
+    },
+    { "nas-get-rf-band-info", 0, 0, G_OPTION_ARG_NONE, &get_rf_band_info_flag,
+      "Get RF Band Info",
+      NULL
+    },
     { "nas-get-supported-messages", 0, 0, G_OPTION_ARG_NONE, &get_supported_messages_flag,
       "Get supported messages",
       NULL
@@ -120,16 +135,16 @@ static GOptionEntry entries[] = {
 GOptionGroup *
 qmicli_nas_get_option_group (void)
 {
-	GOptionGroup *group;
+    GOptionGroup *group;
 
-	group = g_option_group_new ("nas",
-	                            "NAS options",
-	                            "Show Network Access Service options",
-	                            NULL,
-	                            NULL);
-	g_option_group_add_entries (group, entries);
+    group = g_option_group_new ("nas",
+                                "NAS options",
+                                "Show Network Access Service options",
+                                NULL,
+                                NULL);
+    g_option_group_add_entries (group, entries);
 
-	return group;
+    return group;
 }
 
 gboolean
@@ -152,6 +167,9 @@ qmicli_nas_options_enabled (void)
                  !!set_system_selection_preference_str +
                  network_scan_flag +
                  get_cell_location_info_flag +
+                 force_network_search_flag +
+                 get_lte_cphy_ca_info_flag +
+                 get_rf_band_info_flag +
                  get_supported_messages_flag +
                  reset_flag +
                  noop_flag);
@@ -185,25 +203,46 @@ operation_shutdown (gboolean operation_status)
 {
     /* Cleanup context and finish async operation */
     context_free (ctx);
-    qmicli_async_operation_done (operation_status);
+    qmicli_async_operation_done (operation_status, FALSE);
 }
 
-static gdouble
-get_db_from_sinr_level (QmiNasEvdoSinrLevel level)
+static gboolean
+get_db_from_sinr_level (QmiNasEvdoSinrLevel level,
+                        gdouble *out)
 {
+    g_assert (out != NULL);
+
     switch (level) {
-    case QMI_NAS_EVDO_SINR_LEVEL_0: return -9.0;
-    case QMI_NAS_EVDO_SINR_LEVEL_1: return -6;
-    case QMI_NAS_EVDO_SINR_LEVEL_2: return -4.5;
-    case QMI_NAS_EVDO_SINR_LEVEL_3: return -3;
-    case QMI_NAS_EVDO_SINR_LEVEL_4: return -2;
-    case QMI_NAS_EVDO_SINR_LEVEL_5: return 1;
-    case QMI_NAS_EVDO_SINR_LEVEL_6: return 3;
-    case QMI_NAS_EVDO_SINR_LEVEL_7: return 6;
-    case QMI_NAS_EVDO_SINR_LEVEL_8: return +9;
+    case QMI_NAS_EVDO_SINR_LEVEL_0:
+        *out = -9.0;
+        return TRUE;
+    case QMI_NAS_EVDO_SINR_LEVEL_1:
+        *out = -6.0;
+        return TRUE;
+    case QMI_NAS_EVDO_SINR_LEVEL_2:
+        *out = -4.5;
+        return TRUE;
+    case QMI_NAS_EVDO_SINR_LEVEL_3:
+        *out = -3.0;
+        return TRUE;
+    case QMI_NAS_EVDO_SINR_LEVEL_4:
+        *out = -2.0;
+        return TRUE;
+    case QMI_NAS_EVDO_SINR_LEVEL_5:
+        *out = 1.0;
+        return TRUE;
+    case QMI_NAS_EVDO_SINR_LEVEL_6:
+        *out = 3.0;
+        return TRUE;
+    case QMI_NAS_EVDO_SINR_LEVEL_7:
+        *out = 6.0;
+        return TRUE;
+    case QMI_NAS_EVDO_SINR_LEVEL_8:
+        *out = 9.0;
+        return TRUE;
     default:
         g_warning ("Invalid SINR level '%u'", level);
-        return -G_MAXDOUBLE;
+        return FALSE;
     }
 }
 
@@ -260,15 +299,20 @@ get_signal_info_ready (QmiClientNas *client,
                                                                         &sinr_level,
                                                                         &io,
                                                                         NULL)) {
+        gdouble db_sinr = 0.0;
+
         g_print ("HDR:\n"
                  "\tRSSI: '%d dBm'\n"
                  "\tECIO: '%.1lf dBm'\n"
-                 "\tSINR (%u): '%.1lf dB'\n"
                  "\tIO: '%d dBm'\n",
                  rssi,
                  (-0.5)*((gdouble)ecio),
-                 sinr_level, get_db_from_sinr_level (sinr_level),
                  io);
+
+        if (get_db_from_sinr_level (sinr_level, &db_sinr))
+            g_print ("\tSINR (%u): '%.1lf dB'\n", sinr_level, db_sinr);
+        else
+            g_print ("\tSINR (%u): N/A'\n", sinr_level);
     }
 
     /* GSM */
@@ -448,8 +492,12 @@ get_signal_strength_ready (QmiClientNas *client,
 
     /* SINR level */
     if (qmi_message_nas_get_signal_strength_output_get_sinr (output, &sinr_level, NULL)) {
-        g_print ("SINR: (%u) '%.1lf dB'\n",
-                 sinr_level, get_db_from_sinr_level (sinr_level));
+        gdouble db_sinr = 0.0;
+
+        if (get_db_from_sinr_level (sinr_level, &db_sinr))
+            g_print ("SINR (%u): '%.1lf dB'\n", sinr_level, db_sinr);
+        else
+            g_print ("SINR (%u): N/A'\n", sinr_level);
     }
 
     /* RSRQ */
@@ -2233,8 +2281,12 @@ str_from_bcd_plmn (const gchar *bcd)
 
     str = g_malloc (7);
     for (i = 0, j = 0 ; i < 3; i++) {
-        str[j++] = bcd_chars[bcd[i] & 0xF];
-        str[j++] = bcd_chars[(bcd[i] >> 4) & 0xF];
+        str[j] = bcd_chars[bcd[i] & 0xF];
+        if (str[j])
+            j++;
+        str[j] = bcd_chars[(bcd[i] >> 4) & 0xF];
+        if (str[j])
+            j++;
     }
     str[j] = '\0';
 
@@ -2519,13 +2571,13 @@ get_cell_location_info_ready (QmiClientNas *client,
                  "\tPLMN: '%s'\n"
                  "\tTracking Area Code: '%" G_GUINT16_FORMAT"'\n"
                  "\tGlobal Cell ID: '%" G_GUINT32_FORMAT"'\n"
-                 "\tEUTRA Absolute RF Channel Number: '%" G_GUINT16_FORMAT"'\n"
+                 "\tEUTRA Absolute RF Channel Number: '%" G_GUINT16_FORMAT"' (%s)\n"
                  "\tServing Cell ID: '%" G_GUINT16_FORMAT"'\n",
                  ue_in_idle ? "yes" : "no",
                  plmn,
                  tracking_area_code,
                  global_cell_id,
-                 absolute_rf_channel_number,
+                 absolute_rf_channel_number, qmicli_earfcn_to_eutra_band_string (absolute_rf_channel_number),
                  serving_cell_id);
         g_free (plmn);
         if (ue_in_idle)
@@ -2575,11 +2627,11 @@ get_cell_location_info_ready (QmiClientNas *client,
 
             element = &g_array_index (array, QmiMessageNasGetCellLocationInfoOutputInterfrequencyLteInfoFrequencyElement, i);
             g_print ("\tFrequency [%u]:\n"
-                     "\t\tEUTRA Absolute RF Channel Number: '%" G_GUINT16_FORMAT"'\n"
+                     "\t\tEUTRA Absolute RF Channel Number: '%" G_GUINT16_FORMAT"' (%s)\n"
                      "\t\tSelection RX Level Low Threshold: '%u'\n"
                      "\t\tCell Selection RX Level High Threshold: '%u'\n",
                      i,
-                     element->eutra_absolute_rf_channel_number,
+                     element->eutra_absolute_rf_channel_number, qmicli_earfcn_to_eutra_band_string (element->eutra_absolute_rf_channel_number),
                      element->cell_selection_rx_level_low_threshold,
                      element->cell_selection_rx_level_high_threshold);
             if (ue_in_idle)
@@ -2734,12 +2786,12 @@ get_cell_location_info_ready (QmiClientNas *client,
             element = &g_array_index (array, QmiMessageNasGetCellLocationInfoOutputUmtsInfoNeighboringLteFrequencyElement, i);
 
             g_print ("\tFrequency [%u]:\n"
-                     "\t\tEUTRA Absolute RF Channel Number: '%" G_GUINT16_FORMAT"'\n"
+                     "\t\tEUTRA Absolute RF Channel Number: '%" G_GUINT16_FORMAT"' (%s)\n"
                      "\t\tPhysical Cell ID: '%" G_GUINT16_FORMAT "'\n"
                      "\t\tRSRP: '%f' dBm\n"
                      "\t\tRSRQ: '%f' dB\n",
                      i,
-                     element->eutra_absolute_rf_channel_number,
+                     element->eutra_absolute_rf_channel_number, qmicli_earfcn_to_eutra_band_string (element->eutra_absolute_rf_channel_number),
                      element->physical_cell_id,
                      element->rsrp,
                      element->rsrq);
@@ -2753,6 +2805,178 @@ get_cell_location_info_ready (QmiClientNas *client,
     }
 
     qmi_message_nas_get_cell_location_info_output_unref (output);
+    operation_shutdown (TRUE);
+}
+
+static void
+force_network_search_ready (QmiClientNas *client,
+                            GAsyncResult *res)
+{
+    QmiMessageNasForceNetworkSearchOutput *output;
+    GError *error = NULL;
+
+    output = qmi_client_nas_force_network_search_finish (client, res, &error);
+    if (!output) {
+        g_printerr ("error: operation failed: %s\n", error->message);
+        g_error_free (error);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    if (!qmi_message_nas_force_network_search_output_get_result (output, &error)) {
+        g_printerr ("error: couldn't force network search: %s\n", error->message);
+        g_error_free (error);
+        qmi_message_nas_force_network_search_output_unref (output);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    g_print ("[%s] Successfully forced network search\n",
+             qmi_device_get_path_display (ctx->device));
+    qmi_message_nas_force_network_search_output_unref (output);
+    operation_shutdown (TRUE);
+}
+
+static void
+get_lte_cphy_ca_info_ready (QmiClientNas *client,
+                            GAsyncResult *res)
+{
+    QmiMessageNasGetLteCphyCaInfoOutput *output;
+    GError *error = NULL;
+    guint16 pci;
+    guint16 channel;
+    QmiNasDLBandwidth dl_bandwidth;
+    QmiNasActiveBand band;
+    QmiNasScellState state;
+    guint8 scell_index;
+
+    output = qmi_client_nas_get_lte_cphy_ca_info_finish (client, res, &error);
+    if (!output) {
+        g_printerr ("error: operation failed: %s\n", error->message);
+        g_error_free (error);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    if (!qmi_message_nas_get_lte_cphy_ca_info_output_get_result (output, &error)) {
+        g_printerr ("error: couldn't get carrier aggregation info: %s\n", error->message);
+        g_error_free (error);
+        qmi_message_nas_get_lte_cphy_ca_info_output_unref (output);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    g_print ("[%s] Successfully got carrier aggregation info\n",
+             qmi_device_get_path_display (ctx->device));
+
+    if (qmi_message_nas_get_lte_cphy_ca_info_output_get_dl_bandwidth (
+        output,
+        &dl_bandwidth,
+        NULL)) {
+        g_print ("DL Bandwidth: '%s'\n",
+                 qmi_nas_dl_bandwidth_get_string (dl_bandwidth));
+    }
+
+    if (qmi_message_nas_get_lte_cphy_ca_info_output_get_phy_ca_agg_scell_info (
+        output,
+        &pci,
+        &channel,
+        &dl_bandwidth,
+        &band,
+        &state,
+        NULL)) {
+        g_print ("Secondary Cell Info\n");
+        g_print ("\tPhysical Cell ID: '%" G_GUINT16_FORMAT"'\n"
+                 "\tRX Channel: '%" G_GUINT16_FORMAT"'\n"
+                 "\tDL Bandwidth: '%s'\n"
+                 "\tLTE Band: '%s'\n"
+                 "\tState: '%s'\n",
+                 pci, channel,
+                 qmi_nas_dl_bandwidth_get_string (dl_bandwidth),
+                 qmi_nas_active_band_get_string (band),
+                 qmi_nas_scell_state_get_string (state));
+    }
+
+    if (qmi_message_nas_get_lte_cphy_ca_info_output_get_phy_ca_agg_pcell_info (
+        output,
+        &pci,
+        &channel,
+        &dl_bandwidth,
+        &band,
+        NULL)) {
+        g_print ("Primary Cell Info\n");
+        g_print ("\tPhysical Cell ID: '%" G_GUINT16_FORMAT"'\n"
+                 "\tRX Channel: '%" G_GUINT16_FORMAT"'\n"
+                 "\tDL Bandwidth: '%s'\n"
+                 "\tLTE Band: '%s'\n",
+                 pci, channel,
+                 qmi_nas_dl_bandwidth_get_string (dl_bandwidth),
+                 qmi_nas_active_band_get_string (band));
+    }
+
+    if (qmi_message_nas_get_lte_cphy_ca_info_output_get_scell_index (
+        output,
+        &scell_index,
+        NULL)) {
+        g_print ("Secondary Cell index: '%u'\n", scell_index);
+    }
+
+    qmi_message_nas_get_lte_cphy_ca_info_output_unref (output);
+    operation_shutdown (TRUE);
+}
+
+static void
+get_rf_band_info_ready (QmiClientNas *client,
+                        GAsyncResult *res)
+{
+    QmiMessageNasGetRfBandInformationOutput *output;
+    GError *error = NULL;
+    GArray *band_array = NULL;
+    guint i;
+
+    output = qmi_client_nas_get_rf_band_information_finish (client, res, &error);
+    if (!output) {
+        g_printerr ("error: operation failed: %s\n", error->message);
+        g_error_free (error);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    if (!qmi_message_nas_get_rf_band_information_output_get_result (output, &error)) {
+        g_printerr ("error: couldn't get rf band info: %s\n", error->message);
+        g_error_free (error);
+        qmi_message_nas_get_rf_band_information_output_unref (output);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    g_print ("[%s] Successfully got RF band info\n",
+             qmi_device_get_path_display (ctx->device));
+
+    if (!qmi_message_nas_get_rf_band_information_output_get_list (
+        output,
+        &band_array,
+        &error)) {
+        g_printerr ("error: couldn't get rf band list: %s\n", error->message);
+        g_error_free (error);
+        qmi_message_nas_get_rf_band_information_output_unref (output);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    for (i = 0; band_array && i < band_array->len; i++) {
+        QmiMessageNasGetRfBandInformationOutputListElement *info;
+
+        info = &g_array_index (band_array, QmiMessageNasGetRfBandInformationOutputListElement, i);
+        g_print ("\tRadio Interface:   '%s'\n"
+                 "\tActive Band Class: '%s'\n"
+                 "\tActive Channel:    '%" G_GUINT16_FORMAT"'\n",
+                 qmi_nas_radio_interface_get_string (info->radio_interface),
+                 qmi_nas_active_band_get_string (info->active_band_class),
+                 info->active_channel);
+    }
+
+    qmi_message_nas_get_rf_band_information_output_unref (output);
     operation_shutdown (TRUE);
 }
 
@@ -2997,6 +3221,42 @@ qmicli_nas_run (QmiDevice *device,
                                                ctx->cancellable,
                                                (GAsyncReadyCallback)get_cell_location_info_ready,
                                                NULL);
+        return;
+    }
+
+    /* Request to force network search */
+    if (force_network_search_flag) {
+        g_debug ("Forcing network search...");
+        qmi_client_nas_force_network_search (ctx->client,
+                                             NULL,
+                                             10,
+                                             ctx->cancellable,
+                                             (GAsyncReadyCallback)force_network_search_ready,
+                                             NULL);
+        return;
+    }
+
+    /* Request to get carrier aggregation info? */
+    if (get_lte_cphy_ca_info_flag) {
+        g_debug ("Asynchronously getting carrier aggregation info ...");
+        qmi_client_nas_get_lte_cphy_ca_info (ctx->client,
+                                             NULL,
+                                             10,
+                                             ctx->cancellable,
+                                             (GAsyncReadyCallback)get_lte_cphy_ca_info_ready,
+                                             NULL);
+        return;
+    }
+
+    /* Request to get rf band info? */
+    if (get_rf_band_info_flag) {
+        g_debug ("Asynchronously getting RF band info ...");
+        qmi_client_nas_get_rf_band_information (ctx->client,
+                                                NULL,
+                                                10,
+                                                ctx->cancellable,
+                                                (GAsyncReadyCallback)get_rf_band_info_ready,
+                                                NULL);
         return;
     }
 

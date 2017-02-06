@@ -17,7 +17,7 @@
  * Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
  * Boston, MA 02110-1301 USA.
  *
- * Copyright (C) 2012 Aleksander Morgado <aleksander@lanedo.com>
+ * Copyright (C) 2012-2017 Aleksander Morgado <aleksander@aleksander.es>
  */
 
 #ifndef _LIBQMI_GLIB_QMI_DEVICE_H_
@@ -32,6 +32,7 @@
 
 #include "qmi-enums.h"
 #include "qmi-message.h"
+#include "qmi-message-context.h"
 #include "qmi-client.h"
 
 G_BEGIN_DECLS
@@ -97,6 +98,7 @@ gboolean      qmi_device_is_open          (QmiDevice *self);
  * @QMI_DEVICE_OPEN_FLAGS_NET_QOS_HEADER: set network port to transmit/receive QoS headers; mutually exclusive with @QMI_DEVICE_OPEN_FLAGS_NET_NO_QOS_HEADER
  * @QMI_DEVICE_OPEN_FLAGS_NET_NO_QOS_HEADER: set network port to not transmit/receive QoS headers; mutually exclusive with @QMI_DEVICE_OPEN_FLAGS_NET_QOS_HEADER
  * @QMI_DEVICE_OPEN_FLAGS_PROXY: Try to open the port through the 'qmi-proxy'.
+ * @QMI_DEVICE_OPEN_FLAGS_MBIM: open an MBIM port with QMUX tunneling service
  *
  * Flags to specify which actions to be performed when the device is open.
  */
@@ -108,7 +110,8 @@ typedef enum {
     QMI_DEVICE_OPEN_FLAGS_NET_RAW_IP        = 1 << 3,
     QMI_DEVICE_OPEN_FLAGS_NET_QOS_HEADER    = 1 << 4,
     QMI_DEVICE_OPEN_FLAGS_NET_NO_QOS_HEADER = 1 << 5,
-    QMI_DEVICE_OPEN_FLAGS_PROXY             = 1 << 6
+    QMI_DEVICE_OPEN_FLAGS_PROXY             = 1 << 6,
+    QMI_DEVICE_OPEN_FLAGS_MBIM              = 1 << 7
 } QmiDeviceOpenFlags;
 
 void         qmi_device_open        (QmiDevice *self,
@@ -169,15 +172,28 @@ gboolean      qmi_device_set_instance_id_finish (QmiDevice *self,
                                                  guint16 *link_id,
                                                  GError **error);
 
-void         qmi_device_command        (QmiDevice *self,
-                                        QmiMessage *message,
-                                        guint timeout,
-                                        GCancellable *cancellable,
-                                        GAsyncReadyCallback callback,
-                                        gpointer user_data);
-QmiMessage  *qmi_device_command_finish (QmiDevice *self,
-                                        GAsyncResult *res,
-                                        GError **error);
+G_DEPRECATED
+void         qmi_device_command        (QmiDevice             *self,
+                                        QmiMessage            *message,
+                                        guint                  timeout,
+                                        GCancellable          *cancellable,
+                                        GAsyncReadyCallback    callback,
+                                        gpointer               user_data);
+G_DEPRECATED
+QmiMessage  *qmi_device_command_finish (QmiDevice             *self,
+                                        GAsyncResult          *res,
+                                        GError               **error);
+
+void         qmi_device_command_full        (QmiDevice            *self,
+                                             QmiMessage           *message,
+                                             QmiMessageContext    *message_context,
+                                             guint                 timeout,
+                                             GCancellable         *cancellable,
+                                             GAsyncReadyCallback   callback,
+                                             gpointer              user_data);
+QmiMessage  *qmi_device_command_full_finish (QmiDevice            *self,
+                                             GAsyncResult         *res,
+                                             GError              **error);
 
 /**
  * QmiDeviceServiceVersionInfo:
@@ -201,6 +217,25 @@ void    qmi_device_get_service_version_info        (QmiDevice *self,
 GArray *qmi_device_get_service_version_info_finish (QmiDevice *self,
                                                     GAsyncResult *res,
                                                     GError **error);
+/**
+ * QmiDeviceExpectedDataFormat:
+ * @QMI_DEVICE_EXPECTED_DATA_FORMAT_UNKNOWN: Unknown.
+ * @QMI_DEVICE_EXPECTED_DATA_FORMAT_802_3: 802.3.
+ * @QMI_DEVICE_EXPECTED_DATA_FORMAT_RAW_IP: Raw IP.
+ *
+ * Data format expected by the kernel.
+ */
+typedef enum {
+    QMI_DEVICE_EXPECTED_DATA_FORMAT_UNKNOWN,
+    QMI_DEVICE_EXPECTED_DATA_FORMAT_802_3,
+    QMI_DEVICE_EXPECTED_DATA_FORMAT_RAW_IP,
+} QmiDeviceExpectedDataFormat;
+
+QmiDeviceExpectedDataFormat qmi_device_get_expected_data_format (QmiDevice *self,
+                                                                 GError **error);
+gboolean                    qmi_device_set_expected_data_format (QmiDevice *self,
+                                                                 QmiDeviceExpectedDataFormat format,
+                                                                 GError **error);
 
 G_END_DECLS
 
