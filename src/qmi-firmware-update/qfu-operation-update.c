@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Copyright (C) 2016 Zodiac Inflight Innovations
- * Copyright (C) 2016 Aleksander Morgado <aleksander@aleksander.es>
+ * Copyright (C) 2016-2017 Aleksander Morgado <aleksander@aleksander.es>
  */
 
 #include <glib-object.h>
@@ -115,14 +115,15 @@ operation_update_run (QfuUpdater   *updater,
     return operation.result;
 }
 
+#if defined WITH_UDEV
+
 gboolean
 qfu_operation_update_run (const gchar        **images,
                           QfuDeviceSelection  *device_selection,
                           const gchar         *firmware_version,
                           const gchar         *config_version,
                           const gchar         *carrier,
-                          gboolean             device_open_proxy,
-                          gboolean             device_open_mbim,
+                          QmiDeviceOpenFlags   device_open_flags,
                           gboolean             ignore_version_errors,
                           gboolean             override_download,
                           guint8               modem_storage_index,
@@ -137,8 +138,7 @@ qfu_operation_update_run (const gchar        **images,
                                firmware_version,
                                config_version,
                                carrier,
-                               device_open_proxy,
-                               device_open_mbim,
+                               device_open_flags,
                                ignore_version_errors,
                                override_download,
                                modem_storage_index,
@@ -147,6 +147,8 @@ qfu_operation_update_run (const gchar        **images,
     g_object_unref (updater);
     return result;
 }
+
+#endif
 
 gboolean
 qfu_operation_update_qdl_run (const gchar        **images,

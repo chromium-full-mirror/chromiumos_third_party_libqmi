@@ -16,14 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Copyright (C) 2016 Zodiac Inflight Innovations
- * Copyright (C) 2016 Aleksander Morgado <aleksander@aleksander.es>
+ * Copyright (C) 2016-2017 Aleksander Morgado <aleksander@aleksander.es>
  */
 
 #include <config.h>
 #include <string.h>
 
 #include <gio/gio.h>
-#include <gudev/gudev.h>
 
 #include <libqmi-glib.h>
 
@@ -42,22 +41,25 @@ G_DEFINE_TYPE (QfuUpdater, qfu_updater, G_TYPE_OBJECT)
 
 typedef enum {
     UPDATER_TYPE_UNKNOWN,
+#if defined WITH_UDEV
     UPDATER_TYPE_GENERIC,
+#endif
     UPDATER_TYPE_QDL,
 } UpdaterType;
 
 struct _QfuUpdaterPrivate {
     UpdaterType         type;
     QfuDeviceSelection *device_selection;
+#if defined WITH_UDEV
     gchar              *firmware_version;
     gchar              *config_version;
     gchar              *carrier;
-    gboolean            device_open_proxy;
-    gboolean            device_open_mbim;
+    QmiDeviceOpenFlags  device_open_flags;
     gboolean            ignore_version_errors;
     gboolean            override_download;
     guint8              modem_storage_index;
     gboolean            skip_validation;
+#endif
 };
 
 /******************************************************************************/
@@ -83,31 +85,39 @@ static const gchar *progress[] = {
 #define WAIT_FOR_BOOT_RETRIES      12
 
 typedef enum {
+#if defined WITH_UDEV
     RUN_CONTEXT_STEP_QMI_CLIENT,
     RUN_CONTEXT_STEP_GET_FIRMWARE_PREFERENCE,
     RUN_CONTEXT_STEP_SET_FIRMWARE_PREFERENCE,
     RUN_CONTEXT_STEP_POWER_CYCLE,
     RUN_CONTEXT_STEP_CLEANUP_QMI_DEVICE,
     RUN_CONTEXT_STEP_WAIT_FOR_TTY,
+#endif
     RUN_CONTEXT_STEP_QDL_DEVICE,
     RUN_CONTEXT_STEP_SELECT_IMAGE,
     RUN_CONTEXT_STEP_DOWNLOAD_IMAGE,
     RUN_CONTEXT_STEP_CLEANUP_IMAGE,
     RUN_CONTEXT_STEP_CLEANUP_QDL_DEVICE,
+#if defined WITH_UDEV
     RUN_CONTEXT_STEP_WAIT_FOR_CDC_WDM,
     RUN_CONTEXT_STEP_WAIT_FOR_BOOT,
     RUN_CONTEXT_STEP_QMI_CLIENT_AFTER,
+    RUN_CONTEXT_STEP_CLEANUP_QMI_DEVICE_FULL,
+#endif
     RUN_CONTEXT_STEP_LAST
 } RunContextStep;
 
 typedef struct {
     /* Device selection */
+#if defined WITH_UDEV
     GFile *cdc_wdm_file;
+#endif
     GFile *serial_file;
 
     /* Context step */
     RunContextStep step;
 
+#if defined WITH_UDEV
     /* Old/New info and capabilities */
     gchar                                    *revision;
     gboolean                                  supports_stored_image_management;
@@ -120,35 +130,39 @@ typedef struct {
     gboolean                                  new_supports_firmware_preference_management;
     QmiMessageDmsGetFirmwarePreferenceOutput *new_firmware_preference;
     QmiMessageDmsSwiGetCurrentFirmwareOutput *new_current_firmware;
+#endif
 
     /* List of pending QfuImages to download, and the current one being
      * processed. */
     GList    *pending_images;
     QfuImage *current_image;
 
+#if defined WITH_UDEV
     /* QMI device and client */
     QmiDevice    *qmi_device;
     QmiClientDms *qmi_client;
-
-    /* QDL device */
-    QfuQdlDevice *qdl_device;
 
     /* Reset configuration */
     gboolean boothold_reset;
 
     /* Information gathered from the firmware images themselves */
-    gchar                                    *firmware_version;
-    gchar                                    *config_version;
-    gchar                                    *carrier;
+    gchar *firmware_version;
+    gchar *config_version;
+    gchar *carrier;
 
     /* Waiting for boot */
     guint wait_for_boot_seconds_elapsed;
     guint wait_for_boot_retries;
+#endif
+
+    /* QDL device */
+    QfuQdlDevice *qdl_device;
 } RunContext;
 
 static void
 run_context_free (RunContext *ctx)
 {
+#if defined WITH_UDEV
     if (ctx->current_firmware)
         qmi_message_dms_swi_get_current_firmware_output_unref (ctx->current_firmware);
     if (ctx->new_current_firmware)
@@ -162,8 +176,7 @@ run_context_free (RunContext *ctx)
     g_free (ctx->firmware_version);
     g_free (ctx->config_version);
     g_free (ctx->carrier);
-    if (ctx->qdl_device)
-        g_object_unref (&ctx->qdl_device);
+
     if (ctx->qmi_client) {
         g_assert (ctx->qmi_device);
         /* This release only happens when cleaning up from an error,
@@ -175,16 +188,22 @@ run_context_free (RunContext *ctx)
         g_object_unref (ctx->qmi_client);
     }
     if (ctx->qmi_device) {
-        qmi_device_close (ctx->qmi_device, NULL);
+        qmi_device_close_async (ctx->qmi_device, 10, NULL, NULL, NULL);
         g_object_unref (ctx->qmi_device);
     }
+    if (ctx->cdc_wdm_file)
+        g_object_unref (ctx->cdc_wdm_file);
+#endif
+
+    if (ctx->qdl_device)
+        g_object_unref (&ctx->qdl_device);
+    if (ctx->serial_file)
+        g_object_unref (ctx->serial_file);
+
     if (ctx->current_image)
         g_object_unref (ctx->current_image);
     g_list_free_full (ctx->pending_images, (GDestroyNotify) g_object_unref);
-    if (ctx->serial_file)
-        g_object_unref (ctx->serial_file);
-    if (ctx->cdc_wdm_file)
-        g_object_unref (ctx->cdc_wdm_file);
+
     g_slice_free (RunContext, ctx);
 }
 
@@ -195,6 +214,8 @@ qfu_updater_run_finish (QfuUpdater    *self,
 {
     return g_task_propagate_boolean (G_TASK (res), error);
 }
+
+#if defined WITH_UDEV
 
 static void
 print_firmware_preference (QmiMessageDmsGetFirmwarePreferenceOutput *firmware_preference,
@@ -263,62 +284,80 @@ print_current_firmware (QmiMessageDmsSwiGetCurrentFirmwareOutput *current_firmwa
         g_print ("%sConfig version: %s\n", prefix, config_version);
 }
 
+#endif /* WITH_UDEV */
+
 static void
 run_context_step_last (GTask *task)
 {
     RunContext *ctx;
+    QfuUpdater *self;
 
     ctx = (RunContext *) g_task_get_task_data (task);
+    g_assert (ctx);
 
-    /* Dump output report */
-    g_print ("\n"
-             "------------------------------------------------------------------------\n");
+    self = g_task_get_source_object (task);
 
-    g_print ("\n"
-             "   original firmware revision was:\n"
-             "      %s\n", ctx->revision ? ctx->revision : "unknown");
-    if (ctx->current_firmware) {
-        g_print ("   original running firmware details:\n");
-        print_current_firmware (ctx->current_firmware, "      ");
-    }
-    if (ctx->firmware_preference) {
-        g_print ("   original firmware preference details:\n");
-        print_firmware_preference (ctx->firmware_preference, "      ");
+    if (self->priv->type == UPDATER_TYPE_QDL) {
+        g_task_return_boolean (task, TRUE);
+        g_object_unref (task);
+        return;
     }
 
-    g_print ("\n"
-             "   new firmware revision is:\n"
-             "      %s\n", ctx->new_revision ? ctx->new_revision : "unknown");
-    if (ctx->new_current_firmware) {
-        g_print ("   new running firmware details:\n");
-        print_current_firmware (ctx->new_current_firmware, "      ");
-    }
-    if (ctx->new_firmware_preference) {
-        g_print ("   new firmware preference details:\n");
-        print_firmware_preference (ctx->new_firmware_preference, "      ");
-    }
-
-    if (ctx->new_supports_stored_image_management)
+#if defined WITH_UDEV
+    if (self->priv->type == UPDATER_TYPE_GENERIC) {
         g_print ("\n"
-                 "   NOTE: this device supports stored image management\n"
-                 "   with qmicli operations:\n"
-                 "      --dms-list-stored-images\n"
-                 "      --dms-select-stored-image\n"
-                 "      --dms-delete-stored-image\n");
+                 "------------------------------------------------------------------------\n");
 
-    if (ctx->new_supports_firmware_preference_management)
         g_print ("\n"
-                 "   NOTE: this device supports firmware preference management\n"
-                 "   with qmicli operations:\n"
-                 "      --dms-get-firmware-preference\n"
-                 "      --dms-set-firmware-preference\n");
+                 "   original firmware revision was:\n"
+                 "      %s\n", ctx->revision ? ctx->revision : "unknown");
+        if (ctx->current_firmware) {
+            g_print ("   original running firmware details:\n");
+            print_current_firmware (ctx->current_firmware, "      ");
+        }
+        if (ctx->firmware_preference) {
+            g_print ("   original firmware preference details:\n");
+            print_firmware_preference (ctx->firmware_preference, "      ");
+        }
 
-    g_print ("\n"
-             "------------------------------------------------------------------------\n"
-             "\n");
+        g_print ("\n"
+                 "   new firmware revision is:\n"
+                 "      %s\n", ctx->new_revision ? ctx->new_revision : "unknown");
+        if (ctx->new_current_firmware) {
+            g_print ("   new running firmware details:\n");
+            print_current_firmware (ctx->new_current_firmware, "      ");
+        }
+        if (ctx->new_firmware_preference) {
+            g_print ("   new firmware preference details:\n");
+            print_firmware_preference (ctx->new_firmware_preference, "      ");
+        }
 
-    g_task_return_boolean (task, TRUE);
-    g_object_unref (task);
+        if (ctx->new_supports_stored_image_management)
+            g_print ("\n"
+                     "   NOTE: this device supports stored image management\n"
+                     "   with qmicli operations:\n"
+                     "      --dms-list-stored-images\n"
+                     "      --dms-select-stored-image\n"
+                     "      --dms-delete-stored-image\n");
+
+        if (ctx->new_supports_firmware_preference_management)
+            g_print ("\n"
+                     "   NOTE: this device supports firmware preference management\n"
+                     "   with qmicli operations:\n"
+                     "      --dms-get-firmware-preference\n"
+                     "      --dms-set-firmware-preference\n");
+
+        g_print ("\n"
+                 "------------------------------------------------------------------------\n"
+                 "\n");
+
+        g_task_return_boolean (task, TRUE);
+        g_object_unref (task);
+        return;
+    }
+#endif /* WITH_UDEV */
+
+    g_assert_not_reached ();
 }
 
 static void run_context_step (GTask *task);
@@ -342,6 +381,8 @@ run_context_step_next (GTask *task, RunContextStep next)
     g_idle_add ((GSourceFunc) run_context_step_cb, task);
 }
 
+#if defined WITH_UDEV
+
 static void
 run_context_step_next_no_idle (GTask *task, RunContextStep next)
 {
@@ -352,6 +393,67 @@ run_context_step_next_no_idle (GTask *task, RunContextStep next)
 
     /* Run right away */
     run_context_step (task);
+}
+
+static void
+close_ready (QmiDevice    *dev,
+             GAsyncResult *res,
+             GTask        *task)
+{
+    RunContext *ctx;
+    GError     *error = NULL;
+
+    ctx = (RunContext *) g_task_get_task_data (task);
+
+    if (!qmi_device_close_finish (dev, res, &error)) {
+        g_warning ("[qfu-updater] couldn't close device: %s", error->message);
+        g_error_free (error);
+    } else
+        g_debug ("[qfu-updater] closed");
+
+    /* Go on */
+    run_context_step_next (task, ctx->step + 1);
+}
+
+static void
+release_client_ready (QmiDevice    *dev,
+                      GAsyncResult *res,
+                      GTask        *task)
+{
+    RunContext *ctx;
+    GError     *error = NULL;
+
+    ctx = (RunContext *) g_task_get_task_data (task);
+
+    if (!qmi_device_release_client_finish (dev, res, &error)) {
+        g_warning ("[qfu-updater] couldn't release client: %s", error->message);
+        g_error_free (error);
+    } else
+        g_debug ("[qfu-updater] client released");
+
+    qmi_device_close_async (ctx->qmi_device,
+                            10,
+                            g_task_get_cancellable (task),
+                            (GAsyncReadyCallback) close_ready,
+                            task);
+    g_clear_object (&ctx->qmi_device);
+}
+
+static void
+run_context_step_cleanup_qmi_device_full (GTask *task)
+{
+    RunContext *ctx;
+
+    ctx = (RunContext *) g_task_get_task_data (task);
+
+    qmi_device_release_client (ctx->qmi_device,
+                               QMI_CLIENT (ctx->qmi_client),
+                               QMI_DEVICE_RELEASE_CLIENT_FLAGS_RELEASE_CID,
+                               10,
+                               g_task_get_cancellable (task),
+                               (GAsyncReadyCallback) release_client_ready,
+                               task);
+    g_clear_object (&ctx->qmi_client);
 }
 
 static void
@@ -410,8 +512,7 @@ run_context_step_qmi_client_after (GTask *task)
     g_assert (ctx->cdc_wdm_file);
     qfu_utils_new_client_dms (ctx->cdc_wdm_file,
                               1, /* single try to allocate DMS client */
-                              self->priv->device_open_proxy,
-                              self->priv->device_open_mbim,
+                              self->priv->device_open_flags,
                               TRUE,
                               g_task_get_cancellable (task),
                               (GAsyncReadyCallback) new_client_dms_after_ready,
@@ -521,6 +622,8 @@ run_context_step_wait_for_cdc_wdm (GTask *task)
                                            (GAsyncReadyCallback) wait_for_cdc_wdm_ready,
                                            task);
 }
+
+#endif /* WITH_UDEV */
 
 static void
 run_context_step_cleanup_qdl_device (GTask *task)
@@ -695,6 +798,8 @@ run_context_step_qdl_device (GTask *task)
     run_context_step_next (task, ctx->step + 1);
 }
 
+#if defined WITH_UDEV
+
 static void
 wait_for_tty_ready (QfuDeviceSelection *device_selection,
                     GAsyncResult       *res,
@@ -776,10 +881,9 @@ run_context_step_cleanup_qmi_device (GTask *task)
         run_context_step_next_no_idle (task, ctx->step + 1);
 
     /* After the wait operation has been started, we do run the close */
-    qmi_device_close (tmp, NULL);
+    qmi_device_close_async (tmp, 10, NULL, NULL, NULL);
     g_object_unref (tmp);
 }
-
 
 static void
 reseter_run_ready (QfuReseter   *reseter,
@@ -852,7 +956,7 @@ run_context_step_power_cycle (GTask *task)
     g_assert (ctx->pending_images != NULL);
 
     /* Boothold reset */
-    reseter = qfu_reseter_new (self->priv->device_selection, ctx->qmi_client, FALSE, FALSE);
+    reseter = qfu_reseter_new (self->priv->device_selection, ctx->qmi_client, self->priv->device_open_flags);
     qfu_reseter_run (reseter,
                      g_task_get_cancellable (task),
                      (GAsyncReadyCallback) reseter_run_ready,
@@ -1245,30 +1349,36 @@ run_context_step_qmi_client (GTask *task)
     g_assert (ctx->cdc_wdm_file);
     qfu_utils_new_client_dms (ctx->cdc_wdm_file,
                               3, /* initially, up to 3 tries to allocate DMS client */
-                              self->priv->device_open_proxy,
-                              self->priv->device_open_mbim,
+                              self->priv->device_open_flags,
                               TRUE,
                               g_task_get_cancellable (task),
                               (GAsyncReadyCallback) new_client_dms_ready,
                               task);
 }
 
+#endif /* WITH_UDEV */
+
 typedef void (* RunContextStepFunc) (GTask *task);
 static const RunContextStepFunc run_context_step_func[] = {
+#if defined WITH_UDEV
     [RUN_CONTEXT_STEP_QMI_CLIENT]              = run_context_step_qmi_client,
     [RUN_CONTEXT_STEP_GET_FIRMWARE_PREFERENCE] = run_context_step_get_firmware_preference,
     [RUN_CONTEXT_STEP_SET_FIRMWARE_PREFERENCE] = run_context_step_set_firmware_preference,
     [RUN_CONTEXT_STEP_POWER_CYCLE]             = run_context_step_power_cycle,
     [RUN_CONTEXT_STEP_CLEANUP_QMI_DEVICE]      = run_context_step_cleanup_qmi_device,
     [RUN_CONTEXT_STEP_WAIT_FOR_TTY]            = run_context_step_wait_for_tty,
+#endif
     [RUN_CONTEXT_STEP_QDL_DEVICE]              = run_context_step_qdl_device,
     [RUN_CONTEXT_STEP_SELECT_IMAGE]            = run_context_step_select_image,
     [RUN_CONTEXT_STEP_DOWNLOAD_IMAGE]          = run_context_step_download_image,
     [RUN_CONTEXT_STEP_CLEANUP_IMAGE]           = run_context_step_cleanup_image,
     [RUN_CONTEXT_STEP_CLEANUP_QDL_DEVICE]      = run_context_step_cleanup_qdl_device,
+#if defined WITH_UDEV
     [RUN_CONTEXT_STEP_WAIT_FOR_CDC_WDM]        = run_context_step_wait_for_cdc_wdm,
-    [RUN_CONTEXT_STEP_QMI_CLIENT_AFTER]        = run_context_step_qmi_client_after,
     [RUN_CONTEXT_STEP_WAIT_FOR_BOOT]           = run_context_step_wait_for_boot,
+    [RUN_CONTEXT_STEP_QMI_CLIENT_AFTER]        = run_context_step_qmi_client_after,
+    [RUN_CONTEXT_STEP_CLEANUP_QMI_DEVICE_FULL] = run_context_step_cleanup_qmi_device_full,
+#endif
 };
 
 G_STATIC_ASSERT (G_N_ELEMENTS (run_context_step_func) == RUN_CONTEXT_STEP_LAST);
@@ -1352,6 +1462,7 @@ qfu_updater_run (QfuUpdater          *self,
     }
 
     switch (self->priv->type) {
+#if defined WITH_UDEV
     case UPDATER_TYPE_GENERIC:
         ctx->step = RUN_CONTEXT_STEP_QMI_CLIENT;
         ctx->cdc_wdm_file = qfu_device_selection_get_single_cdc_wdm (self->priv->device_selection);
@@ -1362,6 +1473,7 @@ qfu_updater_run (QfuUpdater          *self,
             return;
         }
         break;
+#endif
     case UPDATER_TYPE_QDL:
         ctx->step = RUN_CONTEXT_STEP_QDL_DEVICE;
         ctx->serial_file = qfu_device_selection_get_single_tty (self->priv->device_selection);
@@ -1381,13 +1493,14 @@ qfu_updater_run (QfuUpdater          *self,
 
 /******************************************************************************/
 
+#if defined WITH_UDEV
+
 QfuUpdater *
 qfu_updater_new (QfuDeviceSelection *device_selection,
                  const gchar        *firmware_version,
                  const gchar        *config_version,
                  const gchar        *carrier,
-                 gboolean            device_open_proxy,
-                 gboolean            device_open_mbim,
+                 QmiDeviceOpenFlags  device_open_flags,
                  gboolean            ignore_version_errors,
                  gboolean            override_download,
                  guint8              modem_storage_index,
@@ -1400,8 +1513,7 @@ qfu_updater_new (QfuDeviceSelection *device_selection,
     self = g_object_new (QFU_TYPE_UPDATER, NULL);
     self->priv->type = UPDATER_TYPE_GENERIC;
     self->priv->device_selection = g_object_ref (device_selection);
-    self->priv->device_open_proxy = device_open_proxy;
-    self->priv->device_open_mbim = device_open_mbim;
+    self->priv->device_open_flags = device_open_flags;
     self->priv->firmware_version = (firmware_version ? g_strdup (firmware_version) : NULL);
     self->priv->config_version = (config_version ? g_strdup (config_version) : NULL);
     self->priv->carrier = (carrier ? g_strdup (carrier) : NULL);
@@ -1412,6 +1524,8 @@ qfu_updater_new (QfuDeviceSelection *device_selection,
 
     return self;
 }
+
+#endif
 
 QfuUpdater *
 qfu_updater_new_qdl (QfuDeviceSelection *device_selection)
@@ -1447,11 +1561,13 @@ dispose (GObject *object)
 static void
 finalize (GObject *object)
 {
+#if defined WITH_UDEV
     QfuUpdater *self = QFU_UPDATER (object);
 
     g_free (self->priv->firmware_version);
     g_free (self->priv->config_version);
     g_free (self->priv->carrier);
+#endif
 
     G_OBJECT_CLASS (qfu_updater_parent_class)->finalize (object);
 }

@@ -16,6 +16,7 @@
 # Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 #
 # Copyright (C) 2012 Lanedo GmbH
+# Copyright (C) 2012-2017 Aleksander Morgado <aleksander@aleksander.es>
 #
 
 import string
@@ -83,8 +84,8 @@ class VariableArray(Variable):
     """
     Emit the type for the array element
     """
-    def emit_types(self, f):
-        self.array_element.emit_types(f)
+    def emit_types(self, f, since):
+        self.array_element.emit_types(f, since)
 
 
     """

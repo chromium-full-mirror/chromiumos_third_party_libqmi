@@ -17,7 +17,7 @@
  *
  * Copyright (C) 2016 Bjørn Mork <bjorn@mork.no>
  * Copyright (C) 2016 Zodiac Inflight Innovations
- * Copyright (C) 2016 Aleksander Morgado <aleksander@aleksander.es>
+ * Copyright (C) 2016-2017 Aleksander Morgado <aleksander@aleksander.es>
  */
 
 #ifndef QFU_UTILS_H
@@ -46,8 +46,7 @@ gboolean qfu_utils_parse_cwe_version_string (const gchar  *version,
 
 void     qfu_utils_new_client_dms        (GFile                *cdc_wdm_file,
                                           guint                 retries,
-                                          gboolean              device_open_proxy,
-                                          gboolean              device_open_mbim,
+                                          QmiDeviceOpenFlags    device_open_flags,
                                           gboolean              load_capabilities,
                                           GCancellable         *cancellable,
                                           GAsyncReadyCallback   callback,

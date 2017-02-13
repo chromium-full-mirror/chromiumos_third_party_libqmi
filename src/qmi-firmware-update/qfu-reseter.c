@@ -16,14 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Copyright (C) 2016 Zodiac Inflight Innovations
- * Copyright (C) 2016 Aleksander Morgado <aleksander@aleksander.es>
+ * Copyright (C) 2016-2017 Aleksander Morgado <aleksander@aleksander.es>
  */
 
 #include <config.h>
 #include <string.h>
 
 #include <gio/gio.h>
-#include <gudev/gudev.h>
 
 #include <libqmi-glib.h>
 
@@ -36,8 +35,7 @@ G_DEFINE_TYPE (QfuReseter, qfu_reseter, G_TYPE_OBJECT)
 struct _QfuReseterPrivate {
     QfuDeviceSelection *device_selection;
     QmiClientDms       *qmi_client;
-    gboolean            device_open_proxy;
-    gboolean            device_open_mbim;
+    QmiDeviceOpenFlags  device_open_flags;
 };
 
 /******************************************************************************/
@@ -76,7 +74,7 @@ run_context_free (RunContext *ctx)
         g_object_unref (ctx->qmi_client);
     }
     if (ctx->qmi_device) {
-        qmi_device_close (ctx->qmi_device, NULL);
+        qmi_device_close_async (ctx->qmi_device, 10, NULL, NULL, NULL);
         g_object_unref (ctx->qmi_device);
     }
     g_list_free_full (ctx->ttys, (GDestroyNotify) g_object_unref);
@@ -387,8 +385,7 @@ qfu_reseter_run (QfuReseter          *self,
     g_assert (ctx->cdc_wdm);
     qfu_utils_new_client_dms (ctx->cdc_wdm,
                               3,
-                              self->priv->device_open_proxy,
-                              self->priv->device_open_mbim,
+                              self->priv->device_open_flags,
                               FALSE,
                               cancellable,
                               (GAsyncReadyCallback) new_client_dms_ready,
@@ -400,16 +397,14 @@ qfu_reseter_run (QfuReseter          *self,
 QfuReseter *
 qfu_reseter_new (QfuDeviceSelection *device_selection,
                  QmiClientDms       *qmi_client,
-                 gboolean            device_open_proxy,
-                 gboolean            device_open_mbim)
+                 QmiDeviceOpenFlags  device_open_flags)
 {
     QfuReseter *self;
 
     self = g_object_new (QFU_TYPE_RESETER, NULL);
     self->priv->device_selection = g_object_ref (device_selection);
     self->priv->qmi_client = qmi_client ? g_object_ref (qmi_client) : NULL;
-    self->priv->device_open_proxy = device_open_proxy;
-    self->priv->device_open_mbim = device_open_mbim;
+    self->priv->device_open_flags = device_open_flags;
 
     return self;
 }

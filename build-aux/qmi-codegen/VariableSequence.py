@@ -16,6 +16,7 @@
 # Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 #
 # Copyright (C) 2012 Lanedo GmbH
+# Copyright (C) 2012-2017 Aleksander Morgado <aleksander@aleksander.es>
 #
 
 import string
@@ -56,10 +57,10 @@ class VariableSequence(Variable):
     """
     Emit all types for the members of the sequence
     """
-    def emit_types(self, f):
+    def emit_types(self, f, since):
         # Emit types for each member
         for member in self.members:
-            member['object'].emit_types(f)
+            member['object'].emit_types(f, since)
 
 
     """

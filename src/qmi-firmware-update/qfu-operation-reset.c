@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Copyright (C) 2016 Zodiac Inflight Innovations
- * Copyright (C) 2016 Aleksander Morgado <aleksander@aleksander.es>
+ * Copyright (C) 2016-2017 Aleksander Morgado <aleksander@aleksander.es>
  */
 
 #include <glib-object.h>
@@ -106,13 +106,12 @@ operation_reseter_run (QfuReseter *reseter)
 
 gboolean
 qfu_operation_reset_run (QfuDeviceSelection *device_selection,
-                         gboolean            device_open_proxy,
-                         gboolean            device_open_mbim)
+                         QmiDeviceOpenFlags  device_open_flags)
 {
     QfuReseter *reseter = NULL;
     gboolean    result;
 
-    reseter = qfu_reseter_new (device_selection, NULL, device_open_proxy, device_open_mbim);
+    reseter = qfu_reseter_new (device_selection, NULL, device_open_flags);
     result = operation_reseter_run (reseter);
     g_object_unref (reseter);
     return result;

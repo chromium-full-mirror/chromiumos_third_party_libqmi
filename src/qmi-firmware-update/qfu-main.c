@@ -41,24 +41,26 @@
 /* Options */
 
 /* Generic device selections */
-static guint      busnum;
-static guint      devnum;
-static guint16    vid;
-static guint16    pid;
-static gchar     *cdc_wdm_str;
-static gchar     *tty_str;
+#if defined WITH_UDEV
+static guint   busnum;
+static guint   devnum;
+static guint16 vid;
+static guint16 pid;
+#endif
+static gchar *cdc_wdm_str;
+static gchar *tty_str;
 
+#if defined WITH_UDEV
 /* Update */
 static gboolean   action_update_flag;
 static gchar     *firmware_version_str;
 static gchar     *config_version_str;
 static gchar     *carrier_str;
-static gboolean   device_open_proxy_flag;
-static gboolean   device_open_mbim_flag;
 static gboolean   ignore_version_errors_flag;
 static gboolean   override_download_flag;
 static gint       modem_storage_index_int;
 static gboolean   skip_validation_flag;
+#endif
 
 /* Reset */
 static gboolean   action_reset_flag;
@@ -71,12 +73,18 @@ static gboolean   action_verify_flag;
 
 /* Main */
 static gchar    **image_strv;
+static gboolean   device_open_proxy_flag;
+static gboolean   device_open_qmi_flag;
+static gboolean   device_open_mbim_flag;
+static gboolean   device_open_auto_flag;
 static gboolean   stdout_verbose_flag;
 static gboolean   stdout_silent_flag;
 static gchar     *verbose_log_str;
 static gboolean   version_flag;
 static gboolean   help_flag;
 static gboolean   help_examples_flag;
+
+#if defined WITH_UDEV
 
 static gboolean
 parse_busnum_devnum (const gchar  *option_name,
@@ -173,7 +181,10 @@ out:
     return result;
 }
 
+#endif /* WITH_UDEV */
+
 static GOptionEntry context_selection_entries[] = {
+#if defined WITH_UDEV
     { "busnum-devnum", 's', 0, G_OPTION_ARG_CALLBACK, &parse_busnum_devnum,
       "Select device by bus and device number (in decimal).",
       "[BUS:]DEV"
@@ -182,6 +193,7 @@ static GOptionEntry context_selection_entries[] = {
       "Select device by device vendor and product id (in hexadecimal).",
       "VID[:PID]"
     },
+#endif /* WITH_UDEV */
     { "cdc-wdm", 'w', 0, G_OPTION_ARG_FILENAME, &cdc_wdm_str,
       "Select device by QMI/MBIM cdc-wdm device path (e.g. /dev/cdc-wdm0).",
       "[PATH]"
@@ -193,6 +205,7 @@ static GOptionEntry context_selection_entries[] = {
     { NULL }
 };
 
+#if defined WITH_UDEV
 static GOptionEntry context_update_entries[] = {
     { "update", 'u', 0, G_OPTION_ARG_NONE, &action_update_flag,
       "Launch firmware update process.",
@@ -228,6 +241,7 @@ static GOptionEntry context_update_entries[] = {
     },
     { NULL }
 };
+#endif /* WITH_UDEV */
 
 static GOptionEntry context_reset_entries[] = {
     { "reset", 'b', 0, G_OPTION_ARG_NONE, &action_reset_flag,
@@ -261,8 +275,16 @@ static GOptionEntry context_main_entries[] = {
       "Request to use the 'qmi-proxy' proxy.",
       NULL
     },
+    { "device-open-qmi", 0, 0, G_OPTION_ARG_NONE, &device_open_qmi_flag,
+      "Open a cdc-wdm device explicitly in QMI mode",
+      NULL
+    },
     { "device-open-mbim", 0, 0, G_OPTION_ARG_NONE, &device_open_mbim_flag,
-      "Open an MBIM device with EXT_QMUX support.",
+      "Open a cdc-wdm device explicitly in MBIM mode",
+      NULL
+    },
+    { "device-open-auto", 0, 0, G_OPTION_ARG_NONE, &device_open_auto_flag,
+      "Open a cdc-wdm device in either QMI or MBIM mode (default)",
       NULL
     },
     { "verbose", 'v', 0, G_OPTION_ARG_NONE, &stdout_verbose_flag,
@@ -335,10 +357,12 @@ print_help (GOptionContext *context)
 static void
 print_help_examples (void)
 {
+#if defined WITH_UDEV
     g_print ("\n"
              "********************************************************************************\n"
              "\n"
-             " Example 1: Updating a Sierra Wireless MC7354.\n"
+             " Example: Updating a Sierra Wireless MC7354.\n"
+             "  (or other 9x15 or 9x30 devices, like the MC7304, MC7330, MC7455... ).\n"
              "\n"
              " The MC7354 is a 9x15 device which requires the firmware updater to specify the\n"
              " firmware version string, the config version string and the carrier string, so\n"
@@ -359,42 +383,43 @@ print_help_examples (void)
              " which already has the matching firmware version. The two images may be given\n"
              " combined into a single image (.spk) file.\n"
              "\n"
-             " 1a) An update operation specifying the vid:pid of the device (fails if multiple\n"
-             "     devices with the same vid:pid are found):\n"
-             " $ sudo " PROGRAM_NAME " \\\n"
-             "       --update \\\n"
-             "       -d 1199:68c0 \\\n"
-             "       SWI9X15C_05.05.58.00.cwe \\\n"
-             "       SWI9X15C_05.05.58.00_Generic_005.025_002.nvu\n"
+             " a) An update operation specifying the vid:pid of the device (fails if multiple\n"
+             "    devices with the same vid:pid are found):\n"
+             "    $ sudo " PROGRAM_NAME " \\\n"
+             "          --update \\\n"
+             "          -d 1199:68c0 \\\n"
+             "          SWI9X15C_05.05.58.00.cwe \\\n"
+             "          SWI9X15C_05.05.58.00_Generic_005.025_002.nvu\n"
              "\n"
-             " 1b) An update operation specifying an explicit QMI cdc-wdm device:\n"
-             " $ sudo " PROGRAM_NAME " \\\n"
-             "       --update \\\n"
-             "       --cdc-wdm /dev/cdc-wdm0 \\\n"
-             "       SWI9X15C_05.05.58.00.cwe \\\n"
-             "       SWI9X15C_05.05.58.00_Generic_005.025_002.nvu\n"
+             " b) An update operation specifying an explicit QMI cdc-wdm device:\n"
+             "    $ sudo " PROGRAM_NAME " \\\n"
+             "          --update \\\n"
+             "          --cdc-wdm /dev/cdc-wdm0 \\\n"
+             "          SWI9X15C_05.05.58.00.cwe \\\n"
+             "          SWI9X15C_05.05.58.00_Generic_005.025_002.nvu\n"
              "\n"
-             " 1c) An update operation specifying explicit firmware, config and carrier strings:\n"
-             " $ sudo " PROGRAM_NAME " \\\n"
-             "       --update \\\n"
-             "       -d 1199:68c0 \\\n"
-             "       --firmware-version 05.05.58.00 \\\n"
-             "       --config-version 005.025_002 \\\n"
-             "       --carrier Generic \\\n"
-             "       SWI9X15C_05.05.58.00.cwe \\\n"
-             "       SWI9X15C_05.05.58.00_Generic_005.025_002.nvu\n"
+             " c) An update operation specifying explicit firmware, config and carrier strings:\n"
+             "    $ sudo " PROGRAM_NAME " \\\n"
+             "          --update \\\n"
+             "          -d 1199:68c0 \\\n"
+             "          --firmware-version 05.05.58.00 \\\n"
+             "          --config-version 005.025_002 \\\n"
+             "          --carrier Generic \\\n"
+             "          SWI9X15C_05.05.58.00.cwe \\\n"
+             "          SWI9X15C_05.05.58.00_Generic_005.025_002.nvu\n"
              "\n"
-             " 1d) An update operation with a combined image containing both system and carrier\n"
-             "     specific images::\n"
-             " $ sudo " PROGRAM_NAME " \\\n"
-             "       --update \\\n"
-             "       -d 1199:68c0 \\\n"
-             "       9999999_9902574_SWI9X15C_05.05.66.00_00_GENNA-UMTS_005.028_000-field.spk\n");
+             " d) An update operation with a combined image containing both system and carrier\n"
+             "    specific images::\n"
+             "    $ sudo " PROGRAM_NAME " \\\n"
+             "          --update \\\n"
+             "          -d 1199:68c0 \\\n"
+             "          9999999_9902574_SWI9X15C_05.05.66.00_00_GENNA-UMTS_005.028_000-field.spk\n");
 
     g_print ("\n"
              "********************************************************************************\n"
              "\n"
-             " Example 2: Updating a Sierra Wireless MC7700.\n"
+             " Example: Updating a Sierra Wireless MC7700.\n"
+             "  (or other 9200 devices, like the MC7710).\n"
              "\n"
              " The MC7700 is a 9200 device which doesn't require the explicit firmware, config\n"
              " and carrier strings. Unlike the MC7354, which would reboot itself into QDL\n"
@@ -402,57 +427,98 @@ print_help_examples (void)
              " a specific \"boot and hold\" command to be sent (either via QMI or AT) to request\n"
              " the reset in QDL download mode.\n"
              "\n"
-             " 2a) An update operation specifying the vid:pid of the device (fails if multiple\n"
-             "     devices with the same vid:pid are found):\n"
-             " $ sudo " PROGRAM_NAME " \\\n"
-             "       --update \\\n"
-             "       -d 1199:68a2 \\\n"
-             "       9999999_9999999_9200_03.05.14.00_00_generic_000.000_001_SPKG_MC.cwe\n"
+             " a) An update operation specifying the vid:pid of the device (fails if multiple\n"
+             "    devices with the same vid:pid are found):\n"
+             "    $ sudo " PROGRAM_NAME " \\\n"
+             "          --update \\\n"
+             "          -d 1199:68a2 \\\n"
+             "          9999999_9999999_9200_03.05.14.00_00_generic_000.000_001_SPKG_MC.cwe\n"
              "\n"
-             " 2b) An update operation specifying an explicit QMI cdc-wdm device:\n"
-             " $ sudo " PROGRAM_NAME " \\\n"
-             "       --update \\\n"
-             "       --cdc-wdm /dev/cdc-wdm0 \\\n"
-             "       9999999_9999999_9200_03.05.14.00_00_generic_000.000_001_SPKG_MC.cwe\n");
+             " b) An update operation specifying an explicit QMI cdc-wdm device:\n"
+             "    $ sudo " PROGRAM_NAME " \\\n"
+             "          --update \\\n"
+             "          --cdc-wdm /dev/cdc-wdm0 \\\n"
+             "          9999999_9999999_9200_03.05.14.00_00_generic_000.000_001_SPKG_MC.cwe\n");
+
+#endif /* WITH_UDEV */
 
     g_print ("\n"
              "********************************************************************************\n"
              "\n"
-             " Example 3: Manual process to update a Sierra Wireless MC7700.\n"
+             " Example: Manual process to update a Sierra Wireless MC7354.\n"
+             "  (or other 9x15 or 9x30 devices, like the MC7304, MC7330, MC7455... ).\n"
              "\n"
-             " Instead of letting the " PROGRAM_NAME " manage the full firmware update\n"
-             " operation (include the module reboots into the different modes), the user can\n"
-             " trigger the actions manually as follows:\n"
+             " The upgrade of devices from the 9x15 and 9x30 families is triggered via a\n"
+             " 'firmware preference' setting. If the device accepts the setting, the user\n"
+             " can request a device power cycle, which will boot in QDL download mode:\n"
              "\n"
-             " 3a) Request device to go into QDL download mode:\n"
-             " $ sudo " PROGRAM_NAME " \\\n"
-             "       -d 1199:68a2 \\\n"
-             "       --reset\n"
+             " a) Set firmware preference setting:\n"
+             "    $ sudo qmicli \\\n"
+             "          -d /dev/cdc-wdm0 \\\n"
+             "          --dms-set-firmware-preference=\"05.05.58.00,005.025_002,Generic\"\n"
              "\n"
-             " 3b) Run updater operation while in QDL download mode:\n"
-             " $ sudo " PROGRAM_NAME " \\\n"
-             "       -d 1199:68a2 \\\n"
-             "       --update-qdl \\\n"
-             "       9999999_9999999_9200_03.05.14.00_00_generic_000.000_001_SPKG_MC.cwe\n");
+             " b) Request power cycle:\n"
+             "    $ sudo qmicli \\\n"
+             "          -d /dev/cdc-wdm0 \\\n"
+             "          --dms-set-operating-mode=offline\n"
+             "    $ sudo qmicli \\\n"
+             "          -d /dev/cdc-wdm0 \\\n"
+             "          --dms-set-operating-mode=reset\n"
+             "\n"
+             " c) Wait for the /dev/ttyUSB device to appear.\n"
+             "\n"
+             " d) Run updater operation while in QDL download mode:\n"
+             "    $ sudo " PROGRAM_NAME " \\\n"
+             "          -t /dev/ttyUSB0 \\\n"
+             "          --update-qdl \\\n"
+             "          SWI9X15C_05.05.58.00.cwe \\\n"
+             "          SWI9X15C_05.05.58.00_Generic_005.025_002.nvu\n"
+             "\n"
+             " d) Now wait for the device to fully reboot, may take up to several minutes.\n");
 
     g_print ("\n"
              "********************************************************************************\n"
              "\n"
-             " Example 4: Verify firmware images.\n"
+             " Example: Manual process to update a Sierra Wireless MC7700.\n"
+             "  (or other 9200 devices, like the MC7710).\n"
              "\n"
-             " 3a) Verify several images at once:\n"
-             " $ " PROGRAM_NAME " \\\n"
-             "       --verify \\\n"
-             "       SWI9X15C_05.05.58.00.cwe \\\n"
-             "       SWI9X15C_05.05.58.00_Generic_005.025_002.nvu\n"
+             " Instead of setting a 'firmware preference', the devices from the 9200 family\n"
+             " can just be rebooted in QDL mode:\n"
              "\n"
-             " 3b) Verify all .cwe, .nvu and .spk images inside a directory:\n"
-             " $ find . -regex \".*\\.\\(nvu\\|spk\\|cwe\\)\" -exec " PROGRAM_NAME " -v -z {} \\;\n"
+             " a) Request device to go into QDL download mode:\n"
+             "    $ sudo " PROGRAM_NAME " \\\n"
+             "          -d 1199:68a2 \\\n"
+             "          --reset\n"
              "\n"
-             " 3c) Image files may be given within .exe files; extract them with 7-Zip:\n"
-             " $ 7z x SWI9200M_3.5-Release13-SWI9200X_03.05.29.03.exe\n"
-             " $ ls *.{cwe,nvu,spk} 2>/dev/null\n"
-             "   9999999_9999999_9200_03.05.29.03_00_generic_000.000_001_SPKG_MC.cwe\n"
+             " b) Wait for the /dev/ttyUSB device to appear.\n"
+             "\n"
+             " c) Run updater operation while in QDL download mode:\n"
+             "    $ sudo " PROGRAM_NAME " \\\n"
+             "          -d 1199:68a2 \\\n"
+             "          --update-qdl \\\n"
+             "          9999999_9999999_9200_03.05.14.00_00_generic_000.000_001_SPKG_MC.cwe\n"
+             "\n"
+             " d) Now wait for the device to fully reboot, may take up to several minutes.\n");
+
+
+    g_print ("\n"
+             "********************************************************************************\n"
+             "\n"
+             " Example: Verify firmware images.\n"
+             "\n"
+             " a) Verify several images at once:\n"
+             "    $ " PROGRAM_NAME " \\\n"
+             "          --verify \\\n"
+             "          SWI9X15C_05.05.58.00.cwe \\\n"
+             "          SWI9X15C_05.05.58.00_Generic_005.025_002.nvu\n"
+             "\n"
+             " b) Verify all .cwe, .nvu and .spk images inside a directory:\n"
+             "    $ find . -regex \".*\\.\\(nvu\\|spk\\|cwe\\)\" -exec " PROGRAM_NAME " -v -z {} \\;\n"
+             "\n"
+             " c) Image files may be given within .exe files; extract them with 7-Zip:\n"
+             "    $ 7z x SWI9200M_3.5-Release13-SWI9200X_03.05.29.03.exe\n"
+             "    $ ls *.{cwe,nvu,spk} 2>/dev/null\n"
+             "      9999999_9999999_9200_03.05.29.03_00_generic_000.000_001_SPKG_MC.cwe\n"
              "\n");
 }
 
@@ -464,8 +530,12 @@ int main (int argc, char **argv)
     GOptionContext     *context;
     GOptionGroup       *group;
     guint               n_actions;
+    guint               n_actions_images_needed;
+    guint               n_actions_device_needed;
+    guint               n_actions_cdc_wdm_needed;
     gboolean            result = FALSE;
     QfuDeviceSelection *device_selection = NULL;
+    QmiDeviceOpenFlags  device_open_flags = QMI_DEVICE_OPEN_FLAGS_NONE;
 
     setlocale (LC_ALL, "");
 
@@ -477,9 +547,11 @@ int main (int argc, char **argv)
     g_option_group_add_entries (group, context_selection_entries);
     g_option_context_add_group (context, group);
 
+#if defined WITH_UDEV
     group = g_option_group_new ("update", "Update options (normal mode)", "", NULL, NULL);
     g_option_group_add_entries (group, context_update_entries);
     g_option_context_add_group (context, group);
+#endif
 
     group = g_option_group_new ("reset", "Reset options (normal mode)", "", NULL, NULL);
     g_option_group_add_entries (group, context_reset_entries);
@@ -523,11 +595,24 @@ int main (int argc, char **argv)
     /* Initialize logging */
     qfu_log_init (stdout_verbose_flag, stdout_silent_flag, verbose_log_str);
 
+
+    /* Total actions */
+    n_actions = (action_verify_flag + action_update_qdl_flag + action_reset_flag);
+    /* Actions that require images specified */
+    n_actions_images_needed = (action_verify_flag + action_update_qdl_flag);
+    /* Actions that require a device specified */
+    n_actions_device_needed = (action_update_qdl_flag + action_reset_flag);
+    /* Actions that allow using a cdc-wdm device */
+    n_actions_cdc_wdm_needed = (action_reset_flag);
+
+#if defined WITH_UDEV
+    n_actions                += action_update_flag;
+    n_actions_cdc_wdm_needed += action_update_flag;
+    n_actions_images_needed  += action_update_flag;
+    n_actions_device_needed  += action_update_flag;
+#endif
+
     /* We don't allow multiple actions at the same time */
-    n_actions = (action_verify_flag +
-                 action_update_flag +
-                 action_update_qdl_flag +
-                 action_reset_flag);
     if (n_actions == 0) {
         g_printerr ("error: no actions specified\n");
         goto out;
@@ -538,14 +623,18 @@ int main (int argc, char **argv)
     }
 
     /* A list of images must be provided for update and verify operations */
-    if ((action_verify_flag || action_update_flag || action_update_qdl_flag) && !image_strv) {
+    if (n_actions_images_needed && !image_strv) {
         g_printerr ("error: no firmware images specified\n");
         goto out;
     }
 
     /* device selection must be performed for update and reset operations */
-    if (action_update_flag || action_update_qdl_flag || action_reset_flag) {
+    if (n_actions_device_needed) {
+#if defined WITH_UDEV
         device_selection = qfu_device_selection_new (cdc_wdm_str, tty_str, vid, pid, busnum, devnum, &error);
+#else
+        device_selection = qfu_device_selection_new (cdc_wdm_str, tty_str, 0, 0, 0, 0, &error);
+#endif
         if (!device_selection) {
             g_printerr ("error: couldn't select device:: %s\n", error->message);
             g_error_free (error);
@@ -553,8 +642,23 @@ int main (int argc, char **argv)
         }
     }
 
+    /* Validate device open flags */
+    if (n_actions_cdc_wdm_needed) {
+        if (device_open_mbim_flag + device_open_qmi_flag + device_open_auto_flag > 1) {
+            g_printerr ("error: cannot specify multiple mode flags to open device\n");
+            goto out;
+        }
+        if (device_open_proxy_flag)
+            device_open_flags |= QMI_DEVICE_OPEN_FLAGS_PROXY;
+        if (device_open_mbim_flag)
+            device_open_flags |= QMI_DEVICE_OPEN_FLAGS_MBIM;
+        if (device_open_auto_flag || (!device_open_qmi_flag && !device_open_mbim_flag))
+            device_open_flags |= QMI_DEVICE_OPEN_FLAGS_AUTO;
+    }
+
     /* Run */
 
+#if defined WITH_UDEV
     if (action_update_flag) {
         g_assert (QFU_IS_DEVICE_SELECTION (device_selection));
 
@@ -570,14 +674,14 @@ int main (int argc, char **argv)
                                            firmware_version_str,
                                            config_version_str,
                                            carrier_str,
-                                           device_open_proxy_flag,
-                                           device_open_mbim_flag,
+                                           device_open_flags,
                                            ignore_version_errors_flag,
                                            override_download_flag,
                                            (guint8) modem_storage_index_int,
                                            skip_validation_flag);
         goto out;
     }
+#endif /* WITH_UDEV */
 
     if (action_update_qdl_flag) {
         g_assert (QFU_IS_DEVICE_SELECTION (device_selection));
@@ -588,9 +692,7 @@ int main (int argc, char **argv)
 
     if (action_reset_flag) {
         g_assert (QFU_IS_DEVICE_SELECTION (device_selection));
-        result = qfu_operation_reset_run (device_selection,
-                                          device_open_proxy_flag,
-                                          device_open_mbim_flag);
+        result = qfu_operation_reset_run (device_selection, device_open_flags);
         goto out;
     }
 

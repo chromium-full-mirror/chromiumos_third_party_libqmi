@@ -16,18 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Copyright (C) 2016 Zodiac Inflight Innovations
- * Copyright (C) 2016 Aleksander Morgado <aleksander@aleksander.es>
+ * Copyright (C) 2016-2017 Aleksander Morgado <aleksander@aleksander.es>
  */
+
+#include "config.h"
 
 #include <stdlib.h>
 
 #include <gio/gio.h>
-#include <gudev/gudev.h>
+
+#if defined WITH_UDEV
+# include <gudev/gudev.h>
+#endif
 
 #include "qfu-udev-helpers.h"
-
-static const gchar *tty_subsys_list[]     = { "tty", NULL };
-static const gchar *cdc_wdm_subsys_list[] = { "usbmisc", "usb", NULL };
 
 /******************************************************************************/
 
@@ -45,6 +47,11 @@ qfu_udev_helper_device_type_to_string (QfuUdevHelperDeviceType type)
 }
 
 /******************************************************************************/
+
+#if defined WITH_UDEV
+
+static const gchar *tty_subsys_list[]     = { "tty", NULL };
+static const gchar *cdc_wdm_subsys_list[] = { "usbmisc", "usb", NULL };
 
 static gboolean
 udev_helper_get_udev_device_details (GUdevDevice  *device,
@@ -296,7 +303,7 @@ qfu_udev_helper_find_by_device_info (guint16   vid,
     GString     *match_str;
     gchar       *sysfs_path = NULL;
 
-    sysfs_paths = g_ptr_array_new ();
+    sysfs_paths = g_ptr_array_new_with_free_func ((GDestroyNotify) g_free);
     udev        = g_udev_client_new (NULL);
     match_str   = g_string_new ("");
 
@@ -507,6 +514,7 @@ handle_uevent (GUdevClient *client,
     ctx->timeout_id = 0;
 
     g_task_return_pointer (task, file, g_object_unref);
+    g_object_unref (task);
 }
 
 static gboolean
@@ -640,3 +648,5 @@ qfu_udev_helper_generic_monitor_new (const gchar *sysfs_path)
     g_signal_connect (self->udev, "uevent", G_CALLBACK (handle_uevent_generic), NULL);
     return self;
 }
+
+#endif /* WITH_UDEV */

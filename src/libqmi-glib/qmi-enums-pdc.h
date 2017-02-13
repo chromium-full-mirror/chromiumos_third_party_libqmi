@@ -18,6 +18,7 @@
  * Boston, MA 02110-1301 USA.
  *
  * Copyright (C) 2012 Google Inc.
+ * Copyright (C) 2012-2017 Aleksander Morgado <aleksander@aleksander.es>
  */
 
 #ifndef _LIBQMI_GLIB_QMI_ENUMS_PDC_H_
@@ -44,11 +45,18 @@
  * @QMI_PDC_CONFIGURATION_TYPE_SOFTWARE: Software
  *
  * Configuration type for change/load configuration.
+ *
+ * Since: 1.18
  */
 typedef enum {
    QMI_PDC_CONFIGURATION_TYPE_PLATFORM = 0,
    QMI_PDC_CONFIGURATION_TYPE_SOFTWARE = 1,
 } QmiPdcConfigurationType;
 
+/**
+ * qmi_pdc_configuration_type_get_string:
+ *
+ * Since: 1.18
+ */
 
 #endif /* _LIBQMI_GLIB_QMI_ENUMS_PDC_H_ */
