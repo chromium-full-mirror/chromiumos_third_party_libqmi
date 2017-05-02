@@ -72,6 +72,7 @@ static gboolean get_supported_messages_flag;
 static gboolean reset_flag;
 static gboolean noop_flag;
 static gchar *bind_mux_str;
+static gchar *set_ip_family_str;
 
 static GOptionEntry entries[] = {
     { "wds-start-network", 0, 0, G_OPTION_ARG_STRING, &start_network_str,
@@ -146,6 +147,10 @@ static GOptionEntry entries[] = {
       "Bind qmux data port to controller device (allowed keys: mux-id, ep-iface-number) to be used with `--client-no-release-cid'",
       "[\"key=value,...\"]"
     },
+    { "wds-set-ip-family", 0, 0, G_OPTION_ARG_STRING, &set_ip_family_str,
+      "Set IP family",
+      "[4|6]"
+    },
     { "wds-noop", 0, 0, G_OPTION_ARG_NONE, &noop_flag,
       "Just allocate or release a WDS client. Use with `--client-no-release-cid' and/or `--client-cid'",
       NULL
@@ -180,6 +185,7 @@ qmicli_wds_options_enabled (void)
     n_actions = (!!start_network_str +
                  !!stop_network_str +
                  !!bind_mux_str +
+                 !!set_ip_family_str +
                  get_current_settings_flag +
                  get_packet_service_status_flag +
                  get_packet_statistics_flag +
@@ -439,7 +445,7 @@ start_network_properties_handle (const gchar  *key,
         return TRUE;
     }
 
-    if (g_ascii_strcasecmp (key, "ip-type") == 0 && props->ip_type == 0) {
+    if (g_ascii_strcasecmp (key, "ip-type") == 0 && props->ip_type == QMI_WDS_IP_FAMILY_UNSPECIFIED) {
         switch (atoi (value)) {
         case 4:
             props->ip_type = QMI_WDS_IP_FAMILY_IPV4;
@@ -474,13 +480,8 @@ start_network_input_create (const gchar *str)
     gchar **split = NULL;
     QmiMessageWdsStartNetworkInput *input = NULL;
     StartNetworkProperties props = {
-        .apn                 = NULL,
-        .profile_index_3gpp  = 0,
-        .profile_index_3gpp2 = 0,
-        .auth                = QMI_WDS_AUTHENTICATION_NONE,
-        .auth_set            = FALSE,
-        .username            = NULL,
-        .password            = NULL,
+        .auth    = QMI_WDS_AUTHENTICATION_NONE,
+        .ip_type = QMI_WDS_IP_FAMILY_UNSPECIFIED,
     };
 
     /* An empty string is totally valid (i.e. no TLVs) */
@@ -1692,6 +1693,33 @@ bind_mux_data_port_ready (QmiClientWds *client,
     operation_shutdown (TRUE);
 }
 
+static void
+set_ip_family_ready (QmiClientWds *client,
+                     GAsyncResult *res)
+{
+    QmiMessageWdsSetIpFamilyOutput *output;
+    GError *error = NULL;
+
+    output = qmi_client_wds_set_ip_family_finish (client, res, &error);
+    if (!output) {
+        g_printerr ("error: operation failed: %s\n", error->message);
+        g_error_free (error);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    if (!qmi_message_wds_set_ip_family_output_get_result (output, &error)) {
+        g_printerr ("error: couldn't set IP family: %s\n", error->message);
+        g_error_free (error);
+        qmi_message_wds_set_ip_family_output_unref (output);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    qmi_message_wds_set_ip_family_output_unref (output);
+    operation_shutdown (TRUE);
+}
+
 void
 qmicli_wds_run (QmiDevice *device,
                 QmiClientWds *client,
@@ -1764,6 +1792,35 @@ qmicli_wds_run (QmiDevice *device,
                                            (GAsyncReadyCallback) bind_mux_data_port_ready,
                                            NULL);
         qmi_message_wds_bind_mux_data_port_input_unref (input);
+        return;
+    }
+
+    /* Request to set IP family? */
+    if (set_ip_family_str) {
+        QmiMessageWdsSetIpFamilyInput *input;
+
+        input = qmi_message_wds_set_ip_family_input_new ();
+        switch (atoi (set_ip_family_str)) {
+        case 4:
+            qmi_message_wds_set_ip_family_input_set_preference (input, QMI_WDS_IP_FAMILY_IPV4, NULL);
+            break;
+        case 6:
+            qmi_message_wds_set_ip_family_input_set_preference (input, QMI_WDS_IP_FAMILY_IPV6, NULL);
+            break;
+        default:
+            g_printerr ("error: unknown IP type '%s' (not 4 or 6)\n",
+                        set_ip_family_str);
+            operation_shutdown (FALSE);
+            return;
+        }
+        g_debug ("Asynchronously set IP family...");
+        qmi_client_wds_set_ip_family (client,
+                                      input,
+                                      10,
+                                      ctx->cancellable,
+                                      (GAsyncReadyCallback) set_ip_family_ready,
+                                      NULL);
+        qmi_message_wds_set_ip_family_input_unref (input);
         return;
     }
 
