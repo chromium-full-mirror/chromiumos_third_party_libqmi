@@ -76,6 +76,7 @@ enum {
 
 enum {
     SIGNAL_INDICATION,
+    SIGNAL_REMOVED,
     SIGNAL_LAST
 };
 
@@ -1555,13 +1556,14 @@ input_ready_cb (GInputStream *istream,
             g_error_free (error);
         /* Close the device */
         qmi_device_close (self, NULL);
-        return FALSE;
+        return G_SOURCE_REMOVE;
     }
 
     if (r == 0) {
         /* HUP! */
         g_warning ("Cannot read from istream: connection broken");
-        return FALSE;
+        g_signal_emit (self, signals[SIGNAL_REMOVED], 0);
+        return G_SOURCE_REMOVE;
     }
 
     /* else, r > 0 */
@@ -1571,7 +1573,7 @@ input_ready_cb (GInputStream *istream,
 
     parse_response (self);
 
-    return TRUE;
+    return G_SOURCE_CONTINUE;
 }
 
 typedef struct {
@@ -1623,7 +1625,6 @@ setup_iostream (GTask *task)
                            self,
                            NULL);
     g_source_attach (self->priv->input_source, g_main_context_get_thread_default ());
-    g_source_unref (self->priv->input_source);
 
     g_task_return_boolean (task, TRUE);
     g_object_unref (task);
@@ -2407,7 +2408,10 @@ qmi_device_open (QmiDevice *self,
 static void
 destroy_iostream (QmiDevice *self)
 {
-    g_clear_pointer (&self->priv->input_source, g_source_destroy);
+    if (self->priv->input_source) {
+        g_source_destroy (self->priv->input_source);
+        g_clear_pointer (&self->priv->input_source, g_source_unref);
+    }
     g_clear_pointer (&self->priv->buffer, g_byte_array_unref);
     g_clear_object (&self->priv->istream);
     g_clear_object (&self->priv->ostream);
@@ -3174,4 +3178,24 @@ qmi_device_class_init (QmiDeviceClass *klass)
                       G_TYPE_NONE,
                       1,
                       G_TYPE_BYTE_ARRAY);
+
+    /**
+     * QmiDevice::device-removed:
+     * @object: A #QmiDevice.
+     * @output: none
+     *
+     * The ::device-removed signal is emitted when an unexpected port hang-up is received.
+     *
+     * Since: 1.20
+     */
+    signals[SIGNAL_REMOVED] =
+        g_signal_new (QMI_DEVICE_SIGNAL_REMOVED,
+                      G_OBJECT_CLASS_TYPE (G_OBJECT_CLASS (klass)),
+                      G_SIGNAL_RUN_LAST,
+                      0,
+                      NULL,
+                      NULL,
+                      NULL,
+                      G_TYPE_NONE,
+                      0);
 }
