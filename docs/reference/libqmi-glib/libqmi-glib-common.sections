@@ -18,11 +18,13 @@ QMI_CLIENT_SERVICE
 QMI_CLIENT_CID
 QMI_CLIENT_VERSION_MAJOR
 QMI_CLIENT_VERSION_MINOR
+QMI_CLIENT_VALID
 QmiClient
 qmi_client_get_device
 qmi_client_peek_device
 qmi_client_get_service
 qmi_client_get_cid
+qmi_client_is_valid
 qmi_client_get_version
 qmi_client_check_version
 qmi_client_get_next_transaction_id
@@ -164,6 +166,7 @@ QmiDmsTimeReferenceType
 QmiDmsFirmwareImageType
 QmiDmsBootImageDownloadMode
 QmiDmsHpDeviceMode
+QmiDmsSwiUsbComposition
 <SUBSECTION Methods>
 qmi_dms_data_service_capability_get_string
 qmi_dms_sim_capability_get_string
@@ -184,6 +187,8 @@ qmi_dms_time_reference_type_get_string
 qmi_dms_firmware_image_type_get_string
 qmi_dms_boot_image_download_mode_get_string
 qmi_dms_hp_device_mode_get_string
+qmi_dms_swi_usb_composition_get_string
+qmi_dms_swi_usb_composition_get_description
 <SUBSECTION Private>
 qmi_dms_data_service_capability_build_string_from_mask
 qmi_dms_sim_capability_build_string_from_mask
@@ -202,6 +207,7 @@ qmi_dms_time_reference_type_build_string_from_mask
 qmi_dms_firmware_image_type_build_string_from_mask
 qmi_dms_boot_image_download_mode_build_string_from_mask
 qmi_dms_hp_device_mode_build_string_from_mask
+qmi_dms_swi_usb_composition_build_string_from_mask
 <SUBSECTION Standard>
 QMI_TYPE_DMS_ACTIVATION_STATE
 QMI_TYPE_DMS_BOOT_IMAGE_DOWNLOAD_MODE
@@ -220,6 +226,7 @@ QMI_TYPE_DMS_UIM_PIN_ID
 QMI_TYPE_DMS_UIM_PIN_STATUS
 QMI_TYPE_DMS_UIM_STATE
 QMI_TYPE_DMS_HP_DEVICE_MODE
+QMI_TYPE_DMS_SWI_USB_COMPOSITION
 qmi_dms_activation_state_get_type
 qmi_dms_boot_image_download_mode_get_type
 qmi_dms_data_service_capability_get_type
@@ -237,6 +244,7 @@ qmi_dms_uim_pin_id_get_type
 qmi_dms_uim_pin_status_get_type
 qmi_dms_uim_state_get_type
 qmi_dms_hp_device_mode_get_type
+qmi_dms_swi_usb_composition_get_type
 </SECTION>
 
 <SECTION>
