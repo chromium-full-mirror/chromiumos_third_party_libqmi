@@ -380,11 +380,19 @@
     <section>
       <title>LOC Indications</title>
       <xi:include href="xml/qmi-indication-loc-position-report.xml"/>
+      <xi:include href="xml/qmi-indication-loc-nmea.xml"/>
+      <xi:include href="xml/qmi-indication-loc-gnss-satellite-info.xml"/>
+      <xi:include href="xml/qmi-indication-loc-engine-state.xml"/>
+      <xi:include href="xml/qmi-indication-loc-fix-recurrence-type.xml"/>
+      <xi:include href="xml/qmi-indication-loc-get-operation-mode.xml"/>
     </section>
     <section>
       <title>LOC Requests</title>
       <xi:include href="xml/qmi-message-loc-start.xml"/>
       <xi:include href="xml/qmi-message-loc-stop.xml"/>
+      <xi:include href="xml/qmi-message-loc-register-events.xml"/>
+      <xi:include href="xml/qmi-message-loc-get-operation-mode.xml"/>
+      <xi:include href="xml/qmi-message-loc-set-operation-mode.xml"/>
     </section>
   </chapter>
 
@@ -444,6 +452,10 @@
   <index id="api-index-1-20" role="1.20">
     <title>Index of new core symbols in 1.20</title>
     <xi:include href="xml/api-index-1.20.xml"><xi:fallback /></xi:include>
+  </index>
+  <index id="api-index-1-22" role="1.22">
+    <title>Index of new core symbols in 1.22</title>
+    <xi:include href="xml/api-index-1.22.xml"><xi:fallback /></xi:include>
   </index>
 
   <xi:include href="xml/annotation-glossary.xml"><xi:fallback /></xi:include>

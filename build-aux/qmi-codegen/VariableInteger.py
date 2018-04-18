@@ -30,7 +30,7 @@ Variable type for signed/unsigned Integers and floating point numbers:
  'guint32', 'gint32'
  'guint64', 'gint64'
  'guint-sized'
- 'gfloat'
+ 'gfloat', 'gdouble'
 """
 class VariableInteger(Variable):
 
@@ -66,7 +66,7 @@ class VariableInteger(Variable):
                          'private_format' : self.private_format,
                          'len'            : self.guint_sized_size }
 
-        if self.private_format != 'guint8' and self.private_format != 'gint8' and self.private_format != 'gfloat':
+        if self.private_format not in ('guint8', 'gint8'):
             translations['endian'] = ' ' + self.endian + ','
         else:
             translations['endian'] = ''
@@ -183,7 +183,7 @@ class VariableInteger(Variable):
             common_format = '%" G_GINT32_FORMAT "'
         elif self.private_format == 'gint64':
             common_format = '%" G_GINT64_FORMAT "'
-        elif self.private_format == 'gfloat':
+        elif self.private_format in ('gfloat', 'gdouble'):
             common_format = '%f'
 
         translations = { 'lp'             : line_prefix,
@@ -193,7 +193,7 @@ class VariableInteger(Variable):
                          'common_format'  : common_format,
                          'common_cast'    : common_cast }
 
-        if self.private_format != 'guint8' and self.private_format != 'gint8' and self.private_format != 'gfloat':
+        if self.private_format not in ('guint8', 'gint8'):
             translations['endian'] = ' ' + self.endian + ','
         else:
             translations['endian'] = ''

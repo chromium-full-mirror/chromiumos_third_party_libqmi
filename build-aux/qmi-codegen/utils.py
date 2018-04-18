@@ -78,8 +78,8 @@ def add_header_start(f, output_name, service):
     else:
         template += (
             "#include \"qmi-enums-private.h\"\n")
-    # DMS and NAS have flags64
-    if service == 'DMS' or service == 'NAS':
+    # DMS, NAS and LOC have flags64
+    if service in ('DMS', 'NAS', 'LOC'):
         template += (
             "#include \"qmi-flags64-${service}.h\"\n")
     template += (
@@ -239,10 +239,7 @@ def format_is_signed_integer(fmt):
 Returns True if the given format corresponds to a basic floating point type
 """
 def format_is_float(fmt):
-    if fmt == 'gfloat':
-        return True
-    else:
-        return False
+    return fmt in ('gfloat', 'gdouble')
 
 
 """

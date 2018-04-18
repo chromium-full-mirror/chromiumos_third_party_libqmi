@@ -121,11 +121,11 @@ class Message:
             '                            ${message_id});\n' % input_arg_template)
         cfile.write(string.Template(template).substitute(translations))
 
-        if self.input.fields is not None:
+        if self.input.fields:
             # Count how many mandatory fields we have
             n_mandatory = 0
             for field in self.input.fields:
-                if field.mandatory == 'yes':
+                if field.mandatory:
                     n_mandatory += 1
 
             if n_mandatory == 0:
@@ -164,7 +164,7 @@ class Message:
                 # Emit the TLV getter
                 field.emit_input_tlv_add(cfile, '        ')
 
-                if field.mandatory == 'yes':
+                if field.mandatory:
                     template = (
                         '    } else {\n'
                         '        g_set_error (error,\n'
@@ -179,7 +179,7 @@ class Message:
         cfile.write(
             '\n'
             '    return self;\n')
-        if self.input.fields is not None:
+        if self.input.fields:
             cfile.write(
                 '\n'
                 'error_out:\n'
