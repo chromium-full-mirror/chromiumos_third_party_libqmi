@@ -26,6 +26,7 @@
 /* Common */
 void          qmicli_async_operation_done (gboolean reported_operation_status,
                                            gboolean skip_cid_release);
+void          qmicli_expect_indications   (void);
 
 /* DMS group */
 GOptionGroup *qmicli_dms_get_option_group (void);
@@ -89,5 +90,12 @@ gboolean      qmicli_voice_options_enabled  (void);
 void          qmicli_voice_run              (QmiDevice *device,
                                              QmiClientVoice *client,
                                              GCancellable *cancellable);
+
+/* Location group */
+GOptionGroup *qmicli_loc_get_option_group (void);
+gboolean      qmicli_loc_options_enabled  (void);
+void          qmicli_loc_run              (QmiDevice *device,
+                                           QmiClientLoc *client,
+                                           GCancellable *cancellable);
 
 #endif /* __QMICLI_H__ */

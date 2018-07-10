@@ -4,7 +4,7 @@ AC_PREREQ([2.68])
 dnl The QMI version number
 m4_define([qmi_major_version], [1])
 m4_define([qmi_minor_version], [21])
-m4_define([qmi_micro_version], [0])
+m4_define([qmi_micro_version], [1])
 m4_define([qmi_version],
           [qmi_major_version.qmi_minor_version.qmi_micro_version])
 
@@ -147,7 +147,7 @@ fi
 AM_CONDITIONAL([QMI_USERNAME_ENABLED], [test "x$QMI_USERNAME_ENABLED" = "xyes"])
 
 # MBIM QMUX service support
-MBIM_GLIB_VERSION=1.14.0
+MBIM_GLIB_VERSION=1.17.2
 PKG_CHECK_MODULES([MBIM], [mbim-glib >= ${MBIM_GLIB_VERSION}], [have_mbim=yes], [have_mbim=no])
 AC_ARG_ENABLE(mbim-qmux,
               AS_HELP_STRING([--enable-mbim-qmux], [Enable support for QMI over MBIM QMUX service [default=auto]]),

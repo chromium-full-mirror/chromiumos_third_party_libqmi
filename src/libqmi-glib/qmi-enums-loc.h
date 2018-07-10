@@ -56,6 +56,12 @@ typedef enum {
 } QmiLocIntermediateReportState;
 
 /**
+ * qmi_loc_intermediate_report_state_get_string:
+ *
+ * Since: 1.20
+ */
+
+/**
  * QmiLocIndicationStatus:
  * @QMI_LOC_INDICATION_STATUS_SUCCESS: Success.
  * @QMI_LOC_INDICATION_STATUS_GENERAL_FAILURE: General Failure.
@@ -78,6 +84,12 @@ typedef enum {
     QMI_LOC_INDICATION_STATUS_PHONE_OFFLINE      = 5,
     QMI_LOC_INDICATION_STATUS_TIMEOUT            = 6,
 } QmiLocIndicationStatus;
+
+/**
+ * qmi_loc_indication_status_get_string
+ *
+ * Since: 1.22
+ */
 
 /**
  * QmiLocSessionStatus:
@@ -106,6 +118,12 @@ typedef enum {
 } QmiLocSessionStatus;
 
 /**
+ * qmi_loc_session_status_get_string
+ *
+ * Since: 1.22
+ */
+
+/**
  * QmiLocFixRecurrenceType:
  * @QMI_LOC_FIX_RECURRENCE_TYPE_REQUEST_PERIODIC_FIXES: Periodic fixes.
  * @QMI_LOC_FIX_RECURRENCE_TYPE_REQUEST_SINGLE_FIX: Single fix.
@@ -116,8 +134,14 @@ typedef enum {
  */
 typedef enum {
     QMI_LOC_FIX_RECURRENCE_TYPE_REQUEST_PERIODIC_FIXES = 1,
-    QMI_LOC_FIX_RECURRENCE_TYPE_REQUEST_SINGLE_FIX = 2,
+    QMI_LOC_FIX_RECURRENCE_TYPE_REQUEST_SINGLE_FIX     = 2,
 } QmiLocFixRecurrenceType;
+
+/**
+ * qmi_loc_fix_recurrence_type_get_string
+ *
+ * Since: 1.22
+ */
 
 /**
  * QmiLocOperationMode:
@@ -142,6 +166,12 @@ typedef enum {
 } QmiLocOperationMode;
 
 /**
+ * qmi_loc_operation_mode_get_string
+ *
+ * Since: 1.22
+ */
+
+/**
  * QmiLocEngineState:
  * @QMI_LOC_ENGINE_STATE_ON: On.
  * @QMI_LOC_ENGINE_STATE_OFF: Off.
@@ -154,6 +184,12 @@ typedef enum {
     QMI_LOC_ENGINE_STATE_ON  = 1,
     QMI_LOC_ENGINE_STATE_OFF = 2,
 } QmiLocEngineState;
+
+/**
+ * qmi_loc_engine_state_get_string
+ *
+ * Since: 1.22
+ */
 
 /**
  * QmiLocTechnologyUsed:
@@ -182,6 +218,12 @@ typedef enum {
 } QmiLocTechnologyUsed;
 
 /**
+ * qmi_loc_technology_used_build_string_from_mask
+ *
+ * Since: 1.22
+ */
+
+/**
  * QmiLocReliability:
  * @QMI_LOC_RELIABILITY_NOT_SET: Not set.
  * @QMI_LOC_RELIABILITY_VERY_LOW: Very low.
@@ -202,20 +244,30 @@ typedef enum {
 } QmiLocReliability;
 
 /**
+ * qmi_loc_reliability_get_string
+ *
+ * Since: 1.22
+ */
+
+/**
  * QmiLocTimeSource:
  * @QMI_LOC_TIME_SOURCE_INVALID: Invalid.
- * @QMI_LOC_TIME_SOURCE_NETWORK_TIME_TRANSFER: Network time transfer.
- * @QMI_LOC_TIME_SOURCE_NETWORK_TIME_TAGGING: Network time tagging.
- * @QMI_LOC_TIME_SOURCE_EXTERNAL_INPUT: External input.
- * @QMI_LOC_TIME_SOURCE_TOW_DECODE: TOW decode
- * @QMI_LOC_TIME_SOURCE_TOW_CONFIRMED: TOW confirmed
- * @QMI_LOC_TIME_SOURCE_TOW_AND_WEEK_CONFIRMED: TOW and week confirmed.
- * @QMI_LOC_TIME_SOURCE_NAVIGATION_SOLUTION: Navigation solution.
- * @QMI_LOC_TIME_SOURCE_SOLVE_FOR_TIME: Solve for time.
- * @QMI_LOC_TIME_SOURCE_GLTOW_DECODE: GLTOW decode.
- * @QMI_LOC_TIME_SOURCE_TRANSFORM: Transform.
- * @QMI_LOC_TIME_SOURCE_WCDMA_SLEEP_TIME_TAG: WCDMA sleep time tag.
- * @QMI_LOC_TIME_SOURCE_GSM_SLEEP_TIME_TAG: GSM sleep time tag.
+ * @QMI_LOC_TIME_SOURCE_NETWORK_TIME_TRANSFER: Time is set by the 1X system.
+ * @QMI_LOC_TIME_SOURCE_NETWORK_TIME_TAGGING: Time is set by WCDMA/GSM time tagging.
+ * @QMI_LOC_TIME_SOURCE_EXTERNAL_INPUT: Time set by external injection.
+ * @QMI_LOC_TIME_SOURCE_TOW_DECODE: Time is set after decoding over-the-air GPS navigation data from one GPS satellite.
+ * @QMI_LOC_TIME_SOURCE_TOW_CONFIRMED: Time is set after decoding over-the-air GPS navigation data from multiple satellites.
+ * @QMI_LOC_TIME_SOURCE_TOW_AND_WEEK_CONFIRMED: Both time of the week and GPS week number are known.
+ * @QMI_LOC_TIME_SOURCE_NAVIGATION_SOLUTION: Time is set by the position engine after the fix is obtained.
+ * @QMI_LOC_TIME_SOURCE_SOLVE_FOR_TIME: Time is set by the position engine after performing SFT.
+ * @QMI_LOC_TIME_SOURCE_GLO_TOW_DECODE: Time is set after decoding QZSS satellites.
+ * @QMI_LOC_TIME_SOURCE_TIME_TRANSFORM: Time is set after transforming the GPS to GLO time.
+ * @QMI_LOC_TIME_SOURCE_WCDMA_SLEEP_TIME_TAG: Time is set by the sleep time tag provided by the WCDMA network.
+ * @QMI_LOC_TIME_SOURCE_GSM_SLEEP_TIME_TAG: Time is set by the sleep time tag provided by the GSM network.
+ * @QMI_LOC_TIME_SOURCE_UNKNOWN: Unknown.
+ * @QMI_LOC_TIME_SOURCE_SYSTEM_TIMETICK: Time is derived from the system clock.
+ * @QMI_LOC_TIME_SOURCE_QZSS_TOW_DECODE: Time set after decoding QZSS satellites.
+ * @QMI_LOC_TIME_SOURCE_BDS_TOW_DECODE: Time set after decoding BDS satellites.
  *
  * Source of the used time.
  *
@@ -231,25 +283,21 @@ typedef enum {
     QMI_LOC_TIME_SOURCE_TOW_AND_WEEK_CONFIRMED =  6,
     QMI_LOC_TIME_SOURCE_NAVIGATION_SOLUTION    =  7,
     QMI_LOC_TIME_SOURCE_SOLVE_FOR_TIME         =  8,
-    QMI_LOC_TIME_SOURCE_GLTOW_DECODE           =  9,
-    QMI_LOC_TIME_SOURCE_TRANSFORM              = 10,
+    QMI_LOC_TIME_SOURCE_GLO_TOW_DECODE         =  9,
+    QMI_LOC_TIME_SOURCE_TIME_TRANSFORM         = 10,
     QMI_LOC_TIME_SOURCE_WCDMA_SLEEP_TIME_TAG   = 11,
     QMI_LOC_TIME_SOURCE_GSM_SLEEP_TIME_TAG     = 12,
+    QMI_LOC_TIME_SOURCE_UNKNOWN                = 13,
+    QMI_LOC_TIME_SOURCE_SYSTEM_TIMETICK        = 14,
+    QMI_LOC_TIME_SOURCE_QZSS_TOW_DECODE        = 15,
+    QMI_LOC_TIME_SOURCE_BDS_TOW_DECODE         = 16,
 } QmiLocTimeSource;
 
 /**
- * QmiLocAltitudeAssumed:
- * @QMI_LOC_ALTITUDE_ASSUMED_ALTITUDE_IS_CALCULATED: Altitude is calculated.
- * @QMI_LOC_ALTITUDE_ASSUMED_ALTITUDE_IS_ASSUMED: Altitude is assumed.
+ * qmi_loc_time_source_get_string
  *
- * Whether the altitude has been calculated or assumed.
- *
- * Since 1.22
+ * Since: 1.22
  */
-typedef enum {
-    QMI_LOC_ALTITUDE_ASSUMED_ALTITUDE_IS_CALCULATED = 0,
-    QMI_LOC_ALTITUDE_ASSUMED_ALTITUDE_IS_ASSUMED    = 1,
-} QmiLocAltitudeAssumed;
 
 /**
  * QmiLocSatelliteValidInformation:
@@ -260,7 +308,7 @@ typedef enum {
  * @QMI_LOC_SATELLITE_VALID_INFORMATION_SATELLITE_INFO_MASK: Satellite info mask.
  * @QMI_LOC_SATELLITE_VALID_INFORMATION_ELEVATION: Elevation.
  * @QMI_LOC_SATELLITE_VALID_INFORMATION_AZIMUTH: Azimuth.
- * @QMI_LOC_SATELLITE_VALID_INFORMATION_SIGNAL_TO_NOISE_RATIO: Signal to noise ration.
+ * @QMI_LOC_SATELLITE_VALID_INFORMATION_SIGNAL_TO_NOISE_RATIO: Signal to noise ratio.
  *
  * Which information about the satellite is valid.
  *
@@ -276,6 +324,12 @@ typedef enum {
     QMI_LOC_SATELLITE_VALID_INFORMATION_AZIMUTH               = 1 << 6,
     QMI_LOC_SATELLITE_VALID_INFORMATION_SIGNAL_TO_NOISE_RATIO = 1 << 7,
 } QmiLocSatelliteValidInformation;
+
+/**
+ * qmi_loc_satellite_valid_information_build_string_from_mask
+ *
+ * Since: 1.22
+ */
 
 /**
  * QmiLocSystem:
@@ -298,6 +352,12 @@ typedef enum {
 } QmiLocSystem;
 
 /**
+ * qmi_loc_system_get_string
+ *
+ * Since: 1.22
+ */
+
+/**
  * QmiLocHealthStatus:
  * @QMI_LOC_HEALTH_STATUS_UNHEALTHY: Unhealthy.
  * @QMI_LOC_HEALTH_STATUS_HEALTHY: Healthy.
@@ -312,6 +372,12 @@ typedef enum {
 } QmiLocHealthStatus;
 
 /**
+ * qmi_loc_health_status_get_string
+ *
+ * Since: 1.22
+ */
+
+/**
  * QmiLocNavigationData:
  * @QMI_LOC_NAVIGATION_DATA_HAS_EPHEMERIS: Has ephemeris.
  * @QMI_LOC_NAVIGATION_DATA_HAS_ALMANAC: Has almanac.
@@ -324,6 +390,12 @@ typedef enum {
     QMI_LOC_NAVIGATION_DATA_HAS_EPHEMERIS = 0,
     QMI_LOC_NAVIGATION_DATA_HAS_ALMANAC   = 1,
 } QmiLocNavigationData;
+
+/**
+ * qmi_loc_navigation_data_get_string
+ *
+ * Since: 1.22
+ */
 
 /**
  * QmiLocSatelliteStatus:
@@ -342,97 +414,159 @@ typedef enum {
 } QmiLocSatelliteStatus;
 
 /**
- * qmi_loc_intermediate_report_state_get_string:
- *
- * Since: 1.20
- */
-
-/**
- * qmi_loc_intermediate_report_state_get_string
- *
- * Since: 1.22
- */
-
-/**
- * qmi_loc_fix_recurrence_type_get_string
- *
- * Since: 1.22
- */
-
-/**
- * qmi_loc_operation_mode_get_string
- *
- * Since: 1.22
- */
-
-/**
- * qmi_loc_altitude_assumed_get_string
- *
- * Since: 1.22
- */
-
-/**
- * qmi_loc_engine_state_get_string
- *
- * Since: 1.22
- */
-
-/**
- * qmi_loc_health_status_get_string
- *
- * Since: 1.22
- */
-
-/**
- * qmi_loc_indication_status_get_string
- *
- * Since: 1.22
- */
-
-/**
- * qmi_loc_navigation_data_get_string
- *
- * Since: 1.22
- */
-
-/**
- * qmi_loc_reliability_get_string
- *
- * Since: 1.22
- */
-
-/**
  * qmi_loc_satellite_status_get_string
  *
  * Since: 1.22
  */
 
 /**
- * qmi_loc_satellite_valid_information_get_string
+ * QmiLocServerType:
+ * @QMI_LOC_SERVER_TYPE_UNKNOWN: Unknown.
+ * @QMI_LOC_SERVER_TYPE_CDMA_PDE: CDMA Position Determining System.
+ * @QMI_LOC_SERVER_TYPE_CDMA_MPC: CDMA Mobile Positioning Center.
+ * @QMI_LOC_SERVER_TYPE_UMTS_SLP: SUPL Location Platform.
+ * @QMI_LOC_SERVER_TYPE_CUSTOM_PDE: Custom position determining system.
+ *
+ * Server type for Assisted-GPS.
+ *
+ * Since: 1.22
+ */
+typedef enum {
+    QMI_LOC_SERVER_TYPE_UNKNOWN    = 0,
+    QMI_LOC_SERVER_TYPE_CDMA_PDE   = 1,
+    QMI_LOC_SERVER_TYPE_CDMA_MPC   = 2,
+    QMI_LOC_SERVER_TYPE_UMTS_SLP   = 3,
+    QMI_LOC_SERVER_TYPE_CUSTOM_PDE = 4,
+} QmiLocServerType;
+
+/**
+ * qmi_loc_server_type_get_string
  *
  * Since: 1.22
  */
 
 /**
- * qmi_loc_session_status_get_string
+ * QmiLocServerAddressType:
+ * @QMI_LOC_SERVER_ADDRESS_TYPE_NONE: None.
+ * @QMI_LOC_SERVER_ADDRESS_TYPE_IPV4: IPv4 server address.
+ * @QMI_LOC_SERVER_ADDRESS_TYPE_IPV6: IPv6 server address.
+ * @QMI_LOC_SERVER_ADDRESS_TYPE_URL: URL server address.
+ *
+ * Type of server address for Assisted-GPS.
+ */
+typedef enum {
+    QMI_LOC_SERVER_ADDRESS_TYPE_NONE = 0,
+    QMI_LOC_SERVER_ADDRESS_TYPE_IPV4 = 1 << 0,
+    QMI_LOC_SERVER_ADDRESS_TYPE_IPV6 = 1 << 1,
+    QMI_LOC_SERVER_ADDRESS_TYPE_URL  = 1 << 2,
+} QmiLocServerAddressType;
+
+/**
+ * qmi_loc_server_address_type_build_string_from_mask
  *
  * Since: 1.22
  */
 
 /**
- * qmi_loc_system_get_string
+ * QmiLocPredictedOrbitsDataFormat:
+ * @QMI_LOC_PREDICTED_ORBITS_DATA_FORMAT_XTRA: Qualcomm XTRA database.
+ *
+ * Type of predicted orbits data.
+ */
+typedef enum {
+    QMI_LOC_PREDICTED_ORBITS_DATA_FORMAT_XTRA = 0
+} QmiLocPredictedOrbitsDataFormat;
+
+/**
+ * qmi_loc_predicted_orbits_data_format_get_string
  *
  * Since: 1.22
  */
 
 /**
- * qmi_loc_technology_used_get_string
+ * QmiLocDeleteSvInfo:
+ * @QMI_LOC_DELETE_SV_INFO_EPHEMERIS: Ephemeris.
+ * @QMI_LOC_DELETE_SV_INFO_ALMANAC: Almanac.
+ *
+ * Type of data to delete for a given satellite.
+ */
+typedef enum {
+    QMI_LOC_DELETE_SV_INFO_EPHEMERIS = 1 << 0,
+    QMI_LOC_DELETE_SV_INFO_ALMANAC   = 1 << 1,
+} QmiLocDeleteSvInfo;
+
+/**
+ * qmi_loc_delete_sv_info_build_string_from_mask
  *
  * Since: 1.22
  */
 
 /**
- * qmi_loc_time_source_get_string
+ * QmiLocDeleteCellDatabase:
+ * @QMI_LOC_DELETE_CELL_DATABASE_POS: Position.
+ * @QMI_LOC_DELETE_CELL_DATABASE_LATEST_GPS_POS: Latest GPS position.
+ * @QMI_LOC_DELETE_CELL_DATABASE_OTA_POS: OTA position.
+ * @QMI_LOC_DELETE_CELL_DATABASE_EXT_REF_POS: External reference position.
+ * @QMI_LOC_DELETE_CELL_DATABASE_TIMETAG: Timetag.
+ * @QMI_LOC_DELETE_CELL_DATABASE_CELLID: Cell ID.
+ * @QMI_LOC_DELETE_CELL_DATABASE_CACHED_CELLID: Cached cell ID.
+ * @QMI_LOC_DELETE_CELL_DATABASE_LAST_SRV_CELL: Last serving cell.
+ * @QMI_LOC_DELETE_CELL_DATABASE_CUR_SRV_CELL: Current servince cell.
+ * @QMI_LOC_DELETE_CELL_DATABASE_NEIGHBOR_INFO: Neighboring cell info.
+ *
+ * Type of data to delete from the cell database.
+ */
+typedef enum {
+    QMI_LOC_DELETE_CELL_DATABASE_POS            = 1 << 0,
+    QMI_LOC_DELETE_CELL_DATABASE_LATEST_GPS_POS = 1 << 1,
+    QMI_LOC_DELETE_CELL_DATABASE_OTA_POS        = 1 << 2,
+    QMI_LOC_DELETE_CELL_DATABASE_EXT_REF_POS    = 1 << 3,
+    QMI_LOC_DELETE_CELL_DATABASE_TIMETAG        = 1 << 4,
+    QMI_LOC_DELETE_CELL_DATABASE_CELLID         = 1 << 5,
+    QMI_LOC_DELETE_CELL_DATABASE_CACHED_CELLID  = 1 << 6,
+    QMI_LOC_DELETE_CELL_DATABASE_LAST_SRV_CELL  = 1 << 7,
+    QMI_LOC_DELETE_CELL_DATABASE_CUR_SRV_CELL   = 1 << 8,
+    QMI_LOC_DELETE_CELL_DATABASE_NEIGHBOR_INFO  = 1 << 9,
+} QmiLocDeleteCellDatabase;
+
+/**
+ * qmi_loc_delete_cell_database_build_string_from_mask
+ *
+ * Since: 1.22
+ */
+
+/**
+ * QmiLocDeleteClockInfo:
+ * @QMI_LOC_DELETE_CLOCK_INFO_TIME_EST: Time estimation.
+ * @QMI_LOC_DELETE_CLOCK_INFO_FREQ_EST: Frequency estimation.
+ * @QMI_LOC_DELETE_CLOCK_INFO_WEEK_NUMBER: Week number.
+ * @QMI_LOC_DELETE_CLOCK_INFO_RTC_TIME: RTC time.
+ * @QMI_LOC_DELETE_CLOCK_INFO_TIME_TRANSFER: Time transfer.
+ * @QMI_LOC_DELETE_CLOCK_INFO_GPS_TIME_EST: GPS time estimation.
+ * @QMI_LOC_DELETE_CLOCK_INFO_GLO_TIME_EST: GLONASS time estimation.
+ * @QMI_LOC_DELETE_CLOCK_INFO_GLO_DAY_NUMBER: GLONASS day number.
+ * @QMI_LOC_DELETE_CLOCK_INFO_GLO_YEAR_NUMBER: GLONASS year number.
+ * @QMI_LOC_DELETE_CLOCK_INFO_GLO_RF_GRP_DELAY: GLONASS RF group delay.
+ * @QMI_LOC_DELETE_CLOCK_INFO_DISABLE_TT: Disable TT.
+ *
+ * Type of data to delete from the clock information.
+ */
+typedef enum {
+    QMI_LOC_DELETE_CLOCK_INFO_TIME_EST         = 1 << 0,
+    QMI_LOC_DELETE_CLOCK_INFO_FREQ_EST         = 1 << 1,
+    QMI_LOC_DELETE_CLOCK_INFO_WEEK_NUMBER      = 1 << 2,
+    QMI_LOC_DELETE_CLOCK_INFO_RTC_TIME         = 1 << 3,
+    QMI_LOC_DELETE_CLOCK_INFO_TIME_TRANSFER    = 1 << 4,
+    QMI_LOC_DELETE_CLOCK_INFO_GPS_TIME_EST     = 1 << 5,
+    QMI_LOC_DELETE_CLOCK_INFO_GLO_TIME_EST     = 1 << 6,
+    QMI_LOC_DELETE_CLOCK_INFO_GLO_DAY_NUMBER   = 1 << 7,
+    QMI_LOC_DELETE_CLOCK_INFO_GLO_YEAR_NUMBER  = 1 << 8,
+    QMI_LOC_DELETE_CLOCK_INFO_GLO_RF_GRP_DELAY = 1 << 9,
+    QMI_LOC_DELETE_CLOCK_INFO_DISABLE_TT       = 1 << 10,
+} QmiLocDeleteClockInfo;
+
+/**
+ * qmi_loc_delete_clock_info_build_string_from_mask
  *
  * Since: 1.22
  */

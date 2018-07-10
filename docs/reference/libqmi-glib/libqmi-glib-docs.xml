@@ -381,10 +381,16 @@
       <title>LOC Indications</title>
       <xi:include href="xml/qmi-indication-loc-position-report.xml"/>
       <xi:include href="xml/qmi-indication-loc-nmea.xml"/>
-      <xi:include href="xml/qmi-indication-loc-gnss-satellite-info.xml"/>
+      <xi:include href="xml/qmi-indication-loc-gnss-sv-info.xml"/>
       <xi:include href="xml/qmi-indication-loc-engine-state.xml"/>
       <xi:include href="xml/qmi-indication-loc-fix-recurrence-type.xml"/>
       <xi:include href="xml/qmi-indication-loc-get-operation-mode.xml"/>
+      <xi:include href="xml/qmi-indication-loc-set-operation-mode.xml"/>
+      <xi:include href="xml/qmi-indication-loc-set-server.xml"/>
+      <xi:include href="xml/qmi-indication-loc-get-server.xml"/>
+      <xi:include href="xml/qmi-indication-loc-inject-predicted-orbits-data.xml"/>
+      <xi:include href="xml/qmi-indication-loc-get-predicted-orbits-data-source.xml"/>
+      <xi:include href="xml/qmi-indication-loc-delete-assistance-data.xml"/>
     </section>
     <section>
       <title>LOC Requests</title>
@@ -393,6 +399,11 @@
       <xi:include href="xml/qmi-message-loc-register-events.xml"/>
       <xi:include href="xml/qmi-message-loc-get-operation-mode.xml"/>
       <xi:include href="xml/qmi-message-loc-set-operation-mode.xml"/>
+      <xi:include href="xml/qmi-message-loc-set-server.xml"/>
+      <xi:include href="xml/qmi-message-loc-get-server.xml"/>
+      <xi:include href="xml/qmi-message-loc-inject-predicted-orbits-data.xml"/>
+      <xi:include href="xml/qmi-message-loc-get-predicted-orbits-data-source.xml"/>
+      <xi:include href="xml/qmi-message-loc-delete-assistance-data.xml"/>
     </section>
   </chapter>
 

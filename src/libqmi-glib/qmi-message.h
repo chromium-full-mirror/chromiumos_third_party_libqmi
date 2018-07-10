@@ -830,7 +830,7 @@ gboolean qmi_message_tlv_read_sized_guint (QmiMessage  *self,
                                            GError     **error);
 
 /**
- * qmi_message_tlv_read_gfloat:
+ * qmi_message_tlv_read_gfloat_endian:
  * @self: a #QmiMessage.
  * @tlv_offset: offset that was returned by qmi_message_tlv_read_init().
  * @offset: address of a the offset within the TLV value.
@@ -848,19 +848,19 @@ gboolean qmi_message_tlv_read_sized_guint (QmiMessage  *self,
  *
  * Since: 1.12
  */
-gboolean qmi_message_tlv_read_gfloat (QmiMessage  *self,
-                                      gsize        tlv_offset,
-                                      gsize       *offset,
-                                      QmiEndian    endian,
-                                      gfloat      *out,
-                                      GError     **error);
+gboolean qmi_message_tlv_read_gfloat_endian (QmiMessage  *self,
+                                             gsize        tlv_offset,
+                                             gsize       *offset,
+                                             QmiEndian    endian,
+                                             gfloat      *out,
+                                             GError     **error);
 
 /**
  * qmi_message_tlv_read_gdouble:
  * @self: a #QmiMessage.
  * @tlv_offset: offset that was returned by qmi_message_tlv_read_init().
  * @offset: address of a the offset within the TLV value.
- * @endian: target endianness, swapped from host byte order if necessary.
+ * @endian: source endianness, which will be swapped to host byte order if necessary.
  * @out: return location for the read #gdouble.
  * @error: return location for error or %NULL.
  *

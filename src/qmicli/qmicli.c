@@ -49,6 +49,7 @@ static QmiDevice *device;
 static QmiClient *client;
 static QmiService service;
 static gboolean operation_status;
+static gboolean expect_indications;
 
 /* Main options */
 static gchar *device_str;
@@ -258,6 +259,15 @@ generic_options_enabled (void)
 }
 
 /*****************************************************************************/
+/* Report that indications are expected */
+
+void
+qmicli_expect_indications (void)
+{
+    expect_indications = TRUE;
+}
+
+/*****************************************************************************/
 /* Running asynchronously */
 
 static void
@@ -371,6 +381,9 @@ allocate_client_ready (QmiDevice *dev,
         return;
     case QMI_SERVICE_VOICE:
         qmicli_voice_run (dev, QMI_CLIENT_VOICE (client), cancellable);
+        return;
+    case QMI_SERVICE_LOC:
+        qmicli_loc_run (dev, QMI_CLIENT_LOC (client), cancellable);
         return;
     default:
         g_assert_not_reached ();
@@ -651,6 +664,8 @@ device_new_ready (GObject *unused,
         open_flags |= QMI_DEVICE_OPEN_FLAGS_MBIM;
     if (device_open_auto_flag || (!device_open_qmi_flag && !device_open_mbim_flag))
         open_flags |= QMI_DEVICE_OPEN_FLAGS_AUTO;
+    if (expect_indications)
+        open_flags |= QMI_DEVICE_OPEN_FLAGS_EXPECT_INDICATIONS;
     if (device_open_net_str)
         if (!qmicli_read_net_open_flags_from_string (device_open_net_str, &open_flags))
             exit (EXIT_FAILURE);
@@ -731,6 +746,12 @@ parse_actions (void)
         actions_enabled++;
     }
 
+    /* LOC options? */
+    if (qmicli_loc_options_enabled ()) {
+        service = QMI_SERVICE_LOC;
+        actions_enabled++;
+    }
+
     /* Cannot mix actions from different services */
     if (actions_enabled > 1) {
         g_printerr ("error: cannot execute multiple actions of different services\n");
@@ -774,6 +795,8 @@ int main (int argc, char **argv)
                                 qmicli_wda_get_option_group ());
     g_option_context_add_group (context,
                                 qmicli_voice_get_option_group ());
+    g_option_context_add_group (context,
+                                qmicli_loc_get_option_group ());
     g_option_context_add_main_entries (context, main_entries, NULL);
     if (!g_option_context_parse (context, &argc, &argv, &error)) {
         g_printerr ("error: %s\n",
