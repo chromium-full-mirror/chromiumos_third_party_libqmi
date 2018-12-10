@@ -53,6 +53,7 @@
 #include "qmi-wda.h"
 #include "qmi-voice.h"
 #include "qmi-loc.h"
+#include "qmi-qos.h"
 #include "qmi-utils.h"
 #include "qmi-error-types.h"
 #include "qmi-enum-types.h"
@@ -1089,6 +1090,10 @@ qmi_device_allocate_client (QmiDevice *self,
         ctx->client_type = QMI_TYPE_CLIENT_LOC;
         break;
 
+    case QMI_SERVICE_QOS:
+        ctx->client_type = QMI_TYPE_CLIENT_QOS;
+        break;
+
     default:
         g_task_return_new_error (task,
                                  QMI_CORE_ERROR,
@@ -1237,9 +1242,8 @@ qmi_device_release_client (QmiDevice *self,
 
         /* And now, really try to release the CID */
         input = qmi_message_ctl_release_cid_input_new ();
-        qmi_message_ctl_release_cid_input_set_release_info (input, service,cid, NULL);
+        qmi_message_ctl_release_cid_input_set_release_info (input, service, cid, NULL);
 
-        /* And now, really try to release the CID */
         qmi_client_ctl_release_cid (self->priv->client_ctl,
                                     input,
                                     timeout,
