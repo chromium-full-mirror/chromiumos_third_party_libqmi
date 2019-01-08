@@ -490,7 +490,7 @@ check_message_supported (QmiDevice *self,
 
     /* If we cannot get in which version this message was introduced, we'll just
      * assume it's supported */
-    if (!qmi_message_get_version_introduced (message, &message_major, &message_minor))
+    if (!qmi_message_get_version_introduced_full (message, NULL, &message_major, &message_minor))
         return TRUE;
 
     /* Get version info. It MUST exist because we allowed creating a client
@@ -1563,7 +1563,7 @@ input_ready_cb (GInputStream *istream,
         if (error)
             g_error_free (error);
         /* Close the device */
-        qmi_device_close (self, NULL);
+        qmi_device_close_async (self, 0, NULL, NULL, NULL);
         return G_SOURCE_REMOVE;
     }
 
@@ -1985,7 +1985,7 @@ sync_ready (QmiClientCtl *client_ctl,
 
     /* Check result of the async operation */
     output = qmi_client_ctl_sync_finish (client_ctl, res, &error);
-    if(!output) {
+    if (!output) {
         g_task_return_error (task, error);
         g_object_unref (task);
         return;
@@ -2618,15 +2618,6 @@ qmi_device_close_async (QmiDevice           *self,
 
     g_task_return_boolean (task, TRUE);
     g_object_unref (task);
-}
-
-gboolean
-qmi_device_close (QmiDevice *self,
-                  GError **error)
-{
-    g_return_val_if_fail (QMI_IS_DEVICE (self), FALSE);
-    qmi_device_close_async (self, 0, NULL, NULL, NULL);
-    return TRUE;
 }
 
 #if defined MBIM_QMUX_ENABLED

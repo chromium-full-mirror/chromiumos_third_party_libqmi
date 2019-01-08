@@ -68,7 +68,6 @@ qmi_device_set_expected_data_format
 qmi_device_is_open
 qmi_device_open
 qmi_device_open_finish
-qmi_device_close
 qmi_device_close_async
 qmi_device_close_finish
 qmi_device_allocate_client
@@ -1243,7 +1242,6 @@ qmi_message_get_transaction_id
 qmi_message_get_message_id
 qmi_message_get_length
 qmi_message_get_raw
-qmi_message_get_version_introduced
 qmi_message_get_version_introduced_full
 <SUBSECTION TLV writer>
 qmi_message_tlv_write_init
@@ -1282,7 +1280,6 @@ qmi_message_add_raw_tlv
 <SUBSECTION Setters>
 qmi_message_set_transaction_id
 <SUBSECTION Printable>
-qmi_message_get_printable
 qmi_message_get_printable_full
 qmi_message_get_tlv_printable
 </SECTION>
@@ -1307,7 +1304,13 @@ QmiEndian
 <SUBSECTION Traces>
 qmi_utils_get_traces_enabled
 qmi_utils_set_traces_enabled
-<SUBSECTION Readers>
+</SECTION>
+
+<SECTION>
+<FILE>qmi-compat</FILE>
+<SUBSECTION Device>
+qmi_device_close
+<SUBSECTION Utils>
 qmi_utils_read_guint8_from_buffer
 qmi_utils_read_gint8_from_buffer
 qmi_utils_read_guint16_from_buffer
@@ -1320,7 +1323,6 @@ qmi_utils_read_sized_guint_from_buffer
 qmi_utils_read_gfloat_from_buffer
 qmi_utils_read_string_from_buffer
 qmi_utils_read_fixed_size_string_from_buffer
-<SUBSECTION Writers>
 qmi_utils_write_guint8_to_buffer
 qmi_utils_write_gint8_to_buffer
 qmi_utils_write_guint16_to_buffer
@@ -1332,11 +1334,9 @@ qmi_utils_write_gint64_to_buffer
 qmi_utils_write_sized_guint_to_buffer
 qmi_utils_write_string_to_buffer
 qmi_utils_write_fixed_size_string_to_buffer
-</SECTION>
-
-<SECTION>
-<FILE>qmi-compat</FILE>
-<SUBSECTION Methods>
+<SUBSECTION Message>
+qmi_message_get_version_introduced
+qmi_message_get_printable
 qmi_message_dms_set_service_programming_code_input_get_new
 qmi_message_dms_set_service_programming_code_input_set_new
 qmi_message_dms_set_service_programming_code_input_get_current

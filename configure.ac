@@ -3,8 +3,8 @@ AC_PREREQ([2.68])
 
 dnl The QMI version number
 m4_define([qmi_major_version], [1])
-m4_define([qmi_minor_version], [21])
-m4_define([qmi_micro_version], [5])
+m4_define([qmi_minor_version], [23])
+m4_define([qmi_micro_version], [0])
 m4_define([qmi_version],
           [qmi_major_version.qmi_minor_version.qmi_micro_version])
 
@@ -16,9 +16,9 @@ dnl        If the interface has grown (that is, the new library is compatible
 dnl            with old code), increment a.
 dnl        If the interface has changed in an incompatible way (that is,
 dnl            functions have changed or been removed), then zero a.
-m4_define([qmi_glib_lt_current],  [8])
+m4_define([qmi_glib_lt_current],  [9])
 m4_define([qmi_glib_lt_revision], [0])
-m4_define([qmi_glib_lt_age],      [3])
+m4_define([qmi_glib_lt_age],      [4])
 
 
 AC_INIT([libqmi], [qmi_version], [libqmi-devel@lists.freedesktop.org])
@@ -147,7 +147,7 @@ fi
 AM_CONDITIONAL([QMI_USERNAME_ENABLED], [test "x$QMI_USERNAME_ENABLED" = "xyes"])
 
 # MBIM QMUX service support
-MBIM_GLIB_VERSION=1.17.2
+MBIM_GLIB_VERSION=1.18.0
 PKG_CHECK_MODULES([MBIM], [mbim-glib >= ${MBIM_GLIB_VERSION}], [have_mbim=yes], [have_mbim=no])
 AC_ARG_ENABLE(mbim-qmux,
               AS_HELP_STRING([--enable-mbim-qmux], [Enable support for QMI over MBIM QMUX service [default=auto]]),
