@@ -166,6 +166,8 @@ QmiDmsFirmwareImageType
 QmiDmsBootImageDownloadMode
 QmiDmsHpDeviceMode
 QmiDmsSwiUsbComposition
+QmiDmsDellDeviceMode
+QmiDmsDellFirmwareVersionType
 <SUBSECTION Methods>
 qmi_dms_data_service_capability_get_string
 qmi_dms_sim_capability_get_string
@@ -188,6 +190,8 @@ qmi_dms_boot_image_download_mode_get_string
 qmi_dms_hp_device_mode_get_string
 qmi_dms_swi_usb_composition_get_string
 qmi_dms_swi_usb_composition_get_description
+qmi_dms_dell_device_mode_get_string
+qmi_dms_dell_firmware_version_type_get_string
 <SUBSECTION Private>
 qmi_dms_data_service_capability_build_string_from_mask
 qmi_dms_sim_capability_build_string_from_mask
@@ -207,6 +211,8 @@ qmi_dms_firmware_image_type_build_string_from_mask
 qmi_dms_boot_image_download_mode_build_string_from_mask
 qmi_dms_hp_device_mode_build_string_from_mask
 qmi_dms_swi_usb_composition_build_string_from_mask
+qmi_dms_dell_device_mode_build_string_from_mask
+qmi_dms_dell_firmware_version_type_build_string_from_mask
 <SUBSECTION Standard>
 QMI_TYPE_DMS_ACTIVATION_STATE
 QMI_TYPE_DMS_BOOT_IMAGE_DOWNLOAD_MODE
@@ -226,6 +232,8 @@ QMI_TYPE_DMS_UIM_PIN_STATUS
 QMI_TYPE_DMS_UIM_STATE
 QMI_TYPE_DMS_HP_DEVICE_MODE
 QMI_TYPE_DMS_SWI_USB_COMPOSITION
+QMI_TYPE_DMS_DELL_DEVICE_MODE
+QMI_TYPE_DMS_DELL_FIRMWARE_VERSION_TYPE
 qmi_dms_activation_state_get_type
 qmi_dms_boot_image_download_mode_get_type
 qmi_dms_data_service_capability_get_type
@@ -244,6 +252,8 @@ qmi_dms_uim_pin_status_get_type
 qmi_dms_uim_state_get_type
 qmi_dms_hp_device_mode_get_type
 qmi_dms_swi_usb_composition_get_type
+qmi_dms_dell_device_mode_get_type
+qmi_dms_dell_firmware_version_type_get_type
 </SECTION>
 
 <SECTION>
@@ -529,6 +539,7 @@ QmiWdsSoEvdoRev0
 QmiWdsSoEvdoRevB
 QmiWdsTetheredCallType
 QmiWdsClientType
+QMI_WDS_RATE_UNAVAILABLE
 <SUBSECTION Methods>
 qmi_wds_ip_family_get_string
 qmi_wds_profile_family_get_string
@@ -914,6 +925,7 @@ QmiUimCardApplicationPersonalizationState
 QmiUimCardApplicationPersonalizationFeature
 QmiUimPinId
 <SUBSECTION Methods>
+qmi_uim_event_registration_flag_get_string
 qmi_uim_session_type_get_string
 qmi_uim_file_type_get_string
 qmi_uim_security_attribute_logic_get_string
@@ -927,6 +939,7 @@ qmi_uim_card_application_personalization_state_get_string
 qmi_uim_card_application_personalization_feature_get_string
 qmi_uim_pin_id_get_string
 <SUBSECTION Private>
+qmi_uim_event_registration_flag_build_string_from_mask
 qmi_uim_session_type_build_string_from_mask
 qmi_uim_file_type_build_string_from_mask
 qmi_uim_security_attribute_logic_build_string_from_mask
@@ -940,6 +953,7 @@ qmi_uim_card_state_build_string_from_mask
 qmi_uim_pin_state_build_string_from_mask
 qmi_uim_pin_id_build_string_from_mask
 <SUBSECTION Standard>
+QMI_TYPE_UIM_EVENT_REGISTRATION_FLAG
 QMI_TYPE_UIM_SESSION_TYPE
 QMI_TYPE_UIM_FILE_TYPE
 QMI_TYPE_UIM_SECURITY_ATTRIBUTE_LOGIC
@@ -952,6 +966,7 @@ QMI_TYPE_UIM_CARD_ERROR
 QMI_TYPE_UIM_CARD_STATE
 QMI_TYPE_UIM_PIN_STATE
 QMI_TYPE_UIM_PIN_ID
+qmi_uim_event_registration_flag_get_type
 qmi_uim_session_type_get_type
 qmi_uim_file_type_get_type
 qmi_uim_security_attribute_logic_get_type
@@ -1230,6 +1245,7 @@ QMI_MESSAGE_QMUX_MARKER
 QmiMessage
 qmi_message_new
 qmi_message_new_from_raw
+qmi_message_new_from_data
 qmi_message_response_new
 qmi_message_ref
 qmi_message_unref
@@ -1243,6 +1259,7 @@ qmi_message_get_transaction_id
 qmi_message_get_message_id
 qmi_message_get_length
 qmi_message_get_raw
+qmi_message_get_data
 qmi_message_get_version_introduced_full
 <SUBSECTION TLV writer>
 qmi_message_tlv_write_init

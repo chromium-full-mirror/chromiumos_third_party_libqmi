@@ -128,6 +128,15 @@ struct _QmiDevicePrivate {
 
 #define BUFFER_SIZE 2048
 
+#if defined MBIM_QMUX_ENABLED
+/**
+ * Number of extra seconds to give the MBIM timeout delay.
+ * Needed so the QMI timeout triggers first and we can be sure
+ * that timeouts on the QMI side are not because of libmbim timeouts.
+ */
+#define MBIM_TIMEOUT_DELAY_SECS 1
+#endif
+
 static void destroy_iostream (QmiDevice *self);
 
 /*****************************************************************************/
@@ -589,26 +598,28 @@ qmi_device_is_open (QmiDevice *self)
 static void
 reload_wwan_iface_name (QmiDevice *self)
 {
-    const gchar *cdc_wdm_device_name;
+    gchar *cdc_wdm_device_name;
     static const gchar *driver_names[] = { "usbmisc", "usb" };
+    GError *error = NULL;
     guint i;
 
     /* Early cleanup */
     g_free (self->priv->wwan_iface);
     self->priv->wwan_iface = NULL;
 
-    cdc_wdm_device_name = strrchr (self->priv->path, '/');
+    cdc_wdm_device_name = __qmi_utils_get_devname (self->priv->path, &error);
     if (!cdc_wdm_device_name) {
-        g_warning ("[%s] invalid path for cdc-wdm control port", self->priv->path_display);
+        g_warning ("[%s] invalid path for cdc-wdm control port: %s",
+                   self->priv->path_display,
+                   error->message);
+        g_error_free (error);
         return;
     }
-    cdc_wdm_device_name++;
 
     for (i = 0; i < G_N_ELEMENTS (driver_names) && !self->priv->wwan_iface; i++) {
         gchar *sysfs_path;
         GFile *sysfs_file;
         GFileEnumerator *enumerator;
-        GError *error = NULL;
 
         sysfs_path = g_strdup_printf ("/sys/class/%s/%s/device/net/", driver_names[i], cdc_wdm_device_name);
         sysfs_file = g_file_new_for_path (sysfs_path);
@@ -649,7 +660,7 @@ reload_wwan_iface_name (QmiDevice *self)
         g_free (sysfs_path);
         g_object_unref (sysfs_file);
     }
-
+    g_free (cdc_wdm_device_name);
     if (!self->priv->wwan_iface)
         g_warning ("[%s] wwan iface not found", self->priv->path_display);
 }
@@ -2264,6 +2275,7 @@ device_open_step (GTask *task)
 {
     QmiDevice *self;
     DeviceOpenContext *ctx;
+    GError *error = NULL;
 
     self = g_task_get_source_object (task);
     ctx = g_task_get_task_data (task);
@@ -2274,11 +2286,13 @@ device_open_step (GTask *task)
         /* Fall down */
 
     case DEVICE_OPEN_CONTEXT_STEP_DRIVER:
-        ctx->driver = __qmi_utils_get_driver (self->priv->path);
+        ctx->driver = __qmi_utils_get_driver (self->priv->path, &error);
         if (ctx->driver)
             g_debug ("[%s] loaded driver of cdc-wdm port: %s", self->priv->path_display, ctx->driver);
-        else if (!self->priv->no_file_check)
-            g_warning ("[%s] couldn't load driver of cdc-wdm port", self->priv->path_display);
+        else if (!self->priv->no_file_check) {
+            g_warning ("[%s] couldn't load driver of cdc-wdm port: %s", self->priv->path_display, error->message);
+            g_error_free(error);
+        }
 
 #if defined MBIM_QMUX_ENABLED
 
@@ -2622,89 +2636,36 @@ qmi_device_close_async (QmiDevice           *self,
 
 #if defined MBIM_QMUX_ENABLED
 
-typedef struct {
-    QmiDevice     *self;
-    gconstpointer  transaction_key;
-} MbimTransactionContext;
-
-static MbimTransactionContext *
-mbim_transaction_context_new (QmiDevice     *self,
-                              gconstpointer  transaction_key)
-{
-    MbimTransactionContext *ctx;
-
-    ctx = g_slice_new (MbimTransactionContext);
-    ctx->self = g_object_ref (self);
-    ctx->transaction_key = transaction_key;
-    return ctx;
-}
-
 static void
-mbim_transaction_context_free (MbimTransactionContext *ctx)
-{
-    g_object_unref (ctx->self);
-    g_slice_free (MbimTransactionContext, ctx);
-}
-
-static void
-mbim_device_command_ready (MbimDevice             *dev,
-                           GAsyncResult           *res,
-                           MbimTransactionContext *ctx)
+mbim_device_command_ready (MbimDevice   *dev,
+                           GAsyncResult *res,
+                           QmiDevice    *self)
 {
     MbimMessage *response;
     GError *error = NULL;
     const guint8 *buf;
     guint32 len;
-    Transaction *tr;
-
-    /* It is possible that the transaction doesn't exist, when it gets cancelled
-     * by the user before the response arrives. In such a case, we just return
-     * without processing the response */
-    tr = g_hash_table_lookup (ctx->self->priv->transactions, ctx->transaction_key);
-    if (!tr) {
-        mbim_device_command_finish (dev, res, NULL);
-        mbim_transaction_context_free (ctx);
-        return;
-    }
 
     response = mbim_device_command_finish (dev, res, &error);
     if (!response || !mbim_message_response_get_result (response, MBIM_MESSAGE_TYPE_COMMAND_DONE, &error)) {
         g_prefix_error (&error, "MBIM error: ");
-        tr = device_release_transaction (ctx->self, ctx->transaction_key);
-        transaction_complete_and_free (tr, NULL, error);
         if (response)
             mbim_message_unref (response);
-        mbim_transaction_context_free (ctx);
+        g_object_unref (self);
         return;
     }
 
     /* Store the raw information buffer in the internal reception buffer,
      * as if we had read from a iochannel. */
     buf = mbim_message_command_done_get_raw_information_buffer (response, &len);
-    if (!G_UNLIKELY (ctx->self->priv->buffer))
-        ctx->self->priv->buffer = g_byte_array_sized_new (len);
-    g_byte_array_append (ctx->self->priv->buffer, buf, len);
+    if (!G_UNLIKELY (self->priv->buffer))
+        self->priv->buffer = g_byte_array_sized_new (len);
+    g_byte_array_append (self->priv->buffer, buf, len);
 
     /* And parse it as QMI; it should remove and cleanup the transaction */
-    parse_response (ctx->self);
+    parse_response (self);
     mbim_message_unref (response);
-
-    /* After processing the QMI message, we check whether the transaction id was
-     * removed from our tables, and if it wasn't (e.g. the QMI message embedded
-     * in MBIM wasn't the proper one), we remove it ourselves. This is so that
-     * we don't leave unused transactions in the HT, given that we've disabled
-     * the transaction timeout for MBIM based ones */
-    tr = device_release_transaction (ctx->self, ctx->transaction_key);
-    if (tr) {
-        /* Complete transaction with a timeout error */
-        error = g_error_new (QMI_CORE_ERROR,
-                             QMI_CORE_ERROR_UNEXPECTED_MESSAGE,
-                             "Transaction received unexpected message");
-        transaction_complete_and_free (tr, NULL, error);
-        g_error_free (error);
-    }
-
-    mbim_transaction_context_free (ctx);
+    g_object_unref (self);
 }
 
 static gboolean
@@ -2734,7 +2695,7 @@ mbim_command (QmiDevice      *self,
                          timeout,
                          cancellable,
                          (GAsyncReadyCallback) mbim_device_command_ready,
-                         mbim_transaction_context_new (self, transaction_key));
+                         g_object_ref (self));
 
     mbim_message_unref (mbim_message);
     return TRUE;
@@ -2787,7 +2748,6 @@ qmi_device_command_full (QmiDevice           *self,
     Transaction *tr;
     gconstpointer raw_message;
     gsize raw_message_len;
-    guint transaction_timeout;
 
     g_return_if_fail (QMI_IS_DEVICE (self));
     g_return_if_fail (message != NULL);
@@ -2846,16 +2806,8 @@ qmi_device_command_full (QmiDevice           *self,
         return;
     }
 
-    /* For transactions using the MBIM backend, no explicit timeout is set.
-     * Instead, we rely on the timeout management in libmbim. */
-    transaction_timeout = timeout;
-#if defined MBIM_QMUX_ENABLED
-    if (self->priv->mbimdev)
-        transaction_timeout = 0;
-#endif
-
     /* Setup context to match response */
-    if (!device_store_transaction (self, tr, transaction_timeout, &error)) {
+    if (!device_store_transaction (self, tr, timeout, &error)) {
         g_prefix_error (&error, "Cannot store transaction: ");
         transaction_early_error (self, tr, FALSE, error);
         return;
@@ -2872,8 +2824,8 @@ qmi_device_command_full (QmiDevice           *self,
                            raw_message,
                            raw_message_len,
                            build_transaction_key (message),
-                           timeout,
-                           cancellable,
+                           timeout + MBIM_TIMEOUT_DELAY_SECS,
+                           NULL, /* cancellable */
                            &error)) {
             g_prefix_error (&error, "Cannot create MBIM command: ");
             transaction_early_error (self, tr, TRUE, error);

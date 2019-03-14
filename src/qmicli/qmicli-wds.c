@@ -1037,13 +1037,16 @@ print_current_data_bearer_technology_results (const gchar *which,
 
     g_print ("[%s] Data bearer technology (%s):\n"
              "              Network type: '%s'\n"
-             "   Radio Access Technology: '%s'\n"
-             "            Service Option: '%s'\n",
+             "   Radio Access Technology: '%s'\n",
              qmi_device_get_path_display (ctx->device),
              which,
              qmi_wds_network_type_get_string (network_type),
-             VALIDATE_UNKNOWN (rat_string),
-             VALIDATE_UNKNOWN (so_string));
+             VALIDATE_UNKNOWN (rat_string));
+
+    if (network_type == QMI_WDS_NETWORK_TYPE_3GPP2)
+        g_print ("            Service Option: '%s'\n",
+                 VALIDATE_UNKNOWN (so_string));
+
     g_free (rat_string);
     g_free (so_string);
 }
@@ -2250,7 +2253,7 @@ set_autoconnect_settings_input_create (const gchar *str)
     }
 
     g_strstrip (split[0]);
-    if (!qmicli_read_autoconnect_setting_from_string (split[0], &status)) {
+    if (!qmicli_read_wds_autoconnect_setting_from_string (split[0], &status)) {
         g_printerr ("error: failed to parse autoconnect setting\n");
         goto error_out;
     }
@@ -2262,7 +2265,7 @@ set_autoconnect_settings_input_create (const gchar *str)
 
     if (g_strv_length (split) == 2) {
         g_strstrip (split[1]);
-        if (!qmicli_read_autoconnect_setting_roaming_from_string (g_str_equal (split[1], "roaming-allowed") ? "allowed" : split[1], &roaming)) {
+        if (!qmicli_read_wds_autoconnect_setting_roaming_from_string (g_str_equal (split[1], "roaming-allowed") ? "allowed" : split[1], &roaming)) {
             g_printerr ("error: failed to parse autoconnect roaming setting\n");
             goto error_out;
         }
@@ -2579,12 +2582,23 @@ get_channel_rates_ready (QmiClientWds *client,
                                                                 &maxtxrate,
                                                                 &maxrxrate,
                                                                 NULL);
-    g_print ("\tCurrent TX rate: %ubps\n"
-             "\tCurrent RX rate: %ubps\n"
-             "\tMax TX rate:     %ubps\n"
+
+    /* Current TX/RX rates may not be available if device is disconnected */
+
+    g_print ("\tCurrent TX rate: ");
+    if (txrate != QMI_WDS_RATE_UNAVAILABLE)
+        g_print ("%ubps\n", txrate);
+    else
+        g_print ("n/a\n");
+
+    g_print ("\tCurrent RX rate: ");
+    if (rxrate != QMI_WDS_RATE_UNAVAILABLE)
+        g_print ("%ubps\n", rxrate);
+    else
+        g_print ("n/a\n");
+
+    g_print ("\tMax TX rate:     %ubps\n"
              "\tMax RX rate:     %ubps\n",
-             txrate,
-             rxrate,
              maxtxrate,
              maxrxrate);
 

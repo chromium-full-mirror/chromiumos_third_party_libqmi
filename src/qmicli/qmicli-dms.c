@@ -96,6 +96,8 @@ static gchar *hp_change_device_mode_str;
 static gboolean swi_get_current_firmware_flag;
 static gboolean swi_get_usb_composition_flag;
 static gchar *swi_set_usb_composition_str;
+static gchar *dell_change_device_mode_str;
+static gchar *dell_get_firmware_version_str;
 static gboolean reset_flag;
 static gboolean noop_flag;
 
@@ -304,6 +306,14 @@ static GOptionEntry entries[] = {
       "Set USB composition (Sierra Wireless specific)",
       "[#]"
     },
+    { "dms-dell-change-device-mode", 0, 0, G_OPTION_ARG_STRING, &dell_change_device_mode_str,
+      "Change device mode (DELL specific)",
+      "[fastboot-ota|fastboot-online]"
+    },
+    { "dms-dell-get-firmware-version", 0, 0, G_OPTION_ARG_STRING, &dell_get_firmware_version_str,
+      "Get firmware version (DELL specific)",
+      "[firmware-mcfg-apps|firmware-mcfg|apps]"
+    },
     { "dms-reset", 0, 0, G_OPTION_ARG_NONE, &reset_flag,
       "Reset the service state",
       NULL
@@ -390,6 +400,8 @@ qmicli_dms_options_enabled (void)
                  swi_get_current_firmware_flag +
                  swi_get_usb_composition_flag +
                  !!swi_set_usb_composition_str +
+                 !!dell_change_device_mode_str +
+                 !!dell_get_firmware_version_str +
                  reset_flag +
                  noop_flag);
 
@@ -1242,7 +1254,7 @@ uim_get_ck_status_input_create (const gchar *str)
     QmiMessageDmsUimGetCkStatusInput *input = NULL;
     QmiDmsUimFacility facility;
 
-    if (qmicli_read_facility_from_string (str, &facility)) {
+    if (qmicli_read_dms_uim_facility_from_string (str, &facility)) {
         GError *error = NULL;
 
         input = qmi_message_dms_uim_get_ck_status_input_new ();
@@ -1333,7 +1345,7 @@ uim_set_ck_protection_input_create (const gchar *str)
      *    "[(facility),disable,(key)]"
      */
     split = g_strsplit (str, ",", -1);
-    if (qmicli_read_facility_from_string (split[0], &facility) &&
+    if (qmicli_read_dms_uim_facility_from_string (split[0], &facility) &&
         qmicli_read_enable_disable_from_string (split[1], &enable_disable) &&
         qmicli_read_non_empty_string (split[2], "control key", &key)) {
 
@@ -1419,7 +1431,7 @@ uim_unblock_ck_input_create (const gchar *str)
      *    "[(facility),(key)]"
      */
     split = g_strsplit (str, ",", -1);
-    if (qmicli_read_facility_from_string (split[0], &facility) &&
+    if (qmicli_read_dms_uim_facility_from_string (split[0], &facility) &&
         qmicli_read_non_empty_string (split[1], "control key", &key)) {
         GError *error = NULL;
 
@@ -1576,7 +1588,7 @@ set_operating_mode_input_create (const gchar *str)
     QmiMessageDmsSetOperatingModeInput *input = NULL;
     QmiDmsOperatingMode mode;
 
-    if (qmicli_read_operating_mode_from_string (str, &mode)) {
+    if (qmicli_read_dms_operating_mode_from_string (str, &mode)) {
         GError *error = NULL;
 
         input = qmi_message_dms_set_operating_mode_input_new ();
@@ -3264,7 +3276,7 @@ set_boot_image_download_mode_input_create (const gchar *str)
      * Format of the string is:
      *    [normal|boot-and-recovery]
      */
-    if (!qmicli_read_boot_image_download_mode_from_string (str, &mode))
+    if (!qmicli_read_dms_boot_image_download_mode_from_string (str, &mode))
         return NULL;
 
     input = qmi_message_dms_set_boot_image_download_mode_input_new ();
@@ -3417,7 +3429,7 @@ hp_change_device_mode_input_create (const gchar *str)
     QmiDmsHpDeviceMode mode;
     GError *error = NULL;
 
-    if (!qmicli_read_hp_device_mode_from_string (str, &mode)) {
+    if (!qmicli_read_dms_hp_device_mode_from_string (str, &mode)) {
         g_printerr ("error: couldn't parse input HP device mode : '%s'\n", str);
         return NULL;
     }
@@ -3635,7 +3647,7 @@ swi_set_usb_composition_input_create (const gchar *str)
     QmiDmsSwiUsbComposition value;
     GError *error = NULL;
 
-    if (!qmicli_read_swi_usb_composition_from_string (str, &value))
+    if (!qmicli_read_dms_swi_usb_composition_from_string (str, &value))
         return NULL;
 
     input = qmi_message_dms_swi_set_usb_composition_input_new ();
@@ -3647,6 +3659,123 @@ swi_set_usb_composition_input_create (const gchar *str)
     }
 
     return input;
+}
+
+static QmiMessageDmsDellChangeDeviceModeInput *
+dell_change_device_mode_input_create (const gchar *str)
+{
+    QmiMessageDmsDellChangeDeviceModeInput *input = NULL;
+    QmiDmsDellDeviceMode mode;
+    GError *error = NULL;
+
+    if (!qmicli_read_dms_dell_device_mode_from_string (str, &mode)) {
+        g_printerr ("error: couldn't parse input dell device mode : '%s'\n", str);
+        return NULL;
+    }
+
+    input = qmi_message_dms_dell_change_device_mode_input_new ();
+    if (!qmi_message_dms_dell_change_device_mode_input_set_mode (input, mode, &error)) {
+        g_printerr ("error: couldn't create input data bundle: '%s'\n",
+                    error->message);
+        g_error_free (error);
+        qmi_message_dms_dell_change_device_mode_input_unref (input);
+        return NULL;
+    }
+
+    return input;
+}
+
+static void
+dell_change_device_mode_ready (QmiClientDms *client,
+                               GAsyncResult *res)
+{
+    QmiMessageDmsDellChangeDeviceModeOutput *output;
+    GError *error = NULL;
+
+    output = qmi_client_dms_dell_change_device_mode_finish (client, res, &error);
+    if (!output) {
+        g_printerr ("error: operation failed: %s\n", error->message);
+        g_error_free (error);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    if (!qmi_message_dms_dell_change_device_mode_output_get_result (output, &error)) {
+        g_printerr ("error: couldn't change Dell device mode: %s\n", error->message);
+        g_error_free (error);
+        qmi_message_dms_dell_change_device_mode_output_unref (output);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    g_print ("[%s] Successfully changed Dell device mode\n",
+             qmi_device_get_path_display (ctx->device));
+
+    qmi_message_dms_dell_change_device_mode_output_unref (output);
+
+    /* Changing the mode will end up power cycling the device right away, so
+     * just ignore any error from now on and don't even try to release the
+     * client CID */
+    operation_shutdown_skip_cid_release (TRUE);
+}
+
+static QmiMessageDmsDellGetFirmwareVersionInput *
+dell_get_firmware_version_input_create (const gchar *str)
+{
+    QmiMessageDmsDellGetFirmwareVersionInput *input = NULL;
+    QmiDmsDellFirmwareVersionType type;
+    GError *error = NULL;
+
+    if (!qmicli_read_dms_dell_firmware_version_type_from_string (str, &type)) {
+        g_printerr ("error: couldn't parse input dell firmware version type : '%s'\n", str);
+        return NULL;
+    }
+
+    input = qmi_message_dms_dell_get_firmware_version_input_new ();
+    if (!qmi_message_dms_dell_get_firmware_version_input_set_version_type (input, type, &error)) {
+        g_printerr ("error: couldn't create input data bundle: '%s'\n",
+                    error->message);
+        g_error_free (error);
+        qmi_message_dms_dell_get_firmware_version_input_unref (input);
+        return NULL;
+    }
+
+    return input;
+}
+
+static void
+dell_get_firmware_version_ready (QmiClientDms *client,
+                                 GAsyncResult *res)
+{
+    const gchar *str = NULL;
+    QmiMessageDmsDellGetFirmwareVersionOutput *output;
+    GError *error = NULL;
+
+    output = qmi_client_dms_dell_get_firmware_version_finish (client, res, &error);
+    if (!output) {
+        g_printerr ("error: operation failed: %s\n", error->message);
+        g_error_free (error);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    if (!qmi_message_dms_dell_get_firmware_version_output_get_result (output, &error)) {
+        g_printerr ("error: couldn't get dell firmware version: %s\n", error->message);
+        g_error_free (error);
+        qmi_message_dms_dell_get_firmware_version_output_unref (output);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    qmi_message_dms_dell_get_firmware_version_output_get_version (output, &str, NULL);
+
+    g_print ("[%s] Firmware version retrieved:\n"
+             "\tVersion: '%s'\n",
+             qmi_device_get_path_display (ctx->device),
+             VALIDATE_UNKNOWN (str));
+
+    qmi_message_dms_dell_get_firmware_version_output_unref (output);
+    operation_shutdown (TRUE);
 }
 
 static void
@@ -4464,6 +4593,50 @@ qmicli_dms_run (QmiDevice *device,
                                                  (GAsyncReadyCallback)swi_set_usb_composition_ready,
                                               NULL);
         qmi_message_dms_swi_set_usb_composition_input_unref (input);
+        return;
+    }
+
+    /* Request to change device download mode */
+    if (dell_change_device_mode_str) {
+        QmiMessageDmsDellChangeDeviceModeInput *input;
+
+        g_debug ("Asynchronously changing device mode (Dell specific)...");
+
+        input = dell_change_device_mode_input_create (dell_change_device_mode_str);
+        if (!input) {
+            operation_shutdown (FALSE);
+            return;
+        }
+
+        qmi_client_dms_dell_change_device_mode (ctx->client,
+                                                input,
+                                                10,
+                                                ctx->cancellable,
+                                                (GAsyncReadyCallback)dell_change_device_mode_ready,
+                                                NULL);
+        qmi_message_dms_dell_change_device_mode_input_unref (input);
+        return;
+    }
+
+    /* Request to get firmware version? */
+    if (dell_get_firmware_version_str) {
+        QmiMessageDmsDellGetFirmwareVersionInput *input;
+
+        g_debug ("Asynchronously getting firmware version (Dell specific)...");
+
+        input = dell_get_firmware_version_input_create (dell_get_firmware_version_str);
+        if (!input) {
+            operation_shutdown (FALSE);
+            return;
+        }
+
+        qmi_client_dms_dell_get_firmware_version (ctx->client,
+                                                  input,
+                                                  10,
+                                                  ctx->cancellable,
+                                                  (GAsyncReadyCallback)dell_get_firmware_version_ready,
+                                                  NULL);
+        qmi_message_dms_dell_get_firmware_version_input_unref (input);
         return;
     }
 

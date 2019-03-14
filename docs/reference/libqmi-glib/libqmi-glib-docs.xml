@@ -122,7 +122,9 @@
       <xi:include href="xml/qmi-message-dms-swi-get-current-firmware.xml"/>
       <xi:include href="xml/qmi-message-dms-swi-get-usb-composition.xml"/>
       <xi:include href="xml/qmi-message-dms-swi-set-usb-composition.xml"/>
+      <xi:include href="xml/qmi-message-dms-dell-get-firmware-version.xml"/>
       <xi:include href="xml/qmi-message-dms-set-fcc-authentication.xml"/>
+      <xi:include href="xml/qmi-message-dms-dell-change-device-mode.xml"/>
       <xi:include href="xml/qmi-message-dms-get-supported-messages.xml"/>
     </section>
   </chapter>
@@ -316,6 +318,7 @@
     <section>
       <title>UIM Requests</title>
       <xi:include href="xml/qmi-message-uim-reset.xml"/>
+      <xi:include href="xml/qmi-message-uim-register-events.xml"/>
       <xi:include href="xml/qmi-message-uim-set-pin-protection.xml"/>
       <xi:include href="xml/qmi-message-uim-verify-pin.xml"/>
       <xi:include href="xml/qmi-message-uim-unblock-pin.xml"/>
@@ -495,6 +498,10 @@
   <index id="api-index-1-22" role="1.22">
     <title>Index of new core symbols in 1.22</title>
     <xi:include href="xml/api-index-1.22.xml"><xi:fallback /></xi:include>
+  </index>
+  <index id="api-index-1-24" role="1.24">
+    <title>Index of new core symbols in 1.24</title>
+    <xi:include href="xml/api-index-1.24.xml"><xi:fallback /></xi:include>
   </index>
 
   <xi:include href="xml/annotation-glossary.xml"><xi:fallback /></xi:include>
