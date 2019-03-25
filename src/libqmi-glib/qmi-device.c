@@ -90,7 +90,6 @@ struct _QmiDevicePrivate {
     gchar *path;
     gchar *path_display;
     gboolean no_file_check;
-    gchar *proxy_path;
 
 #if defined MBIM_QMUX_ENABLED
     MbimDevice *mbimdev;
@@ -116,6 +115,7 @@ struct _QmiDevicePrivate {
     GByteArray *buffer;
 
     /* Support for qmi-proxy */
+    gchar *proxy_path;
     GSocketClient *socket_client;
     GSocketConnection *socket_connection;
 
@@ -1835,13 +1835,11 @@ typedef struct {
     QmiDeviceOpenFlags flags;
     guint timeout;
     guint version_check_retries;
-    gchar *driver;
 } DeviceOpenContext;
 
 static void
 device_open_context_free (DeviceOpenContext *ctx)
 {
-    g_free (ctx->driver);
     g_slice_free (DeviceOpenContext, ctx);
 }
 
@@ -2270,6 +2268,67 @@ create_mbim_device (GTask *task)
                        QMI_DEVICE_OPEN_FLAGS_NET_QOS_HEADER | \
                        QMI_DEVICE_OPEN_FLAGS_NET_NO_QOS_HEADER)
 
+static gboolean
+device_setup_open_flags_by_driver (QmiDevice *self,
+                                   DeviceOpenContext *ctx,
+                                   GError **error)
+{
+    gchar *driver;
+    GError *driver_error = NULL;
+
+    driver = __qmi_utils_get_driver (self->priv->path, &driver_error);
+    if (driver)
+        g_debug ("[%s] loaded driver of cdc-wdm port: %s", self->priv->path_display, driver);
+    else if (!self->priv->no_file_check)
+        g_warning ("[%s] couldn't load driver of cdc-wdm port: %s", self->priv->path_display, driver_error->message);
+    g_clear_error (&driver_error);
+
+#if defined MBIM_QMUX_ENABLED
+
+    /* Auto mode requested? */
+    if (ctx->flags & QMI_DEVICE_OPEN_FLAGS_AUTO) {
+        if (!g_strcmp0 (driver, "cdc_mbim")) {
+            g_debug ("[%s] automatically selecting MBIM mode", self->priv->path_display);
+            ctx->flags |= QMI_DEVICE_OPEN_FLAGS_MBIM;
+            return TRUE;
+        }
+        if (!g_strcmp0 (driver, "qmi_wwan")) {
+            g_debug ("[%s] automatically selecting QMI mode", self->priv->path_display);
+            ctx->flags &= ~QMI_DEVICE_OPEN_FLAGS_MBIM;
+            return TRUE;
+        }
+        g_set_error (error,
+                     QMI_CORE_ERROR,
+                     QMI_CORE_ERROR_FAILED,
+                     "Cannot automatically select QMI/MBIM mode: driver %s",
+                     driver ? driver : "unknown");
+        return FALSE;
+    }
+
+    /* MBIM mode requested? */
+    if (ctx->flags & QMI_DEVICE_OPEN_FLAGS_MBIM) {
+        if (g_strcmp0 (driver, "cdc_mbim") && !self->priv->no_file_check)
+            g_warning ("[%s] requested MBIM mode but unexpected driver found: %s", self->priv->path_display, driver);
+        return TRUE;
+    }
+
+#else
+
+    if (ctx->flags & QMI_DEVICE_OPEN_FLAGS_AUTO)
+        g_warning ("[%s] requested auto mode but no MBIM QMUX support available", self->priv->path_display);
+    if (ctx->flags & QMI_DEVICE_OPEN_FLAGS_MBIM)
+        g_warning ("[%s] requested MBIM mode but no MBIM QMUX support available", self->priv->path_display);
+
+#endif /* MBIM_QMUX_ENABLED */
+
+    /* QMI mode requested? */
+    if (g_strcmp0 (driver, "qmi_wwan") && !self->priv->no_file_check)
+        g_warning ("[%s] requested QMI mode but unexpected driver found: %s",
+                   self->priv->path_display, driver ? driver : "unknown");
+
+    return TRUE;
+}
+
 static void
 device_open_step (GTask *task)
 {
@@ -2286,60 +2345,11 @@ device_open_step (GTask *task)
         /* Fall down */
 
     case DEVICE_OPEN_CONTEXT_STEP_DRIVER:
-        ctx->driver = __qmi_utils_get_driver (self->priv->path, &error);
-        if (ctx->driver)
-            g_debug ("[%s] loaded driver of cdc-wdm port: %s", self->priv->path_display, ctx->driver);
-        else if (!self->priv->no_file_check) {
-            g_warning ("[%s] couldn't load driver of cdc-wdm port: %s", self->priv->path_display, error->message);
-            g_error_free(error);
-        }
-
-#if defined MBIM_QMUX_ENABLED
-
-        /* Auto mode requested? */
-        if (ctx->flags & QMI_DEVICE_OPEN_FLAGS_AUTO) {
-            if (!g_strcmp0 (ctx->driver, "cdc_mbim")) {
-                g_debug ("[%s] automatically selecting MBIM mode", self->priv->path_display);
-                ctx->flags |= QMI_DEVICE_OPEN_FLAGS_MBIM;
-                goto next_step;
-            }
-            if (!g_strcmp0 (ctx->driver, "qmi_wwan")) {
-                g_debug ("[%s] automatically selecting QMI mode", self->priv->path_display);
-                ctx->flags &= ~QMI_DEVICE_OPEN_FLAGS_MBIM;
-                goto next_step;
-            }
-            g_task_return_new_error (task,
-                                     QMI_CORE_ERROR,
-                                     QMI_CORE_ERROR_FAILED,
-                                     "Cannot automatically select QMI/MBIM mode: driver %s",
-                                     ctx->driver ? ctx->driver : "unknown");
+        if (!device_setup_open_flags_by_driver (self, ctx, &error)) {
+            g_task_return_error (task, error);
             g_object_unref (task);
             return;
         }
-
-        /* MBIM mode requested? */
-        if (ctx->flags & QMI_DEVICE_OPEN_FLAGS_MBIM) {
-            if (g_strcmp0 (ctx->driver, "cdc_mbim") && !self->priv->no_file_check)
-                g_warning ("[%s] requested MBIM mode but unexpected driver found: %s", self->priv->path_display, ctx->driver);
-            goto next_step;
-        }
-
-#else
-        if (ctx->flags & QMI_DEVICE_OPEN_FLAGS_AUTO)
-            g_warning ("[%s] requested auto mode but no MBIM QMUX support available", self->priv->path_display);
-        if (ctx->flags & QMI_DEVICE_OPEN_FLAGS_MBIM)
-            g_warning ("[%s] requested MBIM mode but no MBIM QMUX support available", self->priv->path_display);
-
-#endif /* MBIM_QMUX_ENABLED */
-
-        /* QMI mode requested? */
-        if (g_strcmp0 (ctx->driver, "qmi_wwan") && !self->priv->no_file_check)
-            g_warning ("[%s] requested QMI mode but unexpected driver found: %s",
-                       self->priv->path_display, ctx->driver ? ctx->driver : "unknown");
-
-#if defined MBIM_QMUX_ENABLED
-    next_step:
-#endif
         ctx->step++;
         /* Fall down */
 
@@ -2648,7 +2658,8 @@ mbim_device_command_ready (MbimDevice   *dev,
 
     response = mbim_device_command_finish (dev, res, &error);
     if (!response || !mbim_message_response_get_result (response, MBIM_MESSAGE_TYPE_COMMAND_DONE, &error)) {
-        g_prefix_error (&error, "MBIM error: ");
+        g_warning ("[%s] MBIM error: %s", self->priv->path_display, error->message);
+        g_error_free (error);
         if (response)
             mbim_message_unref (response);
         g_object_unref (self);
@@ -2672,7 +2683,6 @@ static gboolean
 mbim_command (QmiDevice      *self,
               gconstpointer   raw_message,
               gsize           raw_message_len,
-              gconstpointer   transaction_key,
               guint           timeout,
               GCancellable   *cancellable,
               GError        **error)
@@ -2823,7 +2833,6 @@ qmi_device_command_full (QmiDevice           *self,
         if (!mbim_command (self,
                            raw_message,
                            raw_message_len,
-                           build_transaction_key (message),
                            timeout + MBIM_TIMEOUT_DELAY_SECS,
                            NULL, /* cancellable */
                            &error)) {
