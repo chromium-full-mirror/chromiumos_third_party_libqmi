@@ -42,7 +42,8 @@
     QMICLI_ENUM_LIST_ITEM (QmiDmsHpDeviceMode,              dms_hp_device_mode,              "hp device mode")                \
     QMICLI_ENUM_LIST_ITEM (QmiDmsSwiUsbComposition,         dms_swi_usb_composition,         "swi usb composition")           \
     QMICLI_ENUM_LIST_ITEM (QmiDmsDellDeviceMode,            dms_dell_device_mode,            "dell device mode")              \
-    QMICLI_ENUM_LIST_ITEM (QmiDmsDellFirmwareVersionType,   dms_dell_firmware_version_type,  "dell firmware version type")
+    QMICLI_ENUM_LIST_ITEM (QmiDmsDellFirmwareVersionType,   dms_dell_firmware_version_type,  "dell firmware version type")    \
+    QMICLI_ENUM_LIST_ITEM (QmiUimSessionType,               uim_session_type,                "session type")
 
 #define QMICLI_ENUM_LIST_ITEM(TYPE,TYPE_UNDERSCORE,DESCR)        \
     gboolean qmicli_read_## TYPE_UNDERSCORE ##_from_string (const gchar *str, TYPE *out);
@@ -59,11 +60,17 @@ gboolean qmicli_read_dms_uim_pin_id_from_string              (const gchar *str,
                                                               QmiDmsUimPinId *out);
 gboolean qmicli_read_uim_pin_id_from_string                  (const gchar *str,
                                                               QmiUimPinId *out);
+gboolean qmicli_read_uim_session_type_from_string            (const gchar *str,
+                                                              QmiUimSessionType *out);
 gboolean qmicli_read_operating_mode_from_string              (const gchar *str,
                                                               QmiDmsOperatingMode *out);
-gboolean qmicli_read_ssp_options_from_string                 (const gchar              *str,
+gboolean qmicli_read_ssp_rat_options_from_string             (const gchar              *str,
                                                               QmiNasRatModePreference  *out_mode_preference,
                                                               GArray                  **out_acquisition_order);
+gboolean qmicli_read_ssp_net_options_from_string             (const gchar *str,
+                                                              QmiNasNetworkSelectionPreference *out_network_preference,
+                                                              guint16 *out_network_mcc,
+                                                              guint16 *out_network_mnc);
 gboolean qmicli_read_facility_from_string                    (const gchar *str,
                                                               QmiDmsUimFacility *out);
 gboolean qmicli_read_enable_disable_from_string              (const gchar *str,
@@ -111,6 +118,8 @@ gboolean qmicli_read_non_empty_string           (const gchar *str,
                                                  gchar **out);
 gboolean qmicli_read_uint_from_string           (const gchar *str,
                                                  guint *out);
+gboolean qmicli_read_raw_data_from_string       (const gchar  *str,
+                                                 GArray **out);
 gboolean qmicli_read_yes_no_from_string         (const gchar *str,
                                                  gboolean *out);
 

@@ -29,17 +29,13 @@
 #include <fcntl.h>
 #include <termios.h>
 #include <unistd.h>
-#include <gio/gio.h>
-#include <gio/gunixinputstream.h>
-#include <gio/gunixoutputstream.h>
-#include <gio/gunixsocketaddress.h>
-
-#if defined MBIM_QMUX_ENABLED
-#include <libmbim-glib.h>
-#endif
 
 #include "qmi-device.h"
 #include "qmi-message.h"
+#include "qmi-file.h"
+#include "qmi-endpoint.h"
+#include "qmi-endpoint-mbim.h"
+#include "qmi-endpoint-qmux.h"
 #include "qmi-ctl.h"
 #include "qmi-dms.h"
 #include "qmi-wds.h"
@@ -64,8 +60,6 @@ static void async_initable_iface_init (GAsyncInitableIface *iface);
 G_DEFINE_TYPE_EXTENDED (QmiDevice, qmi_device, G_TYPE_OBJECT, 0,
                         G_IMPLEMENT_INTERFACE (G_TYPE_ASYNC_INITABLE, async_initable_iface_init))
 
-#define MAX_SPAWN_RETRIES 10
-
 enum {
     PROP_0,
     PROP_FILE,
@@ -86,15 +80,8 @@ static guint       signals   [SIGNAL_LAST] = { 0 };
 
 struct _QmiDevicePrivate {
     /* File */
-    GFile *file;
-    gchar *path;
-    gchar *path_display;
+    QmiFile *file;
     gboolean no_file_check;
-
-#if defined MBIM_QMUX_ENABLED
-    MbimDevice *mbimdev;
-    guint mbim_notification_id;
-#endif
 
     /* WWAN interface */
     gboolean no_wwan_check;
@@ -107,17 +94,13 @@ struct _QmiDevicePrivate {
     /* Supported services */
     GArray *supported_services;
 
-    /* I/O stream, set when the file is open */
-    gint fd;
-    GInputStream *istream;
-    GOutputStream *ostream;
-    GSource *input_source;
-    GByteArray *buffer;
+    /* Lower-level transport */
+    QmiEndpoint *endpoint;
+    guint endpoint_new_data_id;
+    guint endpoint_hangup_id;
 
     /* Support for qmi-proxy */
     gchar *proxy_path;
-    GSocketClient *socket_client;
-    GSocketConnection *socket_connection;
 
     /* HT to keep track of ongoing transactions */
     GHashTable *transactions;
@@ -125,19 +108,6 @@ struct _QmiDevicePrivate {
     /* HT of clients that want to get indications */
     GHashTable *registered_clients;
 };
-
-#define BUFFER_SIZE 2048
-
-#if defined MBIM_QMUX_ENABLED
-/*
- * Number of extra seconds to give the MBIM timeout delay.
- * Needed so the QMI timeout triggers first and we can be sure
- * that timeouts on the QMI side are not because of libmbim timeouts.
- */
-#define MBIM_TIMEOUT_DELAY_SECS 1
-#endif
-
-static void destroy_iostream (QmiDevice *self);
 
 /*****************************************************************************/
 /* Message transactions (private) */
@@ -470,7 +440,7 @@ check_service_supported (QmiDevice *self,
     /* If we didn't check supported services, just assume it is supported */
     if (!self->priv->supported_services) {
         g_debug ("[%s] Assuming service '%s' is supported...",
-                 self->priv->path_display,
+                 qmi_file_get_path_display (self->priv->file),
                  qmi_service_get_string (service));
         return TRUE;
     }
@@ -549,14 +519,9 @@ check_message_supported (QmiDevice *self,
 GFile *
 qmi_device_get_file (QmiDevice *self)
 {
-    GFile *file = NULL;
-
     g_return_val_if_fail (QMI_IS_DEVICE (self), NULL);
 
-    g_object_get (G_OBJECT (self),
-                  QMI_DEVICE_FILE, &file,
-                  NULL);
-    return file;
+    return qmi_file_get_file (self->priv->file);
 }
 
 GFile *
@@ -564,7 +529,7 @@ qmi_device_peek_file (QmiDevice *self)
 {
     g_return_val_if_fail (QMI_IS_DEVICE (self), NULL);
 
-    return self->priv->file;
+    return qmi_file_peek_file (self->priv->file);
 }
 
 const gchar *
@@ -572,7 +537,7 @@ qmi_device_get_path (QmiDevice *self)
 {
     g_return_val_if_fail (QMI_IS_DEVICE (self), NULL);
 
-    return self->priv->path;
+    return qmi_file_get_path (self->priv->file);
 }
 
 const gchar *
@@ -580,7 +545,7 @@ qmi_device_get_path_display (QmiDevice *self)
 {
     g_return_val_if_fail (QMI_IS_DEVICE (self), NULL);
 
-    return self->priv->path_display;
+    return qmi_file_get_path_display (self->priv->file);
 }
 
 gboolean
@@ -588,7 +553,7 @@ qmi_device_is_open (QmiDevice *self)
 {
     g_return_val_if_fail (QMI_IS_DEVICE (self), FALSE);
 
-    return !!(self->priv->istream && self->priv->ostream);
+    return !!self->priv->endpoint && qmi_endpoint_is_open (self->priv->endpoint);
 }
 
 /*****************************************************************************/
@@ -607,10 +572,10 @@ reload_wwan_iface_name (QmiDevice *self)
     g_free (self->priv->wwan_iface);
     self->priv->wwan_iface = NULL;
 
-    cdc_wdm_device_name = __qmi_utils_get_devname (self->priv->path, &error);
+    cdc_wdm_device_name = __qmi_utils_get_devname (qmi_file_get_path (self->priv->file), &error);
     if (!cdc_wdm_device_name) {
         g_warning ("[%s] invalid path for cdc-wdm control port: %s",
-                   self->priv->path_display,
+                   qmi_file_get_path_display (self->priv->file),
                    error->message);
         g_error_free (error);
         return;
@@ -630,7 +595,7 @@ reload_wwan_iface_name (QmiDevice *self)
                                                 &error);
         if (!enumerator) {
             g_debug ("[%s] cannot enumerate files at path '%s': %s",
-                     self->priv->path_display,
+                     qmi_file_get_path_display (self->priv->file),
                      sysfs_path,
                      error->message);
             g_error_free (error);
@@ -647,7 +612,7 @@ reload_wwan_iface_name (QmiDevice *self)
                      * to this control port, if more found for any reason, warn about it */
                     if (self->priv->wwan_iface)
                         g_warning ("[%s] invalid additional wwan iface found: %s",
-                               self->priv->path_display, name);
+                               qmi_file_get_path_display (self->priv->file), name);
                     else
                         self->priv->wwan_iface = g_strdup (name);
                 }
@@ -662,7 +627,7 @@ reload_wwan_iface_name (QmiDevice *self)
     }
     g_free (cdc_wdm_device_name);
     if (!self->priv->wwan_iface)
-        g_warning ("[%s] wwan iface not found", self->priv->path_display);
+        g_warning ("[%s] wwan iface not found", qmi_file_get_path_display (self->priv->file));
 }
 
 const gchar *
@@ -687,7 +652,7 @@ get_expected_data_format (QmiDevice *self,
     FILE *f;
 
     g_debug ("[%s] Reading expected data format from: %s",
-             self->priv->path_display,
+             qmi_file_get_path_display (self->priv->file),
              sysfs_path);
 
     if (!(f = fopen (sysfs_path, "r"))) {
@@ -730,7 +695,7 @@ set_expected_data_format (QmiDevice *self,
     FILE *f;
 
     g_debug ("[%s] Writing expected data format to: %s",
-             self->priv->path_display,
+             qmi_file_get_path_display (self->priv->file),
              sysfs_path);
 
     if (requested == QMI_DEVICE_EXPECTED_DATA_FORMAT_RAW_IP)
@@ -946,7 +911,7 @@ build_client_object (GTask *task)
     }
 
     g_debug ("[%s] Registered '%s' (version %s) client with ID '%u'",
-             self->priv->path_display,
+             qmi_file_get_path_display (self->priv->file),
              qmi_service_get_string (ctx->service),
              version_string ? version_string : "unknown",
              ctx->cid);
@@ -1123,7 +1088,7 @@ qmi_device_allocate_client (QmiDevice *self,
         qmi_message_ctl_allocate_cid_input_set_service (input, ctx->service, NULL);
 
         g_debug ("[%s] Allocating new client ID...",
-                 self->priv->path_display);
+                 qmi_file_get_path_display (self->priv->file));
         qmi_client_ctl_allocate_cid (self->priv->client_ctl,
                                      input,
                                      timeout,
@@ -1137,7 +1102,7 @@ qmi_device_allocate_client (QmiDevice *self,
 
     /* Reuse the given CID */
     g_debug ("[%s] Reusing client CID '%u'...",
-             self->priv->path_display,
+             qmi_file_get_path_display (self->priv->file),
              cid);
     ctx->cid = cid;
     build_client_object (task);
@@ -1211,7 +1176,7 @@ qmi_device_release_client (QmiDevice *self,
 
     flags_str = qmi_device_release_client_flags_build_string_from_mask (flags);
     g_debug ("[%s] Releasing '%s' client with flags '%s'...",
-             self->priv->path_display,
+             qmi_file_get_path_display (self->priv->file),
              qmi_service_get_string (service),
              flags_str);
     g_free (flags_str);
@@ -1235,7 +1200,7 @@ qmi_device_release_client (QmiDevice *self,
     unregister_client (self, client);
 
     g_debug ("[%s] Unregistered '%s' client with ID '%u'",
-             self->priv->path_display,
+             qmi_file_get_path_display (self->priv->file),
              qmi_service_get_string (service),
              cid);
 
@@ -1351,6 +1316,31 @@ qmi_device_set_instance_id (QmiDevice *self,
 /*****************************************************************************/
 /* Input channel processing */
 
+static void process_message (QmiMessage *message, QmiDevice *self);
+
+static void
+endpoint_new_data_cb (QmiEndpoint *endpoint,
+                      QmiDevice   *self)
+{
+    GError *error = NULL;
+
+    if (!qmi_endpoint_parse_buffer (endpoint,
+                                    (QmiMessageHandler)process_message,
+                                    self,
+                                    &error)) {
+        g_warning ("[%s] QMI parsing error: %s",
+                   qmi_file_get_path_display (self->priv->file), error->message);
+        g_error_free (error);
+    }
+}
+
+static void
+endpoint_hangup_cb (QmiEndpoint *endpoint,
+                    QmiDevice   *self)
+{
+    g_signal_emit (self, signals[SIGNAL_REMOVED], 0);
+}
+
 typedef struct {
     QmiClient *client;
     QmiMessage *message;
@@ -1418,7 +1408,7 @@ trace_message (QmiDevice         *self,
              "%sRAW:\n"
              "%s  length = %u\n"
              "%s  data   = %s\n",
-             self->priv->path_display, action_str,
+             qmi_file_get_path_display (self->priv->file), action_str,
              prefix_str,
              prefix_str, ((GByteArray *)message)->len,
              prefix_str, printable);
@@ -1434,7 +1424,7 @@ trace_message (QmiDevice         *self,
 
     printable = qmi_message_get_printable_full (message, message_context, prefix_str);
     g_debug ("[%s] %s %s %s (translated)...\n%s",
-             self->priv->path_display,
+             qmi_file_get_path_display (self->priv->file),
              action_str,
              vendor_str ? vendor_str : "generic",
              message_str,
@@ -1445,8 +1435,8 @@ trace_message (QmiDevice         *self,
 }
 
 static void
-process_message (QmiDevice *self,
-                 QmiMessage *message)
+process_message (QmiMessage *message,
+                 QmiDevice *self)
 {
     if (qmi_message_is_indication (message)) {
         /* Indication traces translated without an explicit vendor */
@@ -1487,7 +1477,7 @@ process_message (QmiDevice *self,
             /* Unmatched transactions translated without an explicit context */
             trace_message (self, message, FALSE, "response", NULL);
             g_debug ("[%s] No transaction matched in received message",
-                     self->priv->path_display);
+                     qmi_file_get_path_display (self->priv->file));
         } else {
             /* Matched transactions translated with the same context as the request */
             trace_message (self, message, FALSE, "response", tr->message_context);
@@ -1501,312 +1491,7 @@ process_message (QmiDevice *self,
     /* Unexpected message types translated without an explicit context */
     trace_message (self, message, FALSE, "unexpected message", NULL);
     g_debug ("[%s] Message received but it is neither an indication nor a response. Skipping it.",
-             self->priv->path_display);
-}
-
-static void
-parse_response (QmiDevice *self)
-{
-    do {
-        GError *error = NULL;
-        QmiMessage *message;
-
-        /* Every message received must start with the QMUX marker.
-         * If it doesn't, we broke framing :-/
-         * If we broke framing, an error should be reported and the device
-         * should get closed */
-        if (self->priv->buffer->len > 0 &&
-            self->priv->buffer->data[0] != QMI_MESSAGE_QMUX_MARKER) {
-            /* TODO: Report fatal error */
-            g_warning ("[%s] QMI framing error detected",
-                       self->priv->path_display);
-            return;
-        }
-
-        message = qmi_message_new_from_raw (self->priv->buffer, &error);
-        if (!message) {
-            if (!error)
-                /* More data we need */
-                return;
-
-            /* Warn about the issue */
-            g_warning ("[%s] Invalid QMI message received: '%s'",
-                       self->priv->path_display,
-                       error->message);
-            g_error_free (error);
-
-            if (qmi_utils_get_traces_enabled ()) {
-                gchar *printable;
-                guint len = MIN (self->priv->buffer->len, 2048);
-
-                printable = __qmi_utils_str_hex (self->priv->buffer->data, len, ':');
-                g_debug ("<<<<<< RAW INVALID MESSAGE:\n"
-                         "<<<<<<   length = %u\n"
-                         "<<<<<<   data   = %s\n",
-                         self->priv->buffer->len, /* show full buffer len */
-                         printable);
-                g_free (printable);
-            }
-
-        } else {
-            /* Play with the received message */
-            process_message (self, message);
-            qmi_message_unref (message);
-        }
-    } while (self->priv->buffer->len > 0);
-}
-
-static gboolean
-input_ready_cb (GInputStream *istream,
-                QmiDevice *self)
-{
-    guint8 buffer[BUFFER_SIZE];
-    GError *error = NULL;
-    gssize r;
-
-    r = g_pollable_input_stream_read_nonblocking (G_POLLABLE_INPUT_STREAM (istream),
-                                                  buffer,
-                                                  BUFFER_SIZE,
-                                                  NULL,
-                                                  &error);
-    if (r < 0) {
-        g_warning ("Error reading from istream: %s", error ? error->message : "unknown");
-        if (error)
-            g_error_free (error);
-        /* Close the device */
-        qmi_device_close_async (self, 0, NULL, NULL, NULL);
-        return G_SOURCE_REMOVE;
-    }
-
-    if (r == 0) {
-        /* HUP! */
-        g_warning ("Cannot read from istream: connection broken");
-        g_signal_emit (self, signals[SIGNAL_REMOVED], 0);
-        return G_SOURCE_REMOVE;
-    }
-
-    /* else, r > 0 */
-    if (!G_UNLIKELY (self->priv->buffer))
-        self->priv->buffer = g_byte_array_sized_new (r);
-    g_byte_array_append (self->priv->buffer, buffer, r);
-
-    parse_response (self);
-
-    return G_SOURCE_CONTINUE;
-}
-
-typedef struct {
-    guint spawn_retries;
-} CreateIostreamContext;
-
-static void
-create_iostream_context_free (CreateIostreamContext *ctx)
-{
-    g_slice_free (CreateIostreamContext, ctx);
-}
-
-static gboolean
-create_iostream_finish (QmiDevice *self,
-                        GAsyncResult *res,
-                        GError **error)
-{
-    return g_task_propagate_boolean (G_TASK (res), error);
-}
-
-static void
-setup_iostream (GTask *task)
-{
-    QmiDevice *self;
-
-    self = g_task_get_source_object (task);
-
-    /* Check in/out streams */
-    if (!self->priv->istream || !self->priv->ostream) {
-        destroy_iostream (self);
-        g_task_return_new_error (task,
-                                 QMI_CORE_ERROR,
-                                 QMI_CORE_ERROR_FAILED,
-                                 "Cannot get input/output streams");
-        g_object_unref (task);
-        return;
-    }
-
-    /* Setup input events */
-    self->priv->input_source = g_pollable_input_stream_create_source (
-                                   G_POLLABLE_INPUT_STREAM (self->priv->istream),
-                                   NULL);
-    g_source_set_callback (self->priv->input_source,
-                           (GSourceFunc)input_ready_cb,
-                           self,
-                           NULL);
-    g_source_attach (self->priv->input_source, g_main_context_get_thread_default ());
-
-    g_task_return_boolean (task, TRUE);
-    g_object_unref (task);
-}
-
-static void
-create_iostream_with_fd (GTask *task)
-{
-    QmiDevice *self;
-    gint fd;
-
-    self = g_task_get_source_object (task);
-    fd = open (self->priv->path, O_RDWR | O_EXCL | O_NONBLOCK | O_NOCTTY);
-    if (fd < 0) {
-        g_task_return_new_error (task,
-                                 QMI_CORE_ERROR,
-                                 QMI_CORE_ERROR_FAILED,
-                                 "Cannot open device file '%s': %s",
-                                 self->priv->path_display,
-                                 strerror (errno));
-        g_object_unref (task);
-        return;
-    }
-
-    g_assert (self->priv->fd < 0);
-    self->priv->fd = fd;
-    self->priv->istream = g_unix_input_stream_new  (fd, FALSE);
-    self->priv->ostream = g_unix_output_stream_new (fd, FALSE);
-
-    setup_iostream (task);
-}
-
-static void create_iostream_with_socket (GTask *task);
-
-static gboolean
-wait_for_proxy_cb (GTask *task)
-{
-    create_iostream_with_socket (task);
-    return FALSE;
-}
-
-static void
-spawn_child_setup (void)
-{
-    if (setpgid (0, 0) < 0)
-        g_warning ("couldn't setup proxy specific process group");
-}
-
-static void
-create_iostream_with_socket (GTask *task)
-{
-    QmiDevice *self;
-    CreateIostreamContext *ctx;
-    GSocketAddress *socket_address;
-    GError *error = NULL;
-
-    self = g_task_get_source_object (task);
-    ctx = g_task_get_task_data (task);
-
-    /* Create socket client */
-    self->priv->socket_client = g_socket_client_new ();
-    g_socket_client_set_family (self->priv->socket_client, G_SOCKET_FAMILY_UNIX);
-    g_socket_client_set_socket_type (self->priv->socket_client, G_SOCKET_TYPE_STREAM);
-    g_socket_client_set_protocol (self->priv->socket_client, G_SOCKET_PROTOCOL_DEFAULT);
-
-    /* Setup socket address */
-    socket_address = g_unix_socket_address_new_with_type (
-                         self->priv->proxy_path,
-                         -1,
-                         G_UNIX_SOCKET_ADDRESS_ABSTRACT);
-
-    /* Connect to address */
-    self->priv->socket_connection = g_socket_client_connect (
-                                        self->priv->socket_client,
-                                        G_SOCKET_CONNECTABLE (socket_address),
-                                        NULL,
-                                        &error);
-    g_object_unref (socket_address);
-
-    if (!self->priv->socket_connection) {
-        gchar **argc;
-        GSource *source;
-
-        g_debug ("cannot connect to proxy: %s", error->message);
-        g_clear_error (&error);
-        g_clear_object (&self->priv->socket_client);
-
-        /* Don't retry forever */
-        ctx->spawn_retries++;
-        if (ctx->spawn_retries > MAX_SPAWN_RETRIES) {
-            g_task_return_new_error (task,
-                                     QMI_CORE_ERROR,
-                                     QMI_CORE_ERROR_FAILED,
-                                     "Couldn't spawn the qmi-proxy");
-            g_object_unref (task);
-            return;
-        }
-
-        g_debug ("spawning new qmi-proxy (try %u)...", ctx->spawn_retries);
-
-        argc = g_new0 (gchar *, 2);
-        argc[0] = g_strdup (LIBEXEC_PATH "/qmi-proxy");
-        if (!g_spawn_async (NULL, /* working directory */
-                            argc,
-                            NULL, /* envp */
-                            G_SPAWN_STDOUT_TO_DEV_NULL | G_SPAWN_STDERR_TO_DEV_NULL,
-                            (GSpawnChildSetupFunc) spawn_child_setup,
-                            NULL, /* child_setup_user_data */
-                            NULL,
-                            &error)) {
-            g_debug ("error spawning qmi-proxy: %s", error->message);
-            g_clear_error (&error);
-        }
-        g_strfreev (argc);
-
-        /* Wait some ms and retry */
-        source = g_timeout_source_new (100);
-        g_source_set_callback (source, (GSourceFunc)wait_for_proxy_cb, task, NULL);
-        g_source_attach (source, g_main_context_get_thread_default ());
-        g_source_unref (source);
-        return;
-    }
-
-    self->priv->istream = g_io_stream_get_input_stream (G_IO_STREAM (self->priv->socket_connection));
-    if (self->priv->istream)
-        g_object_ref (self->priv->istream);
-
-    self->priv->ostream = g_io_stream_get_output_stream (G_IO_STREAM (self->priv->socket_connection));
-    if (self->priv->ostream)
-        g_object_ref (self->priv->ostream);
-
-    setup_iostream (task);
-}
-
-static void
-create_iostream (QmiDevice *self,
-                 gboolean proxy,
-                 GAsyncReadyCallback callback,
-                 gpointer user_data)
-{
-    CreateIostreamContext *ctx;
-    GTask *task;
-
-    ctx = g_slice_new (CreateIostreamContext);
-    ctx->spawn_retries = 0;
-
-    task = g_task_new (self, NULL, callback, user_data);
-    g_task_set_task_data (task,
-                          ctx,
-                          (GDestroyNotify)create_iostream_context_free);
-
-    if (self->priv->istream || self->priv->ostream) {
-        g_task_return_new_error (task,
-                                 QMI_CORE_ERROR,
-                                 QMI_CORE_ERROR_WRONG_STATE,
-                                 "Already open");
-        g_object_unref (task);
-        return;
-    }
-
-    g_assert (self->priv->file);
-    g_assert (self->priv->path);
-
-    if (proxy)
-        create_iostream_with_socket (task);
-    else
-        create_iostream_with_fd (task);
+             qmi_file_get_path_display (self->priv->file));
 }
 
 /*****************************************************************************/
@@ -1815,18 +1500,12 @@ create_iostream (QmiDevice *self,
 typedef enum {
     DEVICE_OPEN_CONTEXT_STEP_FIRST = 0,
     DEVICE_OPEN_CONTEXT_STEP_DRIVER,
-#if defined MBIM_QMUX_ENABLED
-    DEVICE_OPEN_CONTEXT_STEP_DEVICE_MBIM,
-    DEVICE_OPEN_CONTEXT_STEP_OPEN_DEVICE_MBIM,
-#endif
-    DEVICE_OPEN_CONTEXT_STEP_CREATE_IOSTREAM,
-    DEVICE_OPEN_CONTEXT_STEP_FLAGS_PROXY,
+    DEVICE_OPEN_CONTEXT_STEP_CREATE_ENDPOINT,
+    DEVICE_OPEN_CONTEXT_STEP_OPEN_ENDPOINT,
     DEVICE_OPEN_CONTEXT_STEP_FLAGS_VERSION_INFO,
     DEVICE_OPEN_CONTEXT_STEP_FLAGS_SYNC,
     DEVICE_OPEN_CONTEXT_STEP_FLAGS_NETPORT,
-#if defined MBIM_QMUX_ENABLED
     DEVICE_OPEN_CONTEXT_STEP_FLAGS_EXPECT_INDICATIONS,
-#endif
     DEVICE_OPEN_CONTEXT_STEP_LAST
 } DeviceOpenContextStep;
 
@@ -1853,95 +1532,25 @@ qmi_device_open_finish (QmiDevice *self,
 
 static void device_open_step (GTask *task);
 
-#if defined MBIM_QMUX_ENABLED
-
 static void
-mbim_qmi_notification_cb (MbimDevice  *device,
-                          MbimMessage *notification,
-                          QmiDevice   *self)
+setup_indications_ready (QmiEndpoint *endpoint,
+                         GAsyncResult *res,
+                         GTask *task)
 {
-    GByteArray   *bytearray;
-    QmiMessage   *message;
-    MbimService   service;
-    const guint8 *buf;
-    guint32       len;
-    GError       *error = NULL;
-
-    service = mbim_message_indicate_status_get_service (notification);
-    if (service != MBIM_SERVICE_QMI)
-        return;
-
-    buf = mbim_message_indicate_status_get_raw_information_buffer (notification, &len);
-    bytearray = g_byte_array_append (g_byte_array_sized_new (len), buf, len);
-
-    message = qmi_message_new_from_raw (bytearray, &error);
-    if (!message) {
-        if (error) {
-            g_warning ("[%s] couldn't create QMI message: %s",
-                       self->priv->path_display, error->message);
-            g_free (error);
-        } else
-            g_warning ("[%s] couldn't create QMI message: missing data",
-                       self->priv->path_display);
-
-        if (qmi_utils_get_traces_enabled ()) {
-            gchar *printable;
-
-            printable = __qmi_utils_str_hex (buf, len, ':');
-            g_debug ("<<<<<< RAW INVALID MESSAGE:\n"
-                     "<<<<<<   length = %u\n"
-                     "<<<<<<   data   = %s\n",
-                     len,
-                     printable);
-            g_free (printable);
-        }
-
-        goto out;
-    }
-
-    process_message (self, message);
-    qmi_message_unref (message);
-out:
-    g_byte_array_unref (bytearray);
-}
-
-static void
-mbim_subscribe_list_set_ready_cb (MbimDevice   *device,
-                                  GAsyncResult *res,
-                                  GTask        *task)
-{
-    QmiDevice         *self;
+    GError *error = NULL;
     DeviceOpenContext *ctx;
-    MbimMessage       *response;
-    GError            *error = NULL;
 
-    self = g_task_get_source_object (task);
-
-    response = mbim_device_command_finish (device, res, &error);
-    if (response) {
-        mbim_message_response_get_result (response, MBIM_MESSAGE_TYPE_COMMAND_DONE, &error);
-        mbim_message_unref (response);
-    }
-
-    if (error) {
-        g_warning ("[%s] couldn't enable QMI indications via MBIM: %s",
-                   self->priv->path_display, error->message);
-        g_error_free (error);
-    } else {
-        g_debug ("[%s] enabled QMI indications via MBIM", self->priv->path_display);
-        self->priv->mbim_notification_id = g_signal_connect (device,
-                                                             MBIM_DEVICE_SIGNAL_INDICATE_STATUS,
-                                                             G_CALLBACK (mbim_qmi_notification_cb),
-                                                             self);
-    }
-
-    /* Go on */
     ctx = g_task_get_task_data (task);
+
+    if (!qmi_endpoint_setup_indications_finish (endpoint, res, &error)) {
+        g_task_return_error (task, error);
+        g_object_unref (task);
+        return;
+    }
+
     ctx->step++;
     device_open_step (task);
 }
-
-#endif
 
 static void
 ctl_set_data_format_ready (QmiClientCtl *client,
@@ -1972,7 +1581,7 @@ ctl_set_data_format_ready (QmiClientCtl *client,
     self = g_task_get_source_object (task);
 
     g_debug ("[%s] Network port data format operation finished",
-             self->priv->path_display);
+             qmi_file_get_path_display (self->priv->file));
 
     qmi_message_ctl_set_data_format_output_unref (output);
 
@@ -2010,7 +1619,7 @@ sync_ready (QmiClientCtl *client_ctl,
 
     self = g_task_get_source_object (task);
     g_debug ("[%s] Sync operation finished",
-             self->priv->path_display);
+             qmi_file_get_path_display (self->priv->file));
 
     qmi_message_ctl_sync_output_unref (output);
 
@@ -2077,7 +1686,7 @@ open_version_info_ready (QmiClientCtl *client_ctl,
     self->priv->supported_services = g_array_ref (service_list);
 
     g_debug ("[%s] QMI Device supports %u services:",
-             self->priv->path_display,
+             qmi_file_get_path_display (self->priv->file),
              self->priv->supported_services->len);
     for (i = 0; i < self->priv->supported_services->len; i++) {
         QmiMessageCtlGetVersionInfoOutputServiceListService *info;
@@ -2089,13 +1698,13 @@ open_version_info_ready (QmiClientCtl *client_ctl,
         service_str = qmi_service_get_string (info->service);
         if (service_str)
             g_debug ("[%s]    %s (%u.%u)",
-                     self->priv->path_display,
+                     qmi_file_get_path_display (self->priv->file),
                      service_str,
                      info->major_version,
                      info->minor_version);
         else
             g_debug ("[%s]    unknown [0x%02x] (%u.%u)",
-                     self->priv->path_display,
+                     qmi_file_get_path_display (self->priv->file),
                      info->service,
                      info->major_version,
                      info->minor_version);
@@ -2109,164 +1718,56 @@ open_version_info_ready (QmiClientCtl *client_ctl,
 }
 
 static void
-internal_proxy_open_ready (QmiClientCtl *client_ctl,
-                           GAsyncResult *res,
-                           GTask *task)
+endpoint_ready (QmiEndpoint *endpoint,
+                GAsyncResult *res,
+                GTask *task)
 {
-    DeviceOpenContext *ctx;
-    QmiMessageCtlInternalProxyOpenOutput *output;
     GError *error = NULL;
+    DeviceOpenContext *ctx;
 
-    /* Check result of the async operation */
-    output = qmi_client_ctl_internal_proxy_open_finish (client_ctl, res, &error);
-    if (!output) {
-        g_task_return_error (task, error);
-        g_object_unref (task);
-        return;
-    }
-
-    /* Check result of the QMI operation */
-    if (!qmi_message_ctl_internal_proxy_open_output_get_result (output, &error)) {
-        g_task_return_error (task, error);
-        g_object_unref (task);
-        qmi_message_ctl_internal_proxy_open_output_unref (output);
-        return;
-    }
-
-    qmi_message_ctl_internal_proxy_open_output_unref (output);
-
-    /* Go on */
     ctx = g_task_get_task_data (task);
+
+    if (!qmi_endpoint_open_finish (endpoint, res, &error)) {
+        g_task_return_error (task, error);
+        g_object_unref (task);
+        return;
+    }
+
     ctx->step++;
     device_open_step (task);
 }
-
-static void
-create_iostream_ready (QmiDevice *self,
-                       GAsyncResult *res,
-                       GTask *task)
-{
-    DeviceOpenContext *ctx;
-    GError *error = NULL;
-
-    if (!create_iostream_finish (self, res, &error)) {
-        g_task_return_error (task, error);
-        g_object_unref (task);
-        return;
-    }
-
-    /* Go on */
-    ctx = g_task_get_task_data (task);
-    ctx->step++;
-    device_open_step (task);
-}
-
-#if defined MBIM_QMUX_ENABLED
-
-static void
-mbim_device_open_ready (MbimDevice   *dev,
-                        GAsyncResult *res,
-                        GTask        *task)
-{
-    QmiDevice         *self;
-    DeviceOpenContext *ctx;
-    GError            *error = NULL;
-
-    if (!mbim_device_open_finish (dev, res, &error)) {
-        g_task_return_error (task, error);
-        g_object_unref (task);
-        return;
-    }
-
-    self = g_task_get_source_object (task);
-    g_debug ("[%s] MBIM device open", self->priv->path_display);
-
-    /* Go on */
-    ctx = g_task_get_task_data (task);
-    ctx->step++;
-    device_open_step (task);
-}
-
-static void
-open_mbim_device (GTask *task)
-{
-    QmiDevice *self;
-    DeviceOpenContext *ctx;
-    MbimDeviceOpenFlags open_flags = MBIM_DEVICE_OPEN_FLAGS_NONE;
-
-    self = g_task_get_source_object (task);
-    ctx = g_task_get_task_data (task);
-
-    /* If QMI proxy was requested, use MBIM proxy instead */
-    if (ctx->flags & QMI_DEVICE_OPEN_FLAGS_PROXY)
-        open_flags |= MBIM_DEVICE_OPEN_FLAGS_PROXY;
-
-    /* We pass the original timeout of the request to the open operation */
-    g_debug ("[%s] opening MBIM device...", self->priv->path_display);
-    mbim_device_open_full (self->priv->mbimdev,
-                           open_flags,
-                           ctx->timeout,
-                           g_task_get_cancellable (task),
-                           (GAsyncReadyCallback) mbim_device_open_ready,
-                           task);
-}
-
-static void
-mbim_device_new_ready (GObject *source,
-                       GAsyncResult *res,
-                       GTask *task)
-{
-    QmiDevice *self;
-    DeviceOpenContext *ctx;
-    GError *error = NULL;
-
-    self = g_task_get_source_object (task);
-    self->priv->mbimdev = mbim_device_new_finish (res, &error);
-    if (!self->priv->mbimdev) {
-        g_task_return_error (task, error);
-        g_object_unref (task);
-        return;
-    }
-
-    g_debug ("[%s] MBIM device created", self->priv->path_display);
-
-    /* Go on */
-    ctx = g_task_get_task_data (task);
-    ctx->step++;
-    device_open_step (task);
-}
-
-static void
-create_mbim_device (GTask *task)
-{
-    QmiDevice *self;
-    GFile *file;
-
-    self = g_task_get_source_object (task);
-    if (self->priv->mbimdev) {
-        g_task_return_new_error (task,
-                                 QMI_CORE_ERROR,
-                                 QMI_CORE_ERROR_WRONG_STATE,
-                                 "Already open");
-        g_object_unref (task);
-        return;
-    }
-
-    g_debug ("[%s] creating MBIM device...", self->priv->path_display);
-    file = g_file_new_for_path (self->priv->path);
-    mbim_device_new (file,
-                     g_task_get_cancellable (task),
-                     (GAsyncReadyCallback) mbim_device_new_ready,
-                     task);
-    g_object_unref (file);
-}
-
-#endif
 
 #define NETPORT_FLAGS (QMI_DEVICE_OPEN_FLAGS_NET_802_3 | \
                        QMI_DEVICE_OPEN_FLAGS_NET_RAW_IP | \
                        QMI_DEVICE_OPEN_FLAGS_NET_QOS_HEADER | \
                        QMI_DEVICE_OPEN_FLAGS_NET_NO_QOS_HEADER)
+
+static void
+device_create_endpoint (QmiDevice *self,
+                        DeviceOpenContext *ctx)
+{
+    if (!(ctx->flags & QMI_DEVICE_OPEN_FLAGS_MBIM))
+        self->priv->endpoint = QMI_ENDPOINT (qmi_endpoint_qmux_new (self->priv->file,
+                                                                    self->priv->proxy_path,
+                                                                    self->priv->client_ctl));
+#if defined MBIM_QMUX_ENABLED
+    else
+        self->priv->endpoint = QMI_ENDPOINT (qmi_endpoint_mbim_new (self->priv->file));
+#endif /* MBIM_QMUX_ENABLED */
+
+    if (!self->priv->endpoint)
+        return;
+
+    self->priv->endpoint_new_data_id = g_signal_connect (self->priv->endpoint,
+                                                         QMI_ENDPOINT_SIGNAL_NEW_DATA,
+                                                         G_CALLBACK (endpoint_new_data_cb),
+                                                         self);
+    self->priv->endpoint_hangup_id = g_signal_connect (self->priv->endpoint,
+                                                       QMI_ENDPOINT_SIGNAL_HANGUP,
+                                                       G_CALLBACK (endpoint_hangup_cb),
+                                                       self);
+    g_debug ("[%s] created endpoint", qmi_file_get_path_display (self->priv->file));
+}
 
 static gboolean
 device_setup_open_flags_by_driver (QmiDevice *self,
@@ -2276,11 +1777,11 @@ device_setup_open_flags_by_driver (QmiDevice *self,
     gchar *driver;
     GError *driver_error = NULL;
 
-    driver = __qmi_utils_get_driver (self->priv->path, &driver_error);
+    driver = __qmi_utils_get_driver (qmi_file_get_path (self->priv->file), &driver_error);
     if (driver)
-        g_debug ("[%s] loaded driver of cdc-wdm port: %s", self->priv->path_display, driver);
+        g_debug ("[%s] loaded driver of cdc-wdm port: %s", qmi_file_get_path_display (self->priv->file), driver);
     else if (!self->priv->no_file_check)
-        g_warning ("[%s] couldn't load driver of cdc-wdm port: %s", self->priv->path_display, driver_error->message);
+        g_warning ("[%s] couldn't load driver of cdc-wdm port: %s", qmi_file_get_path_display (self->priv->file), driver_error->message);
     g_clear_error (&driver_error);
 
 #if defined MBIM_QMUX_ENABLED
@@ -2288,12 +1789,12 @@ device_setup_open_flags_by_driver (QmiDevice *self,
     /* Auto mode requested? */
     if (ctx->flags & QMI_DEVICE_OPEN_FLAGS_AUTO) {
         if (!g_strcmp0 (driver, "cdc_mbim")) {
-            g_debug ("[%s] automatically selecting MBIM mode", self->priv->path_display);
+            g_debug ("[%s] automatically selecting MBIM mode", qmi_file_get_path_display (self->priv->file));
             ctx->flags |= QMI_DEVICE_OPEN_FLAGS_MBIM;
             return TRUE;
         }
         if (!g_strcmp0 (driver, "qmi_wwan")) {
-            g_debug ("[%s] automatically selecting QMI mode", self->priv->path_display);
+            g_debug ("[%s] automatically selecting QMI mode", qmi_file_get_path_display (self->priv->file));
             ctx->flags &= ~QMI_DEVICE_OPEN_FLAGS_MBIM;
             return TRUE;
         }
@@ -2308,23 +1809,23 @@ device_setup_open_flags_by_driver (QmiDevice *self,
     /* MBIM mode requested? */
     if (ctx->flags & QMI_DEVICE_OPEN_FLAGS_MBIM) {
         if (g_strcmp0 (driver, "cdc_mbim") && !self->priv->no_file_check)
-            g_warning ("[%s] requested MBIM mode but unexpected driver found: %s", self->priv->path_display, driver);
+            g_warning ("[%s] requested MBIM mode but unexpected driver found: %s", qmi_file_get_path_display (self->priv->file), driver);
         return TRUE;
     }
 
 #else
 
     if (ctx->flags & QMI_DEVICE_OPEN_FLAGS_AUTO)
-        g_warning ("[%s] requested auto mode but no MBIM QMUX support available", self->priv->path_display);
+        g_warning ("[%s] requested auto mode but no MBIM QMUX support available", qmi_file_get_path_display (self->priv->file));
     if (ctx->flags & QMI_DEVICE_OPEN_FLAGS_MBIM)
-        g_warning ("[%s] requested MBIM mode but no MBIM QMUX support available", self->priv->path_display);
+        g_warning ("[%s] requested MBIM mode but no MBIM QMUX support available", qmi_file_get_path_display (self->priv->file));
 
 #endif /* MBIM_QMUX_ENABLED */
 
     /* QMI mode requested? */
     if (g_strcmp0 (driver, "qmi_wwan") && !self->priv->no_file_check)
         g_warning ("[%s] requested QMI mode but unexpected driver found: %s",
-                   self->priv->path_display, driver ? driver : "unknown");
+                   qmi_file_get_path_display (self->priv->file), driver ? driver : "unknown");
 
     return TRUE;
 }
@@ -2353,53 +1854,27 @@ device_open_step (GTask *task)
         ctx->step++;
         /* Fall down */
 
-#if defined MBIM_QMUX_ENABLED
-    case DEVICE_OPEN_CONTEXT_STEP_DEVICE_MBIM:
-        if (ctx->flags & QMI_DEVICE_OPEN_FLAGS_MBIM) {
-            create_mbim_device (task);
+    case DEVICE_OPEN_CONTEXT_STEP_CREATE_ENDPOINT:
+        device_create_endpoint (self, ctx);
+        if (!self->priv->endpoint) {
+            g_task_return_new_error (task,
+                                     QMI_CORE_ERROR,
+                                     QMI_CORE_ERROR_FAILED,
+                                     "Could not create endpoint");
+            g_object_unref (task);
             return;
         }
         ctx->step++;
         /* Fall down */
 
-    case DEVICE_OPEN_CONTEXT_STEP_OPEN_DEVICE_MBIM:
-        if (ctx->flags & QMI_DEVICE_OPEN_FLAGS_MBIM) {
-            open_mbim_device (task);
-            return;
-        }
-        ctx->step++;
-        /* Fall down */
-#endif
-
-    case DEVICE_OPEN_CONTEXT_STEP_CREATE_IOSTREAM:
-        if (!(ctx->flags & QMI_DEVICE_OPEN_FLAGS_MBIM)) {
-            create_iostream (self,
-                             !!(ctx->flags & QMI_DEVICE_OPEN_FLAGS_PROXY),
-                             (GAsyncReadyCallback)create_iostream_ready,
-                             task);
-            return;
-        }
-        ctx->step++;
-        /* Fall down */
-
-    case DEVICE_OPEN_CONTEXT_STEP_FLAGS_PROXY:
-        /* Initialize communication with proxy? */
-        if (ctx->flags & QMI_DEVICE_OPEN_FLAGS_PROXY && !(ctx->flags & QMI_DEVICE_OPEN_FLAGS_MBIM)) {
-            QmiMessageCtlInternalProxyOpenInput *input;
-
-            input = qmi_message_ctl_internal_proxy_open_input_new ();
-            qmi_message_ctl_internal_proxy_open_input_set_device_path (input, self->priv->path, NULL);
-            qmi_client_ctl_internal_proxy_open (self->priv->client_ctl,
-                                                input,
-                                                5,
-                                                g_task_get_cancellable (task),
-                                                (GAsyncReadyCallback)internal_proxy_open_ready,
-                                                task);
-            qmi_message_ctl_internal_proxy_open_input_unref (input);
-            return;
-        }
-        ctx->step++;
-        /* Fall down */
+    case DEVICE_OPEN_CONTEXT_STEP_OPEN_ENDPOINT:
+        qmi_endpoint_open (self->priv->endpoint,
+                           !!(ctx->flags & QMI_DEVICE_OPEN_FLAGS_PROXY),
+                           5,
+                           g_task_get_cancellable (task),
+                           (GAsyncReadyCallback)endpoint_ready,
+                           task);
+        return;
 
     case DEVICE_OPEN_CONTEXT_STEP_FLAGS_VERSION_INFO:
         /* Query version info? */
@@ -2407,7 +1882,7 @@ device_open_step (GTask *task)
             /* Setup how many times to retry... We'll retry once per second */
             ctx->version_check_retries = ctx->timeout > 0 ? ctx->timeout : 1;
             g_debug ("[%s] Checking version info (%u retries)...",
-                     self->priv->path_display,
+                     qmi_file_get_path_display (self->priv->file),
                      ctx->version_check_retries);
             qmi_client_ctl_get_version_info (self->priv->client_ctl,
                                              NULL,
@@ -2424,7 +1899,7 @@ device_open_step (GTask *task)
         /* Sync? */
         if (ctx->flags & QMI_DEVICE_OPEN_FLAGS_SYNC) {
             g_debug ("[%s] Running sync...",
-                     self->priv->path_display);
+                     qmi_file_get_path_display (self->priv->file));
             qmi_client_ctl_sync (self->priv->client_ctl,
                                  NULL,
                                  ctx->timeout,
@@ -2444,7 +1919,7 @@ device_open_step (GTask *task)
             QmiCtlDataLinkProtocol link_protocol = QMI_CTL_DATA_LINK_PROTOCOL_802_3;
 
             g_debug ("[%s] Setting network port data format...",
-                     self->priv->path_display);
+                     qmi_file_get_path_display (self->priv->file));
 
             input = qmi_message_ctl_set_data_format_input_new ();
 
@@ -2468,41 +1943,14 @@ device_open_step (GTask *task)
         ctx->step++;
         /* Fall down */
 
-#if defined MBIM_QMUX_ENABLED
     case DEVICE_OPEN_CONTEXT_STEP_FLAGS_EXPECT_INDICATIONS:
-        /* Enable MBIM indications explicitly ONLY after knowing this is
-         * a QMI-capable MBIM device. */
-        if (self->priv->mbimdev && ctx->flags & QMI_DEVICE_OPEN_FLAGS_EXPECT_INDICATIONS) {
-            MbimEventEntry **entries;
-            guint            n_entries = 0;
-            MbimMessage     *request;
-
-            g_debug ("[%s] Enabling QMI indications via MBIM...", self->priv->path_display);
-            entries = g_new0 (MbimEventEntry *, 2);
-            entries[n_entries] = g_new (MbimEventEntry, 1);
-            memcpy (&(entries[n_entries]->device_service_id), MBIM_UUID_QMI, sizeof (MbimUuid));
-            entries[n_entries]->cids_count = 1;
-            entries[n_entries]->cids = g_new0 (guint32, 1);
-            entries[n_entries]->cids[0] = MBIM_CID_QMI_MSG;
-            n_entries++;
-
-            request = mbim_message_device_service_subscribe_list_set_new (
-                          n_entries,
-                          (const MbimEventEntry *const *)entries,
-                          NULL);
-            mbim_device_command (self->priv->mbimdev,
-                                 request,
-                                 10,
-                                 NULL,
-                                 (GAsyncReadyCallback)mbim_subscribe_list_set_ready_cb,
-                                 task);
-            mbim_message_unref (request);
-            mbim_event_entry_array_free (entries);
-            return;
-        }
-        ctx->step++;
+        qmi_endpoint_setup_indications (self->priv->endpoint,
+                                        10,
+                                        g_task_get_cancellable (task),
+                                        (GAsyncReadyCallback)setup_indications_ready,
+                                        task);
+        return;
         /* Fall down */
-#endif
 
     case DEVICE_OPEN_CONTEXT_STEP_LAST:
         /* Nothing else to process, done we are */
@@ -2545,7 +1993,7 @@ qmi_device_open (QmiDevice *self,
 
     flags_str = qmi_device_open_flags_build_string_from_mask (flags);
     g_debug ("[%s] Opening device with flags '%s'...",
-             self->priv->path_display,
+             qmi_file_get_path_display (self->priv->file),
              flags_str);
     g_free (flags_str);
 
@@ -2564,48 +2012,54 @@ qmi_device_open (QmiDevice *self,
 /*****************************************************************************/
 /* Close stream */
 
-static void
-destroy_iostream (QmiDevice *self)
-{
-    if (self->priv->input_source) {
-        g_source_destroy (self->priv->input_source);
-        g_clear_pointer (&self->priv->input_source, g_source_unref);
-    }
-    g_clear_pointer (&self->priv->buffer, g_byte_array_unref);
-    g_clear_object (&self->priv->istream);
-    g_clear_object (&self->priv->ostream);
-    g_clear_object (&self->priv->socket_connection);
-    g_clear_object (&self->priv->socket_client);
-    if (self->priv->fd >= 0) {
-        close (self->priv->fd);
-        self->priv->fd = -1;
-    }
-}
-
-#if defined MBIM_QMUX_ENABLED
-
-static void
-mbim_device_close_ready (MbimDevice   *dev,
-                         GAsyncResult *res,
-                         GTask        *task)
-{
-    GError *error = NULL;
-
-    if (!mbim_device_close_finish (dev, res, &error))
-        g_task_return_error (task, error);
-    else
-        g_task_return_boolean (task, TRUE);
-    g_object_unref (task);
-}
-
-#endif
-
 gboolean
 qmi_device_close_finish (QmiDevice     *self,
                          GAsyncResult  *res,
                          GError       **error)
 {
     return g_task_propagate_boolean (G_TASK (res), error);
+}
+
+static void
+endpoint_cleanup (QmiDevice *self)
+{
+    if (!self->priv->endpoint)
+        return;
+
+    if (self->priv->endpoint_hangup_id) {
+        g_signal_handler_disconnect (self->priv->endpoint, self->priv->endpoint_hangup_id);
+        self->priv->endpoint_hangup_id = 0;
+    }
+    if (self->priv->endpoint_new_data_id) {
+        g_signal_handler_disconnect (self->priv->endpoint, self->priv->endpoint_new_data_id);
+        self->priv->endpoint_new_data_id = 0;
+    }
+    g_clear_object (&self->priv->endpoint);
+}
+
+static void
+endpoint_close_ready (QmiEndpoint  *endpoint,
+                      GAsyncResult *res,
+                      GTask        *task)
+{
+    QmiDevice *self;
+    gboolean closed;
+    GError *error = NULL;
+
+    self = g_task_get_source_object (task);
+
+    closed = qmi_endpoint_close_finish (endpoint, res, &error);
+    /* Success or failure, we want to get rid of this endpoint. */
+    endpoint_cleanup (self);
+
+    if (!closed) {
+        g_task_return_error (task, error);
+        g_object_unref (task);
+        return;
+    }
+
+    g_task_return_boolean (task, TRUE);
+    g_object_unref (task);
 }
 
 void
@@ -2619,99 +2073,12 @@ qmi_device_close_async (QmiDevice           *self,
 
     task = g_task_new (self, cancellable, callback, user_data);
 
-#if defined MBIM_QMUX_ENABLED
-    if (self->priv->mbimdev) {
-        /* Schedule in new main context */
-        mbim_device_close (self->priv->mbimdev,
-                           timeout,
-                           NULL,
-                           (GAsyncReadyCallback) mbim_device_close_ready,
-                           task);
-        /* Cleanup right away, we don't want multiple close attempts on the
-         * device */
-        if (self->priv->mbim_notification_id) {
-            g_signal_handler_disconnect (self->priv->mbimdev, self->priv->mbim_notification_id);
-            self->priv->mbim_notification_id = 0;
-        }
-        g_clear_object (&self->priv->mbimdev);
-        return;
-    }
-#endif
-
-    destroy_iostream (self);
-
-    g_task_return_boolean (task, TRUE);
-    g_object_unref (task);
+    qmi_endpoint_close (self->priv->endpoint,
+                        timeout,
+                        cancellable,
+                        (GAsyncReadyCallback)endpoint_close_ready,
+                        task);
 }
-
-#if defined MBIM_QMUX_ENABLED
-
-static void
-mbim_device_command_ready (MbimDevice   *dev,
-                           GAsyncResult *res,
-                           QmiDevice    *self)
-{
-    MbimMessage *response;
-    GError *error = NULL;
-    const guint8 *buf;
-    guint32 len;
-
-    response = mbim_device_command_finish (dev, res, &error);
-    if (!response || !mbim_message_response_get_result (response, MBIM_MESSAGE_TYPE_COMMAND_DONE, &error)) {
-        g_warning ("[%s] MBIM error: %s", self->priv->path_display, error->message);
-        g_error_free (error);
-        if (response)
-            mbim_message_unref (response);
-        g_object_unref (self);
-        return;
-    }
-
-    /* Store the raw information buffer in the internal reception buffer,
-     * as if we had read from a iochannel. */
-    buf = mbim_message_command_done_get_raw_information_buffer (response, &len);
-    if (!G_UNLIKELY (self->priv->buffer))
-        self->priv->buffer = g_byte_array_sized_new (len);
-    g_byte_array_append (self->priv->buffer, buf, len);
-
-    /* And parse it as QMI; it should remove and cleanup the transaction */
-    parse_response (self);
-    mbim_message_unref (response);
-    g_object_unref (self);
-}
-
-static gboolean
-mbim_command (QmiDevice      *self,
-              gconstpointer   raw_message,
-              gsize           raw_message_len,
-              guint           timeout,
-              GCancellable   *cancellable,
-              GError        **error)
-{
-    MbimMessage *mbim_message;
-
-    mbim_message = mbim_message_qmi_msg_set_new (raw_message_len, raw_message, error);
-    if (!mbim_message)
-        return FALSE;
-
-    /* Note:
-     *
-     * Pass a full reference to the original QMI device to the MBIM command
-     * operation, so that we make sure the parent object is valid regardless
-     * of when the underlying device is fully disposed. This is required
-     * because device close is async().
-     */
-    mbim_device_command (self->priv->mbimdev,
-                         mbim_message,
-                         timeout,
-                         cancellable,
-                         (GAsyncReadyCallback) mbim_device_command_ready,
-                         g_object_ref (self));
-
-    mbim_message_unref (mbim_message);
-    return TRUE;
-}
-
-#endif
 
 /*****************************************************************************/
 /* Command */
@@ -2756,8 +2123,6 @@ qmi_device_command_full (QmiDevice           *self,
 {
     GError *error = NULL;
     Transaction *tr;
-    gconstpointer raw_message;
-    gsize raw_message_len;
 
     g_return_if_fail (QMI_IS_DEVICE (self));
     g_return_if_fail (message != NULL);
@@ -2776,17 +2141,12 @@ qmi_device_command_full (QmiDevice           *self,
     tr = transaction_new (self, message, message_context, cancellable, callback, user_data);
 
     /* Device must be open */
-    if (!self->priv->istream || !self->priv->ostream) {
-#if defined MBIM_QMUX_ENABLED
-        if (!self->priv->mbimdev)
-#endif
-        {
-            error = g_error_new (QMI_CORE_ERROR,
-                                 QMI_CORE_ERROR_WRONG_STATE,
-                                 "Device must be open to send commands");
-            transaction_early_error (self, tr, FALSE, error);
-            return;
-        }
+    if (!qmi_endpoint_is_open (self->priv->endpoint)) {
+        error = g_error_new (QMI_CORE_ERROR,
+                             QMI_CORE_ERROR_WRONG_STATE,
+                             "Device must be open to send commands");
+        transaction_early_error (self, tr, FALSE, error);
+        return;
     }
 
     /* Non-CTL services should use a proper CID */
@@ -2808,14 +2168,6 @@ qmi_device_command_full (QmiDevice           *self,
         return;
     }
 
-    /* Get raw message */
-    raw_message = qmi_message_get_raw (message, &raw_message_len, &error);
-    if (!raw_message) {
-        g_prefix_error (&error, "Cannot get raw message: ");
-        transaction_early_error (self, tr, FALSE, error);
-        return;
-    }
-
     /* Setup context to match response */
     if (!device_store_transaction (self, tr, timeout, &error)) {
         g_prefix_error (&error, "Cannot store transaction: ");
@@ -2828,34 +2180,10 @@ qmi_device_command_full (QmiDevice           *self,
 
     trace_message (self, message, TRUE, "request", message_context);
 
-#if defined MBIM_QMUX_ENABLED
-    if (self->priv->mbimdev) {
-        if (!mbim_command (self,
-                           raw_message,
-                           raw_message_len,
-                           timeout + MBIM_TIMEOUT_DELAY_SECS,
-                           NULL, /* cancellable */
-                           &error)) {
-            g_prefix_error (&error, "Cannot create MBIM command: ");
-            transaction_early_error (self, tr, TRUE, error);
-        }
-        return;
-    }
-#endif
-
-    if (!g_output_stream_write_all (self->priv->ostream,
-                                    raw_message,
-                                    raw_message_len,
-                                    NULL, /* bytes_written */
-                                    NULL, /* cancellable */
-                                    &error)) {
-        g_prefix_error (&error, "Cannot write message: ");
+    if (!qmi_endpoint_send (self->priv->endpoint, message, timeout, cancellable, &error)) {
         transaction_early_error (self, tr, TRUE, error);
         return;
     }
-
-    /* Flush explicitly if correctly written */
-    g_output_stream_flush (self->priv->ostream, NULL, NULL);
 }
 
 /*****************************************************************************/
@@ -2929,7 +2257,7 @@ sync_indication_cb (QmiClientCtl *client_ctl,
 {
     /* Just log about it */
     g_debug ("[%s] Sync indication received",
-             self->priv->path_display);
+             qmi_file_get_path_display (self->priv->file));
 }
 
 static void
@@ -2966,32 +2294,17 @@ client_ctl_setup (GTask *task)
 }
 
 static void
-query_info_async_ready (GFile *file,
+check_type_async_ready (QmiFile *file,
                         GAsyncResult *res,
                         GTask *task)
 {
     GError *error = NULL;
-    GFileInfo *info;
 
-    info = g_file_query_info_finish (file, res, &error);
-    if (!info) {
-        g_prefix_error (&error,
-                        "Couldn't query file info: ");
+    if (!qmi_file_check_type_finish (file, res, &error)) {
         g_task_return_error (task, error);
         g_object_unref (task);
         return;
     }
-
-    /* Our QMI device must be of SPECIAL type */
-    if (g_file_info_get_file_type (info) != G_FILE_TYPE_SPECIAL) {
-        g_task_return_new_error (task,
-                                 QMI_CORE_ERROR,
-                                 QMI_CORE_ERROR_FAILED,
-                                 "Wrong file type");
-        g_object_unref (task);
-        return;
-    }
-    g_object_unref (info);
 
     /* Go on with client CTL setup */
     client_ctl_setup (task);
@@ -3029,13 +2342,10 @@ initable_init_async (GAsyncInitable *initable,
     /* Check the file type. Note that this is just a quick check to avoid
      * creating QmiDevices pointing to a location already known not to be a QMI
      * device. */
-    g_file_query_info_async (self->priv->file,
-                             G_FILE_ATTRIBUTE_STANDARD_TYPE,
-                             G_FILE_QUERY_INFO_NONE,
-                             G_PRIORITY_DEFAULT,
-                             cancellable,
-                             (GAsyncReadyCallback)query_info_async_ready,
-                             task);
+    qmi_file_check_type_async (self->priv->file,
+                               cancellable,
+                               (GAsyncReadyCallback)check_type_async_ready,
+                               task);
 }
 
 /*****************************************************************************/
@@ -3051,11 +2361,7 @@ set_property (GObject *object,
     switch (prop_id) {
     case PROP_FILE:
         g_assert (self->priv->file == NULL);
-        self->priv->file = g_value_dup_object (value);
-        if (self->priv->file) {
-            self->priv->path = g_file_get_path (self->priv->file);
-            self->priv->path_display = g_filename_display_name (self->priv->path);
-        }
+        self->priv->file = qmi_file_new (g_value_get_object (value));
         break;
     case PROP_NO_FILE_CHECK:
         self->priv->no_file_check = g_value_get_boolean (value);
@@ -3080,7 +2386,7 @@ get_property (GObject *object,
 
     switch (prop_id) {
     case PROP_FILE:
-        g_value_set_object (value, self->priv->file);
+        g_value_set_object (value, qmi_file_get_file (self->priv->file));
         break;
     case PROP_WWAN_IFACE:
         reload_wwan_iface_name (self);
@@ -3107,7 +2413,6 @@ qmi_device_init (QmiDevice *self)
                                                             NULL,
                                                             g_object_unref);
     self->priv->proxy_path = g_strdup (QMI_PROXY_SOCKET_PATH);
-    self->priv->fd = -1;
 }
 
 static gboolean
@@ -3116,7 +2421,7 @@ foreach_warning (gpointer key,
                  QmiDevice *self)
 {
     g_warning ("[%s] QMI client for service '%s' with CID '%u' wasn't released",
-               self->priv->path_display,
+               qmi_file_get_path_display (self->priv->file),
                qmi_service_get_string (qmi_client_get_service (client)),
                qmi_client_get_cid (client));
 
@@ -3127,8 +2432,6 @@ static void
 dispose (GObject *object)
 {
     QmiDevice *self = QMI_DEVICE (object);
-
-    g_clear_object (&self->priv->file);
 
     /* unregister our CTL client */
     if (self->priv->client_ctl)
@@ -3141,18 +2444,6 @@ dispose (GObject *object)
                                  (GHRFunc)foreach_warning,
                                  self);
 
-#if defined MBIM_QMUX_ENABLED
-    if (self->priv->mbimdev) {
-        g_warning ("[%s] MBIM device wasn't explicitly closed",
-                   self->priv->path_display);
-        if (self->priv->mbim_notification_id) {
-            g_signal_handler_disconnect (self->priv->mbimdev, self->priv->mbim_notification_id);
-            self->priv->mbim_notification_id = 0;
-        }
-        g_clear_object (&self->priv->mbimdev);
-    }
-#endif
-
     if (self->priv->sync_indication_id &&
         self->priv->client_ctl) {
         g_signal_handler_disconnect (self->priv->client_ctl,
@@ -3160,6 +2451,9 @@ dispose (GObject *object)
         self->priv->sync_indication_id = 0;
     }
     g_clear_object (&self->priv->client_ctl);
+
+    endpoint_cleanup (self);
+    g_clear_object (&self->priv->file);
 
     G_OBJECT_CLASS (qmi_device_parent_class)->dispose (object);
 }
@@ -3181,12 +2475,8 @@ finalize (GObject *object)
     if (self->priv->supported_services)
         g_array_unref (self->priv->supported_services);
 
-    g_free (self->priv->path);
-    g_free (self->priv->path_display);
     g_free (self->priv->proxy_path);
     g_free (self->priv->wwan_iface);
-
-    destroy_iostream (self);
 
     G_OBJECT_CLASS (qmi_device_parent_class)->finalize (object);
 }
