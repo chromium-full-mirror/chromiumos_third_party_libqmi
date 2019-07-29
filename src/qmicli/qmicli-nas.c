@@ -97,7 +97,7 @@ static GOptionEntry entries[] = {
     },
     { "nas-set-system-selection-preference", 0, 0, G_OPTION_ARG_STRING, &set_system_selection_preference_str,
       "Set system selection preference",
-      "[cdma-1x|cdma-1xevdo|gsm|umts|lte|td-scdma][,[auto|manual=MCCMNC]]"
+      "[cdma-1x|cdma-1xevdo|gsm|umts|lte|td-scdma][,[automatic|manual=MCCMNC]]"
     },
     { "nas-network-scan", 0, 0, G_OPTION_ARG_NONE, &network_scan_flag,
       "Scan networks",
@@ -740,6 +740,17 @@ get_home_network_ready (QmiClientNas *client,
     }
 
     {
+        QmiNasNetworkNameSource network_name_source;
+        if (qmi_message_nas_get_home_network_output_get_network_name_source (
+                output,
+                &network_name_source,
+                NULL)) {
+            g_print ("\tNetwork name source: %s\n",
+                     qmi_nas_network_name_source_get_string (network_name_source));
+        }
+    }
+
+    {
         guint16 sid;
         guint16 nid;
 
@@ -894,6 +905,17 @@ get_serving_system_ready (QmiClientNas *client,
                      current_plmn_mcc,
                      current_plmn_mnc,
                      current_plmn_description);
+        }
+    }
+
+    {
+        QmiNasNetworkNameSource network_name_source;
+        if (qmi_message_nas_get_serving_system_output_get_network_name_source (
+                output,
+                &network_name_source,
+                NULL)) {
+            g_print ("\tNetwork name source: %s\n",
+                     qmi_nas_network_name_source_get_string (network_name_source));
         }
     }
 
@@ -1691,7 +1713,12 @@ get_system_info_ready (QmiClientNas *client,
         guint16 tac;
         guint16 geo_system_index;
         gboolean voice_support;
+        gboolean ims_voice_support;
         gboolean embms_coverage_info_support;
+        guint16 embms_coverage_info_trace_id;
+        QmiNasNetworkSelectionRegistrationRestriction registration_restriction;
+        QmiNasLteCellAccessStatus cell_access_status;
+        QmiNasLteRegistrationDomain registration_domain;
 
         if (qmi_message_nas_get_system_info_output_get_lte_service_status (
                 output,
@@ -1761,11 +1788,46 @@ get_system_info_ready (QmiClientNas *client,
                 g_print ("\t\tVoice support: '%s'\n", voice_support ? "yes" : "no");
             }
 
+            if (qmi_message_nas_get_system_info_output_get_ims_voice_support (
+                    output,
+                    &ims_voice_support,
+                    NULL)) {
+                g_print ("\t\tIMS voice support: '%s'\n", ims_voice_support ? "yes" : "no");
+            }
+
             if (qmi_message_nas_get_system_info_output_get_lte_embms_coverage_info_support (
                     output,
                     &embms_coverage_info_support,
                     NULL)) {
                 g_print ("\t\teMBMS coverage info support: '%s'\n", embms_coverage_info_support ? "yes" : "no");
+            }
+
+            if (qmi_message_nas_get_system_info_output_get_lte_embms_coverage_info_trace_id (
+                    output,
+                    &embms_coverage_info_trace_id,
+                    NULL)) {
+                g_print ("\t\teMBMS coverage info trace ID: '%" G_GUINT16_FORMAT "'\n", embms_coverage_info_trace_id);
+            }
+
+            if (qmi_message_nas_get_system_info_output_get_lte_cell_access_status (
+                    output,
+                    &cell_access_status,
+                    NULL)) {
+                g_print ("\t\tCell access: '%s'\n", qmi_nas_lte_cell_access_status_get_string (cell_access_status));
+            }
+
+            if (qmi_message_nas_get_system_info_output_get_network_selection_registration_restriction (
+                    output,
+                    &registration_restriction,
+                    NULL)) {
+                g_print ("\t\tRegistration restriction: '%s'\n", qmi_nas_network_selection_registration_restriction_get_string (registration_restriction));
+            }
+
+            if (qmi_message_nas_get_system_info_output_get_lte_registration_domain (
+                    output,
+                    &registration_domain,
+                    NULL)) {
+                g_print ("\t\tRegistration domain: '%s'\n", qmi_nas_lte_registration_domain_get_string (registration_domain));
             }
         }
     }
@@ -1959,6 +2021,7 @@ get_system_selection_preference_ready (QmiClientNas *client,
     GError *error = NULL;
     gboolean emergency_mode;
     QmiNasRatModePreference mode_preference;
+    QmiNasRatModePreference disabled_modes;
     QmiNasBandPreference band_preference;
     QmiNasLteBandPreference lte_band_preference;
     QmiNasTdScdmaBandPreference td_scdma_band_preference;
@@ -1966,7 +2029,10 @@ get_system_selection_preference_ready (QmiClientNas *client,
     QmiNasRoamingPreference roaming_preference;
     QmiNasNetworkSelectionPreference network_selection_preference;
     QmiNasServiceDomainPreference service_domain_preference;
+    QmiNasUsagePreference usage_preference;
     QmiNasGsmWcdmaAcquisitionOrderPreference gsm_wcdma_acquisition_order_preference;
+    QmiNasNetworkSelectionRegistrationRestriction registration_restriction;
+    QmiNasVoiceDomainPreference voice_domain_preference;
     guint16 mcc;
     guint16 mnc;
     guint64 extended_lte_band_preference[4];
@@ -2010,6 +2076,18 @@ get_system_selection_preference_ready (QmiClientNas *client,
         g_print ("\tMode preference: '%s'\n", str);
         g_free (str);
     }
+
+    if (qmi_message_nas_get_system_selection_preference_output_get_disabled_modes (
+            output,
+            &disabled_modes,
+            NULL)) {
+        gchar *str;
+
+        str = qmi_nas_rat_mode_preference_build_string_from_mask (disabled_modes);
+        g_print ("\tDisabled modes: '%s'\n", str);
+        g_free (str);
+    }
+
 
     if (qmi_message_nas_get_system_selection_preference_output_get_band_preference (
             output,
@@ -2115,6 +2193,30 @@ get_system_selection_preference_ready (QmiClientNas *client,
                  qmi_nas_gsm_wcdma_acquisition_order_preference_get_string (gsm_wcdma_acquisition_order_preference));
     }
 
+    if (qmi_message_nas_get_system_selection_preference_output_get_usage_preference (
+            output,
+            &usage_preference,
+            NULL)) {
+        g_print ("\tUsage preference: '%s'\n",
+                 qmi_nas_usage_preference_get_string (usage_preference));
+    }
+
+    if (qmi_message_nas_get_system_selection_preference_output_get_voice_domain_preference (
+            output,
+            &voice_domain_preference,
+            NULL)) {
+        g_print ("\tVoice domain preference: '%s'\n",
+                 qmi_nas_voice_domain_preference_get_string (voice_domain_preference));
+    }
+
+
+    if (qmi_message_nas_get_system_selection_preference_output_get_network_selection_registration_restriction (
+            output,
+            &registration_restriction,
+            NULL)) {
+        g_print ("\tRegistration restriction: '%s'\n", qmi_nas_network_selection_registration_restriction_get_string (registration_restriction));
+    }
+
     if (qmi_message_nas_get_system_selection_preference_output_get_manual_network_selection (
             output,
             &mcc,
@@ -2159,7 +2261,7 @@ set_system_selection_preference_input_create (const gchar *str)
     GError                                         *error = NULL;
     gchar                                          *rat_pref_str = NULL;
     gchar                                          *net_pref_str = NULL;
-    QmiNasRatModePreference                         rat_mode_preference;
+    QmiNasRatModePreference                         rat_mode_preference = 0;
     GArray                                         *acquisition_order = NULL;
     QmiNasNetworkSelectionPreference                net_preference = 0;
     guint16                                         mcc = 0;
@@ -2178,7 +2280,7 @@ set_system_selection_preference_input_create (const gchar *str)
         rat_pref_str = g_strdup (parts[0]);
         net_pref_str = g_strdup (parts[1]);
         g_strfreev (parts);
-    } else if (g_str_has_prefix (str, "auto") || g_str_has_prefix (str, "manual")) {
+    } else if (g_str_has_prefix (str, "automatic") || g_str_has_prefix (str, "manual")) {
         /* Only network selection preference was given */
         net_pref_str = g_strdup (str);
     } else {
@@ -2270,6 +2372,7 @@ network_scan_ready (QmiClientNas *client,
                     GAsyncResult *res)
 {
     QmiMessageNasNetworkScanOutput *output;
+    QmiNasNetworkScanResult network_scan_result;
     GError *error = NULL;
     GArray *array;
 
@@ -2352,6 +2455,13 @@ network_scan_ready (QmiClientNas *client,
                      element->mnc,
                      element->includes_pcs_digit ? "yes" : "no");
         }
+    }
+
+    if (qmi_message_nas_network_scan_output_get_network_scan_result (output,
+                                                                     &network_scan_result,
+                                                                     NULL)) {
+        g_print ("Network scan result: %s\n",
+                 qmi_nas_network_scan_result_get_string (network_scan_result));
     }
 
     qmi_message_nas_network_scan_output_unref (output);

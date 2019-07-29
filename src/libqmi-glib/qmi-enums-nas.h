@@ -138,9 +138,11 @@ typedef enum {
  * @QMI_NAS_ACTIVE_BAND_EUTRAN_24: EUTRAN band 24.
  * @QMI_NAS_ACTIVE_BAND_EUTRAN_25: EUTRAN band 25.
  * @QMI_NAS_ACTIVE_BAND_EUTRAN_26: EUTRAN band 26.
+ * @QMI_NAS_ACTIVE_BAND_EUTRAN_27: EUTRAN band 27.
  * @QMI_NAS_ACTIVE_BAND_EUTRAN_28: EUTRAN band 28.
  * @QMI_NAS_ACTIVE_BAND_EUTRAN_29: EUTRAN band 29.
  * @QMI_NAS_ACTIVE_BAND_EUTRAN_30: EUTRAN band 30.
+ * @QMI_NAS_ACTIVE_BAND_EUTRAN_31: EUTRAN band 31.
  * @QMI_NAS_ACTIVE_BAND_EUTRAN_32: EUTRAN band 32.
  * @QMI_NAS_ACTIVE_BAND_EUTRAN_33: EUTRAN band 33.
  * @QMI_NAS_ACTIVE_BAND_EUTRAN_34: EUTRAN band 34.
@@ -154,7 +156,10 @@ typedef enum {
  * @QMI_NAS_ACTIVE_BAND_EUTRAN_42: EUTRAN band 42.
  * @QMI_NAS_ACTIVE_BAND_EUTRAN_43: EUTRAN band 43.
  * @QMI_NAS_ACTIVE_BAND_EUTRAN_46: EUTRAN band 46.
+ * @QMI_NAS_ACTIVE_BAND_EUTRAN_47: EUTRAN band 47.
+ * @QMI_NAS_ACTIVE_BAND_EUTRAN_48: EUTRAN band 48.
  * @QMI_NAS_ACTIVE_BAND_EUTRAN_66: EUTRAN band 66.
+ * @QMI_NAS_ACTIVE_BAND_EUTRAN_71: EUTRAN band 71.
  * @QMI_NAS_ACTIVE_BAND_EUTRAN_125: EUTRAN band 125.
  * @QMI_NAS_ACTIVE_BAND_EUTRAN_126: EUTRAN band 126.
  * @QMI_NAS_ACTIVE_BAND_EUTRAN_127: EUTRAN band 127.
@@ -234,9 +239,11 @@ typedef enum {
     QMI_NAS_ACTIVE_BAND_EUTRAN_24 = 147,
     QMI_NAS_ACTIVE_BAND_EUTRAN_25 = 148,
     QMI_NAS_ACTIVE_BAND_EUTRAN_26 = 153,
+    QMI_NAS_ACTIVE_BAND_EUTRAN_27 = 164,
     QMI_NAS_ACTIVE_BAND_EUTRAN_28 = 158,
     QMI_NAS_ACTIVE_BAND_EUTRAN_29 = 159,
     QMI_NAS_ACTIVE_BAND_EUTRAN_30 = 160,
+    QMI_NAS_ACTIVE_BAND_EUTRAN_31 = 165,
     QMI_NAS_ACTIVE_BAND_EUTRAN_32 = 154,
     QMI_NAS_ACTIVE_BAND_EUTRAN_33 = 135,
     QMI_NAS_ACTIVE_BAND_EUTRAN_34 = 136,
@@ -250,7 +257,10 @@ typedef enum {
     QMI_NAS_ACTIVE_BAND_EUTRAN_42 = 150,
     QMI_NAS_ACTIVE_BAND_EUTRAN_43 = 151,
     QMI_NAS_ACTIVE_BAND_EUTRAN_46 = 163,
+    QMI_NAS_ACTIVE_BAND_EUTRAN_47 = 166,
+    QMI_NAS_ACTIVE_BAND_EUTRAN_48 = 167,
     QMI_NAS_ACTIVE_BAND_EUTRAN_66 = 161,
+    QMI_NAS_ACTIVE_BAND_EUTRAN_71 = 168,
     QMI_NAS_ACTIVE_BAND_EUTRAN_125 = 155,
     QMI_NAS_ACTIVE_BAND_EUTRAN_126 = 156,
     QMI_NAS_ACTIVE_BAND_EUTRAN_127 = 157,
@@ -391,6 +401,28 @@ typedef enum {
  * qmi_nas_network_scan_type_build_string_from_mask:
  *
  * Since: 1.0
+ */
+
+/**
+ * QmiNasNetworkScanResult:
+ * @QMI_NAS_NETWORK_SCAN_RESULT_SUCCESS: Success.
+ * @QMI_NAS_NETWORK_SCAN_RESULT_ABORT: Abort.
+ * @QMI_NAS_NETWORK_SCAN_RESULT_RADIO_LINK_FAILURE: Radio link failure.
+ *
+ * Network scan result.
+ *
+ * Since: 1.24
+ */
+typedef enum {
+    QMI_NAS_NETWORK_SCAN_RESULT_SUCCESS            = 0,
+    QMI_NAS_NETWORK_SCAN_RESULT_ABORT              = 1,
+    QMI_NAS_NETWORK_SCAN_RESULT_RADIO_LINK_FAILURE = 2,
+} QmiNasNetworkScanResult;
+
+/**
+ * qmi_nas_network_scan_result_get_string:
+ *
+ * Since: 1.24
  */
 
 /**
@@ -989,8 +1021,62 @@ typedef enum {
  * Since: 1.0
  */
 
+/**
+ * QmiNasVoiceDomainPreference:
+ * @QMI_NAS_VOICE_DOMAIN_PREFERENCE_CS_ONLY: Circuit-switched voice only
+ * @QMI_NAS_VOICE_DOMAIN_PREFERENCE_PS_ONLY: Packet-switched voice only.
+ * @QMI_NAS_VOICE_DOMAIN_PREFERENCE_CS_PREFERRED: Circuit-switched voice is preferred.
+ * @QMI_NAS_VOICE_DOMAIN_PREFERENCE_PS_PREFERRED: Packet-switched voice is preferred.
+ *
+ * Voice domain preference.
+ *
+ * Since: 1.24
+ */
+typedef enum {
+    QMI_NAS_VOICE_DOMAIN_PREFERENCE_CS_ONLY      = 0x00,
+    QMI_NAS_VOICE_DOMAIN_PREFERENCE_PS_ONLY      = 0x01,
+    QMI_NAS_VOICE_DOMAIN_PREFERENCE_CS_PREFERRED = 0x02,
+    QMI_NAS_VOICE_DOMAIN_PREFERENCE_PS_PREFERRED = 0x03,
+} QmiNasVoiceDomainPreference;
+
 /*****************************************************************************/
 /* Helper enums for the 'QMI NAS Get System Info' request/response */
+
+/**
+ * QmiNasNetworkSelectionRegistrationRestriction:
+ * @QMI_NAS_NETWORK_SELECTION_REGISTRATION_RESTRICTION_UNRESTRICTED: Device follows the normal registration process.
+ * @QMI_NAS_NETWORK_SELECTION_REGISTRATION_RESTRICTION_CAMPED_ONLY: Device camps on the network according to its provisioning, but does not register.
+ * @QMI_NAS_NETWORK_SELECTION_REGISTRATION_RESTRICTION_LIMITED: Device selects the network for limited service.
+ *
+ * Registration restriction.
+ *
+ * Since: 1.24
+ */
+typedef enum {
+    QMI_NAS_NETWORK_SELECTION_REGISTRATION_RESTRICTION_UNRESTRICTED = 0x00,
+    QMI_NAS_NETWORK_SELECTION_REGISTRATION_RESTRICTION_CAMPED_ONLY  = 0x01,
+    QMI_NAS_NETWORK_SELECTION_REGISTRATION_RESTRICTION_LIMITED      = 0x02,
+} QmiNasNetworkSelectionRegistrationRestriction;
+
+/**
+ * QmiNasLteRegistrationDomain:
+ * @QMI_NAS_LTE_REGISTRATION_DOMAIN_NOT_APPLICABLE: Not applicable since the UE is not in "Camp Only" mode.
+ * @QMI_NAS_LTE_REGISTRATION_DOMAIN_CS_ONLY: UE is in "Camp Only" mode and the PLMN can provide CS service only.
+ * @QMI_NAS_LTE_REGISTRATION_DOMAIN_PS_ONLY: UE is in "Camp Only" mode and the PLMN can provide PS service only.
+ * @QMI_NAS_LTE_REGISTRATION_DOMAIN_CS_PS: UE is in "Camp Only" mode and the PLMN can provide CS and PS service.
+ * @QMI_NAS_LTE_REGISTRATION_DOMAIN_LIMITED_SERVICE: UE is in "Camp Only" mode but the PLMN cannot provide any service.
+ *
+ * LTE registration domain.
+ *
+ * Since: 1.24
+ */
+typedef enum {
+    QMI_NAS_LTE_REGISTRATION_DOMAIN_NOT_APPLICABLE  = 0x00,
+    QMI_NAS_LTE_REGISTRATION_DOMAIN_CS_ONLY         = 0x01,
+    QMI_NAS_LTE_REGISTRATION_DOMAIN_PS_ONLY         = 0x02,
+    QMI_NAS_LTE_REGISTRATION_DOMAIN_CS_PS           = 0x03,
+    QMI_NAS_LTE_REGISTRATION_DOMAIN_LIMITED_SERVICE = 0x04,
+} QmiNasLteRegistrationDomain;
 
 /**
  * QmiNasRoamingStatus:
@@ -1034,6 +1120,26 @@ typedef enum {
  *
  * Since: 1.0
  */
+
+/**
+ * QmiNasLteCellAccessStatus:
+ * @QMI_NAS_CELL_ACCESS_STATUS_NORMAL_ONLY: Access is allowed for normal calls only.
+ * @QMI_NAS_CELL_ACCESS_STATUS_EMERGENCY_ONLY: Access is allowed for emergency calls only.
+ * @QMI_NAS_CELL_ACCESS_STATUS_NO_CALLS: Access is not allowed for any call type.
+ * @QMI_NAS_CELL_ACCESS_STATUS_ALL_CALLS: Access is allowed for all call types.
+ * @QMI_NAS_CELL_ACCESS_STATUS_UNKNOWN: Unknown.
+ *
+ * Cell access status for LTE calls.
+ *
+ * Since: 1.24
+ */
+typedef enum {
+    QMI_NAS_CELL_ACCESS_STATUS_NORMAL_ONLY    = 0x00,
+    QMI_NAS_CELL_ACCESS_STATUS_EMERGENCY_ONLY = 0x01,
+    QMI_NAS_CELL_ACCESS_STATUS_NO_CALLS       = 0x02,
+    QMI_NAS_CELL_ACCESS_STATUS_ALL_CALLS      = 0x03,
+    QMI_NAS_CELL_ACCESS_STATUS_UNKNOWN        = 0xFF,
+} QmiNasLteCellAccessStatus;
 
 /**
  * QmiNasHdrProtocolRevision:
@@ -1353,6 +1459,30 @@ typedef enum {
 } QmiNasPlmnNameCountryInitials;
 
 /**
+ * QmiNasNetworkNameSource:
+ * @QMI_NAS_NETWORK_NAME_SOURCE_UNKNOWN: Unknown.
+ * @QMI_NAS_NETWORK_NAME_SOURCE_OPERATOR_PLMN_LIST_AND_PLMN_NETWORK_NAME: Operator PLMN list and PLMN network name.
+ * @QMI_NAS_NETWORK_NAME_SOURCE_COMMON_PCN_HANDSET_SPECIFICATION_AND_OPERATOR_NAME_STRING: Common PCN handset specification and operator name string.
+ * @QMI_NAS_NETWORK_NAME_SOURCE_NITZ: Network identity and time zone.
+ * @QMI_NAS_NETWORK_NAME_SOURCE_SE13: GSMA SE13 table.
+ * @QMI_NAS_NETWORK_NAME_SOURCE_MCC_MNC: MCC and MNC.
+ * @QMI_NAS_NETWORK_NAME_SOURCE_SERVICE_PROVIDER_NAME: Service provider name.
+ *
+ * Network name source.
+ *
+ * Since: 1.24
+ */
+typedef enum {
+    QMI_NAS_NETWORK_NAME_SOURCE_UNKNOWN                                                   = 0x00,
+    QMI_NAS_NETWORK_NAME_SOURCE_OPERATOR_PLMN_LIST_AND_PLMN_NETWORK_NAME                  = 0x01,
+    QMI_NAS_NETWORK_NAME_SOURCE_COMMON_PCN_HANDSET_SPECIFICATION_AND_OPERATOR_NAME_STRING = 0x02,
+    QMI_NAS_NETWORK_NAME_SOURCE_NITZ                                                      = 0x03,
+    QMI_NAS_NETWORK_NAME_SOURCE_SE13                                                      = 0x04,
+    QMI_NAS_NETWORK_NAME_SOURCE_MCC_MNC                                                   = 0x05,
+    QMI_NAS_NETWORK_NAME_SOURCE_SERVICE_PROVIDER_NAME                                     = 0x06,
+} QmiNasNetworkNameSource;
+
+/**
  * QmiNasPlmnNameSpareBits:
  * @QMI_NAS_PLMN_NAME_SPARE_BITS_UNKNOWN: unknown
  * @QMI_NAS_PLMN_NAME_SPARE_BITS_BIT_8: bit 8 is spare
@@ -1378,5 +1508,21 @@ typedef enum {
     QMI_NAS_PLMN_NAME_SPARE_BITS_BITS_38 = 6,
     QMI_NAS_PLMN_NAME_SPARE_BITS_BITS_28 = 7,
 } QmiNasPlmnNameSpareBits;
+
+/**
+ * QmiNasUsagePreference:
+ * @QMI_NAS_USAGE_PREFERENCE_UNKNOWN: Unknown.
+ * @QMI_NAS_USAGE_PREFERENCE_VOICE_CENTRIC: Voice centric.
+ * @QMI_NAS_USAGE_PREFERENCE_DATA_CENTRIC: Data centric.
+ *
+ * Modem usage preference.
+ *
+ * Since: 1.24
+ */
+typedef enum {
+    QMI_NAS_USAGE_PREFERENCE_UNKNOWN       = 0x00,
+    QMI_NAS_USAGE_PREFERENCE_VOICE_CENTRIC = 0x01,
+    QMI_NAS_USAGE_PREFERENCE_DATA_CENTRIC  = 0x02
+} QmiNasUsagePreference;
 
 #endif /* _LIBQMI_GLIB_QMI_ENUMS_NAS_H_ */

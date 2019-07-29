@@ -50,6 +50,7 @@
 #include "qmi-voice.h"
 #include "qmi-loc.h"
 #include "qmi-qos.h"
+#include "qmi-gas.h"
 #include "qmi-utils.h"
 #include "qmi-error-types.h"
 #include "qmi-enum-types.h"
@@ -1054,6 +1055,10 @@ qmi_device_allocate_client (QmiDevice *self,
         ctx->client_type = QMI_TYPE_CLIENT_OMA;
         break;
 
+    case QMI_SERVICE_GAS:
+        ctx->client_type = QMI_TYPE_CLIENT_GAS;
+        break;
+
     case QMI_SERVICE_WDA:
         ctx->client_type = QMI_TYPE_CLIENT_WDA;
         break;
@@ -1497,6 +1502,8 @@ process_message (QmiMessage *message,
 /*****************************************************************************/
 /* Open device */
 
+#define SYNC_TIMEOUT_SECS 2
+
 typedef enum {
     DEVICE_OPEN_CONTEXT_STEP_FIRST = 0,
     DEVICE_OPEN_CONTEXT_STEP_DRIVER,
@@ -1514,6 +1521,7 @@ typedef struct {
     QmiDeviceOpenFlags flags;
     guint timeout;
     guint version_check_retries;
+    guint sync_retries;
 } DeviceOpenContext;
 
 static void
@@ -1601,9 +1609,29 @@ sync_ready (QmiClientCtl *client_ctl,
     GError *error = NULL;
     QmiMessageCtlSyncOutput *output;
 
+    self = g_task_get_source_object (task);
+    ctx  = g_task_get_task_data (task);
+
     /* Check result of the async operation */
     output = qmi_client_ctl_sync_finish (client_ctl, res, &error);
     if (!output) {
+        if (g_error_matches (error, QMI_CORE_ERROR, QMI_CORE_ERROR_TIMEOUT)) {
+            /* Update retries... */
+            ctx->sync_retries--;
+            /* If retries left, retry */
+            if (ctx->sync_retries > 0) {
+                g_error_free (error);
+                qmi_client_ctl_sync (self->priv->client_ctl,
+                                     NULL,
+                                     SYNC_TIMEOUT_SECS,
+                                     g_task_get_cancellable (task),
+                                     (GAsyncReadyCallback)sync_ready,
+                                     task);
+                return;
+            }
+
+            /* Otherwise, propagate the error */
+        }
         g_task_return_error (task, error);
         g_object_unref (task);
         return;
@@ -1617,14 +1645,12 @@ sync_ready (QmiClientCtl *client_ctl,
         return;
     }
 
-    self = g_task_get_source_object (task);
     g_debug ("[%s] Sync operation finished",
              qmi_file_get_path_display (self->priv->file));
 
     qmi_message_ctl_sync_output_unref (output);
 
     /* Go on */
-    ctx = g_task_get_task_data (task);
     ctx->step++;
     device_open_step (task);
 }
@@ -1770,19 +1796,19 @@ device_create_endpoint (QmiDevice *self,
 }
 
 static gboolean
-device_setup_open_flags_by_driver (QmiDevice *self,
-                                   DeviceOpenContext *ctx,
-                                   GError **error)
+device_setup_open_flags_by_driver (QmiDevice          *self,
+                                   DeviceOpenContext  *ctx,
+                                   GError            **error)
 {
-    gchar *driver;
-    GError *driver_error = NULL;
+    gchar  *driver;
+    GError *inner_error = NULL;
 
-    driver = __qmi_utils_get_driver (qmi_file_get_path (self->priv->file), &driver_error);
+    driver = __qmi_utils_get_driver (qmi_file_get_path (self->priv->file), &inner_error);
     if (driver)
         g_debug ("[%s] loaded driver of cdc-wdm port: %s", qmi_file_get_path_display (self->priv->file), driver);
     else if (!self->priv->no_file_check)
-        g_warning ("[%s] couldn't load driver of cdc-wdm port: %s", qmi_file_get_path_display (self->priv->file), driver_error->message);
-    g_clear_error (&driver_error);
+        g_warning ("[%s] couldn't load driver of cdc-wdm port: %s", qmi_file_get_path_display (self->priv->file), inner_error->message);
+    g_clear_error (&inner_error);
 
 #if defined MBIM_QMUX_ENABLED
 
@@ -1791,26 +1817,26 @@ device_setup_open_flags_by_driver (QmiDevice *self,
         if (!g_strcmp0 (driver, "cdc_mbim")) {
             g_debug ("[%s] automatically selecting MBIM mode", qmi_file_get_path_display (self->priv->file));
             ctx->flags |= QMI_DEVICE_OPEN_FLAGS_MBIM;
-            return TRUE;
+            goto out;
         }
         if (!g_strcmp0 (driver, "qmi_wwan")) {
             g_debug ("[%s] automatically selecting QMI mode", qmi_file_get_path_display (self->priv->file));
             ctx->flags &= ~QMI_DEVICE_OPEN_FLAGS_MBIM;
-            return TRUE;
+            goto out;
         }
-        g_set_error (error,
+        g_set_error (&inner_error,
                      QMI_CORE_ERROR,
                      QMI_CORE_ERROR_FAILED,
                      "Cannot automatically select QMI/MBIM mode: driver %s",
                      driver ? driver : "unknown");
-        return FALSE;
+        goto out;
     }
 
     /* MBIM mode requested? */
     if (ctx->flags & QMI_DEVICE_OPEN_FLAGS_MBIM) {
         if (g_strcmp0 (driver, "cdc_mbim") && !self->priv->no_file_check)
             g_warning ("[%s] requested MBIM mode but unexpected driver found: %s", qmi_file_get_path_display (self->priv->file), driver);
-        return TRUE;
+        goto out;
     }
 
 #else
@@ -1826,6 +1852,17 @@ device_setup_open_flags_by_driver (QmiDevice *self,
     if (g_strcmp0 (driver, "qmi_wwan") && !self->priv->no_file_check)
         g_warning ("[%s] requested QMI mode but unexpected driver found: %s",
                    qmi_file_get_path_display (self->priv->file), driver ? driver : "unknown");
+
+#if defined MBIM_QMUX_ENABLED
+out:
+#endif
+
+    g_free (driver);
+
+    if (inner_error) {
+        g_propagate_error (error, inner_error);
+        return FALSE;
+    }
 
     return TRUE;
 }
@@ -1843,7 +1880,7 @@ device_open_step (GTask *task)
     switch (ctx->step) {
     case DEVICE_OPEN_CONTEXT_STEP_FIRST:
         ctx->step++;
-        /* Fall down */
+        /* Fall through */
 
     case DEVICE_OPEN_CONTEXT_STEP_DRIVER:
         if (!device_setup_open_flags_by_driver (self, ctx, &error)) {
@@ -1852,7 +1889,7 @@ device_open_step (GTask *task)
             return;
         }
         ctx->step++;
-        /* Fall down */
+        /* Fall through */
 
     case DEVICE_OPEN_CONTEXT_STEP_CREATE_ENDPOINT:
         device_create_endpoint (self, ctx);
@@ -1865,7 +1902,7 @@ device_open_step (GTask *task)
             return;
         }
         ctx->step++;
-        /* Fall down */
+        /* Fall through */
 
     case DEVICE_OPEN_CONTEXT_STEP_OPEN_ENDPOINT:
         qmi_endpoint_open (self->priv->endpoint,
@@ -1893,23 +1930,26 @@ device_open_step (GTask *task)
             return;
         }
         ctx->step++;
-        /* Fall down */
+        /* Fall through */
 
     case DEVICE_OPEN_CONTEXT_STEP_FLAGS_SYNC:
         /* Sync? */
         if (ctx->flags & QMI_DEVICE_OPEN_FLAGS_SYNC) {
-            g_debug ("[%s] Running sync...",
-                     qmi_file_get_path_display (self->priv->file));
+            /* Setup how many times to retry... We'll retry once per second */
+            ctx->sync_retries = ctx->timeout > SYNC_TIMEOUT_SECS ? (ctx->timeout / SYNC_TIMEOUT_SECS) : 1;
+            g_debug ("[%s] Running sync (%u retries)...",
+                     qmi_file_get_path_display (self->priv->file),
+                     ctx->sync_retries);
             qmi_client_ctl_sync (self->priv->client_ctl,
                                  NULL,
-                                 ctx->timeout,
+                                 SYNC_TIMEOUT_SECS,
                                  g_task_get_cancellable (task),
                                  (GAsyncReadyCallback)sync_ready,
                                  task);
             return;
         }
         ctx->step++;
-        /* Fall down */
+        /* Fall through */
 
     case DEVICE_OPEN_CONTEXT_STEP_FLAGS_NETPORT:
         /* Network port setup */
@@ -1941,7 +1981,7 @@ device_open_step (GTask *task)
             return;
         }
         ctx->step++;
-        /* Fall down */
+        /* Fall through */
 
     case DEVICE_OPEN_CONTEXT_STEP_FLAGS_EXPECT_INDICATIONS:
         qmi_endpoint_setup_indications (self->priv->endpoint,
@@ -1950,7 +1990,7 @@ device_open_step (GTask *task)
                                         (GAsyncReadyCallback)setup_indications_ready,
                                         task);
         return;
-        /* Fall down */
+        /* Fall through */
 
     case DEVICE_OPEN_CONTEXT_STEP_LAST:
         /* Nothing else to process, done we are */
@@ -2043,22 +2083,19 @@ endpoint_close_ready (QmiEndpoint  *endpoint,
                       GTask        *task)
 {
     QmiDevice *self;
-    gboolean closed;
-    GError *error = NULL;
+    GError    *error = NULL;
 
     self = g_task_get_source_object (task);
 
-    closed = qmi_endpoint_close_finish (endpoint, res, &error);
+    qmi_endpoint_close_finish (endpoint, res, &error);
+
     /* Success or failure, we want to get rid of this endpoint. */
     endpoint_cleanup (self);
 
-    if (!closed) {
+    if (error)
         g_task_return_error (task, error);
-        g_object_unref (task);
-        return;
-    }
-
-    g_task_return_boolean (task, TRUE);
+    else
+        g_task_return_boolean (task, TRUE);
     g_object_unref (task);
 }
 
@@ -2072,6 +2109,13 @@ qmi_device_close_async (QmiDevice           *self,
     GTask *task;
 
     task = g_task_new (self, cancellable, callback, user_data);
+
+    /* if already closed, we're done */
+    if (!self->priv->endpoint) {
+        g_task_return_boolean (task, TRUE);
+        g_object_unref (task);
+        return;
+    }
 
     qmi_endpoint_close (self->priv->endpoint,
                         timeout,
