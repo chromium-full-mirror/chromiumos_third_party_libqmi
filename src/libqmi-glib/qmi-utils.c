@@ -30,6 +30,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <pwd.h>
+#include <errno.h>
 
 #include "qmi-utils.h"
 #include "qmi-error-types.h"
@@ -120,18 +121,13 @@ __qmi_user_allowed (uid_t uid,
 
 /*****************************************************************************/
 
-gchar *
-__qmi_utils_get_driver (const gchar *cdc_wdm_path,
-                        GError **error)
+static gchar *
+utils_get_driver (const gchar  *device_basename,
+                  GError      **error)
 {
     static const gchar *subsystems[] = { "usbmisc", "usb" };
-    guint i;
-    gchar *device_basename;
-    gchar *driver = NULL;
-
-    device_basename = __qmi_utils_get_devname (cdc_wdm_path, error);
-    if (!device_basename)
-        return NULL;
+    guint               i;
+    gchar              *driver = NULL;
 
     for (i = 0; !driver && i < G_N_ELEMENTS (subsystems); i++) {
         gchar *tmp;
@@ -153,26 +149,109 @@ __qmi_utils_get_driver (const gchar *cdc_wdm_path,
         g_free (path);
     }
 
-    g_free (device_basename);
-
+    if (!driver)
+        g_set_error (error, QMI_CORE_ERROR, QMI_CORE_ERROR_FAILED,
+                     "couldn't detect device driver");
     return driver;
 }
 
-gchar *
-__qmi_utils_get_devname (const gchar *cdc_wdm_path, GError **error)
+__QmiTransportType
+__qmi_utils_get_transport_type (const gchar  *path,
+                                GError      **error)
 {
-    gchar *devname;
+    __QmiTransportType  transport = __QMI_TRANSPORT_TYPE_UNKNOWN;
+    gchar              *device_basename = NULL;
+    gchar              *driver = NULL;
+    gchar              *sysfs_path = NULL;
+    GError             *inner_error = NULL;
 
-    if (g_file_test (cdc_wdm_path, G_FILE_TEST_IS_SYMLINK)) {
-        gchar *link_target;
+    device_basename = __qmi_utils_get_devname (path, &inner_error);
+    if (!device_basename)
+        goto out;
 
-        link_target = g_file_read_link (cdc_wdm_path, error);
-        if (!link_target)
-           return NULL;
-        devname = g_path_get_basename (link_target);
-        g_free (link_target);
+    driver = utils_get_driver (device_basename, &inner_error);
+
+    if (!driver) {
+        /* On Android systems we get access to the QMI control port through
+         * virtual smdcntl devices in the smdpkt subsystem. */
+        sysfs_path = g_strdup_printf ("/sys/class/smdpkt/%s", device_basename);
+        if (g_file_test (sysfs_path, G_FILE_TEST_EXISTS)) {
+            g_clear_error (&inner_error);
+            transport = __QMI_TRANSPORT_TYPE_QMUX;
+            goto out;
+        }
+        g_free (sysfs_path);
+        /* On mainline kernels this control port is provided by rpmsg */
+        sysfs_path = g_strdup_printf ("/sys/class/rpmsg/%s", device_basename);
+        if (g_file_test (sysfs_path, G_FILE_TEST_EXISTS)) {
+            g_clear_error (&inner_error);
+            transport = __QMI_TRANSPORT_TYPE_QMUX;
+        }
+        goto out;
+    }
+
+    if (!g_strcmp0 (driver, "cdc_mbim")) {
+        transport = __QMI_TRANSPORT_TYPE_MBIM;
+        goto out;
+    }
+
+    if (!g_strcmp0 (driver, "qmi_wwan")) {
+        transport = __QMI_TRANSPORT_TYPE_QMUX;
+        goto out;
+    }
+
+    g_set_error (&inner_error, QMI_CORE_ERROR, QMI_CORE_ERROR_FAILED,
+                 "unexpected driver detected: %s", driver);
+
+ out:
+
+    g_free (device_basename);
+    g_free (driver);
+    g_free (sysfs_path);
+
+    if (inner_error) {
+        g_assert (transport == __QMI_TRANSPORT_TYPE_UNKNOWN);
+        g_propagate_error (error, inner_error);
     } else
-        devname = g_path_get_basename (cdc_wdm_path);
+        g_assert (transport != __QMI_TRANSPORT_TYPE_UNKNOWN);
+
+    return transport;
+}
+
+gchar *
+__qmi_utils_get_devpath (const gchar  *cdc_wdm_path,
+                         GError      **error)
+{
+    gchar *aux;
+
+    if (!g_file_test (cdc_wdm_path, G_FILE_TEST_IS_SYMLINK))
+        return g_strdup (cdc_wdm_path);
+
+    aux = realpath (cdc_wdm_path, NULL);
+    if (!aux) {
+        int saved_errno = errno;
+
+        g_set_error (error, QMI_CORE_ERROR, QMI_CORE_ERROR_FAILED,
+                     "Couldn't get realpath: %s", g_strerror (saved_errno));
+        return NULL;
+    }
+
+    return aux;
+}
+
+gchar *
+__qmi_utils_get_devname (const gchar  *cdc_wdm_path,
+                         GError      **error)
+{
+    gchar *aux;
+    gchar *devname = NULL;
+
+    aux = __qmi_utils_get_devpath (cdc_wdm_path, error);
+    if (aux) {
+        devname = g_path_get_basename (aux);
+        g_free (aux);
+    }
+
     return devname;
 }
 

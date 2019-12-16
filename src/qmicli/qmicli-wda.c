@@ -53,7 +53,7 @@ static gboolean noop_flag;
 
 static GOptionEntry entries[] = {
     { "wda-set-data-format", 0, 0, G_OPTION_ARG_STRING, &set_data_format_str,
-      "Set data format (allowed keys: link-layer-protocol (802-3|raw-ip), ul-protocol (tlp|qc-ncm|mbim|rndis|qmap), dl-protocol (tlp|qc-ncm|mbim|rndis|qmap), dl-datagrams-max-size, dl-max-datagrams, ep-type (undefined|hsusb), ep-iface-number)",
+      "Set data format (allowed keys: link-layer-protocol (802-3|raw-ip), ul-protocol (tlp|qc-ncm|mbim|rndis|qmap), dl-protocol (tlp|qc-ncm|mbim|rndis|qmap), dl-datagram-max-size, dl-max-datagrams, ep-type (undefined|hsusb), ep-iface-number)",
       "[\"key=value,...\"]"
     },
     { "wda-get-data-format", 0, 0, G_OPTION_ARG_NONE, &get_data_format_flag,
@@ -148,6 +148,7 @@ get_data_format_ready (QmiClientWda *client,
     QmiWdaDataAggregationProtocol data_aggregation_protocol;
     guint32 ndp_signature;
     guint32 data_aggregation_max_size;
+    guint32 data_aggregation_max_datagrams;
 
     output = qmi_client_wda_get_data_format_finish (client, res, &error);
     if (!output) {
@@ -201,11 +202,11 @@ get_data_format_ready (QmiClientWda *client,
             NULL))
         g_print ("                     NDP signature: '%u'\n", ndp_signature);
 
-    if (qmi_message_wda_get_data_format_output_get_uplink_data_aggregation_max_size (
+    if (qmi_message_wda_get_data_format_output_get_downlink_data_aggregation_max_datagrams (
             output,
-            &data_aggregation_max_size,
+            &data_aggregation_max_datagrams,
             NULL))
-        g_print ("  Uplink data aggregation max size: '%u'\n", data_aggregation_max_size);
+        g_print ("Downlink data aggregation max datagrams: '%u'\n", data_aggregation_max_datagrams);
 
     if (qmi_message_wda_get_data_format_output_get_downlink_data_aggregation_max_size (
             output,
@@ -306,7 +307,7 @@ typedef struct {
     guint32 dl_datagram_max_size;
     guint32 dl_max_datagrams;
     QmiDataEndpointType endpoint_type;
-    guint32 endpoint_iface_number;
+    gint endpoint_iface_number;
 } SetDataFormatProperties;
 
 

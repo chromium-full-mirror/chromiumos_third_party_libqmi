@@ -484,6 +484,29 @@ typedef enum {
  */
 
 /*****************************************************************************/
+/* Helper enums for the 'QMI DMS Get MAC Address' message */
+
+/**
+ * QmiDmsMacType:
+ * @QMI_DMS_MAC_TYPE_WLAN: WLAN MAC address.
+ * @QMI_DMS_MAC_TYPE_BT: Bluetooth MAC address.
+ *
+ * Specifies the device from which the MAC address should be queried.
+ *
+ * Since: 1.26
+ */
+typedef enum {
+    QMI_DMS_MAC_TYPE_WLAN = 0,
+    QMI_DMS_MAC_TYPE_BT = 1,
+} QmiDmsMacType;
+
+/**
+ * qmi_dms_mac_type_get_string:
+ *
+ * Since: 1.26
+ */
+
+/*****************************************************************************/
 /* Helper enums for the 'QMI DMS HP Change Device Mode' message */
 
 /**
@@ -583,53 +606,53 @@ const gchar *qmi_dms_swi_usb_composition_get_description (QmiDmsSwiUsbCompositio
  */
 
 /*****************************************************************************/
-/* Helper enums for the 'QMI DMS Dell Change Device Mode' message */
+/* Helper enums for the 'QMI DMS Foxconn Change Device Mode' message */
 
 /**
- * QmiDmsDellDeviceMode:
- * @QMI_DMS_DELL_DEVICE_MODE_UNKNOWN: Unknown mode.
- * @QMI_DMS_DELL_DEVICE_MODE_FASTBOOT_ONLINE: Fastboot download mode for full partition files.
- * @QMI_DMS_DELL_DEVICE_MODE_FASTBOOT_OTA: Fastboot download mode for OTA files.
+ * QmiDmsFoxconnDeviceMode:
+ * @QMI_DMS_FOXCONN_DEVICE_MODE_UNKNOWN: Unknown mode.
+ * @QMI_DMS_FOXCONN_DEVICE_MODE_FASTBOOT_ONLINE: Fastboot download mode for full partition files.
+ * @QMI_DMS_FOXCONN_DEVICE_MODE_FASTBOOT_OTA: Fastboot download mode for OTA files.
  *
- * Dell specific device modes.
+ * Foxconn specific device modes.
  *
- * Since: 1.22.4
+ * Since: 1.26
  */
 typedef enum {
-    QMI_DMS_DELL_DEVICE_MODE_UNKNOWN         = 0,
-    QMI_DMS_DELL_DEVICE_MODE_FASTBOOT_ONLINE = 0x05,
-    QMI_DMS_DELL_DEVICE_MODE_FASTBOOT_OTA    = 0x0A,
-} QmiDmsDellDeviceMode;
+    QMI_DMS_FOXCONN_DEVICE_MODE_UNKNOWN         = 0,
+    QMI_DMS_FOXCONN_DEVICE_MODE_FASTBOOT_ONLINE = 0x05,
+    QMI_DMS_FOXCONN_DEVICE_MODE_FASTBOOT_OTA    = 0x0A,
+} QmiDmsFoxconnDeviceMode;
 
 /**
- * qmi_dms_dell_device_mode_get_string:
+ * qmi_dms_foxconn_device_mode_get_string:
  *
- * Since: 1.22.4
+ * Since: 1.26
  */
 
 /*****************************************************************************/
-/* Helper enums for the 'QMI DMS Dell Get Firmware Version' message */
+/* Helper enums for the 'QMI DMS Foxconn Get Firmware Version' message */
 
 /**
- * QmiDmsDellFirmwareVersionType:
- * @QMI_DMS_DELL_FIRMWARE_VERSION_TYPE_FIRMWARE_MCFG: E.g. T77W968.F0.0.0.2.3.GC.004.
- * @QMI_DMS_DELL_FIRMWARE_VERSION_TYPE_FIRMWARE_MCFG_APPS: E.g. T77W968.F0.0.0.2.3.GC.004.011.
- * @QMI_DMS_DELL_FIRMWARE_VERSION_TYPE_APPS: E.g. 011.
+ * QmiDmsFoxconnFirmwareVersionType:
+ * @QMI_DMS_FOXCONN_FIRMWARE_VERSION_TYPE_FIRMWARE_MCFG: E.g. T77W968.F0.0.0.2.3.GC.004.
+ * @QMI_DMS_FOXCONN_FIRMWARE_VERSION_TYPE_FIRMWARE_MCFG_APPS: E.g. T77W968.F0.0.0.2.3.GC.004.011.
+ * @QMI_DMS_FOXCONN_FIRMWARE_VERSION_TYPE_APPS: E.g. 011.
  *
- * Dell specific firmware version types.
+ * Foxconn specific firmware version types.
  *
- * Since: 1.22.4
+ * Since: 1.26
  */
 typedef enum {
-    QMI_DMS_DELL_FIRMWARE_VERSION_TYPE_FIRMWARE_MCFG      = 0x00,
-    QMI_DMS_DELL_FIRMWARE_VERSION_TYPE_FIRMWARE_MCFG_APPS = 0x01,
-    QMI_DMS_DELL_FIRMWARE_VERSION_TYPE_APPS               = 0x02,
-} QmiDmsDellFirmwareVersionType;
+    QMI_DMS_FOXCONN_FIRMWARE_VERSION_TYPE_FIRMWARE_MCFG      = 0x00,
+    QMI_DMS_FOXCONN_FIRMWARE_VERSION_TYPE_FIRMWARE_MCFG_APPS = 0x01,
+    QMI_DMS_FOXCONN_FIRMWARE_VERSION_TYPE_APPS               = 0x02,
+} QmiDmsFoxconnFirmwareVersionType;
 
 /**
- * qmi_dms_dell_firmware_version_type:
+ * qmi_dms_foxconn_firmware_version_type_get_string:
  *
- * Since: 1.22.4
+ * Since: 1.26
  */
 
 #endif /* _LIBQMI_GLIB_QMI_ENUMS_DMS_H_ */

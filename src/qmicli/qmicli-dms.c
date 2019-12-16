@@ -96,8 +96,11 @@ static gchar *hp_change_device_mode_str;
 static gboolean swi_get_current_firmware_flag;
 static gboolean swi_get_usb_composition_flag;
 static gchar *swi_set_usb_composition_str;
-static gchar *dell_change_device_mode_str;
-static gchar *dell_get_firmware_version_str;
+static gchar *dell_change_device_mode_str; /* deprecated */
+static gchar *foxconn_change_device_mode_str;
+static gchar *dell_get_firmware_version_str; /* deprecated */
+static gchar *foxconn_get_firmware_version_str;
+static gchar *get_mac_address_str;
 static gboolean reset_flag;
 static gboolean noop_flag;
 
@@ -306,13 +309,17 @@ static GOptionEntry entries[] = {
       "Set USB composition (Sierra Wireless specific)",
       "[#]"
     },
-    { "dms-dell-change-device-mode", 0, 0, G_OPTION_ARG_STRING, &dell_change_device_mode_str,
-      "Change device mode (DELL specific)",
+    { "dms-foxconn-change-device-mode", 0, 0, G_OPTION_ARG_STRING, &foxconn_change_device_mode_str,
+      "Change device mode (Foxconn specific)",
       "[fastboot-ota|fastboot-online]"
     },
-    { "dms-dell-get-firmware-version", 0, 0, G_OPTION_ARG_STRING, &dell_get_firmware_version_str,
-      "Get firmware version (DELL specific)",
+    { "dms-foxconn-get-firmware-version", 0, 0, G_OPTION_ARG_STRING, &foxconn_get_firmware_version_str,
+      "Get firmware version (Foxconn specific)",
       "[firmware-mcfg-apps|firmware-mcfg|apps]"
+    },
+    { "dms-get-mac-address", 0, 0, G_OPTION_ARG_STRING, &get_mac_address_str,
+      "Get default MAC address",
+      "[wlan|bt]"
     },
     { "dms-reset", 0, 0, G_OPTION_ARG_NONE, &reset_flag,
       "Reset the service state",
@@ -321,6 +328,15 @@ static GOptionEntry entries[] = {
     { "dms-noop", 0, 0, G_OPTION_ARG_NONE, &noop_flag,
       "Just allocate or release a DMS client. Use with `--client-no-release-cid' and/or `--client-cid'",
       NULL
+    },
+    /* deprecated entries (hidden in --help) */
+    { "dms-dell-change-device-mode", 0, G_OPTION_FLAG_HIDDEN, G_OPTION_ARG_STRING, &dell_change_device_mode_str,
+      "Change device mode (DELL specific)",
+      "[fastboot-ota|fastboot-online]"
+    },
+    { "dms-dell-get-firmware-version", 0, G_OPTION_FLAG_HIDDEN, G_OPTION_ARG_STRING, &dell_get_firmware_version_str,
+      "Get firmware version (DELL specific)",
+      "[firmware-mcfg-apps|firmware-mcfg|apps]"
     },
     { NULL }
 };
@@ -401,7 +417,10 @@ qmicli_dms_options_enabled (void)
                  swi_get_usb_composition_flag +
                  !!swi_set_usb_composition_str +
                  !!dell_change_device_mode_str +
+                 !!foxconn_change_device_mode_str +
                  !!dell_get_firmware_version_str +
+                 !!foxconn_get_firmware_version_str +
+                 !!get_mac_address_str +
                  reset_flag +
                  noop_flag);
 
@@ -2811,7 +2830,7 @@ get_stored_image_list_stored_images_ready (QmiClientDms *client,
         if (image_index < 0)
             continue;
 
-        if (image_index >= image->sublist->len) {
+        if ((guint)image_index >= image->sublist->len) {
             g_printerr ("error: couldn't find '%s' image at index '%d'\n",
                         qmi_dms_firmware_image_type_get_string (image->type),
                         image_index);
@@ -3668,24 +3687,24 @@ swi_set_usb_composition_input_create (const gchar *str)
     return input;
 }
 
-static QmiMessageDmsDellChangeDeviceModeInput *
-dell_change_device_mode_input_create (const gchar *str)
+static QmiMessageDmsFoxconnChangeDeviceModeInput *
+foxconn_change_device_mode_input_create (const gchar *str)
 {
-    QmiMessageDmsDellChangeDeviceModeInput *input = NULL;
-    QmiDmsDellDeviceMode mode;
+    QmiMessageDmsFoxconnChangeDeviceModeInput *input = NULL;
+    QmiDmsFoxconnDeviceMode mode;
     GError *error = NULL;
 
-    if (!qmicli_read_dms_dell_device_mode_from_string (str, &mode)) {
-        g_printerr ("error: couldn't parse input dell device mode : '%s'\n", str);
+    if (!qmicli_read_dms_foxconn_device_mode_from_string (str, &mode)) {
+        g_printerr ("error: couldn't parse input foxconn device mode : '%s'\n", str);
         return NULL;
     }
 
-    input = qmi_message_dms_dell_change_device_mode_input_new ();
-    if (!qmi_message_dms_dell_change_device_mode_input_set_mode (input, mode, &error)) {
+    input = qmi_message_dms_foxconn_change_device_mode_input_new ();
+    if (!qmi_message_dms_foxconn_change_device_mode_input_set_mode (input, mode, &error)) {
         g_printerr ("error: couldn't create input data bundle: '%s'\n",
                     error->message);
         g_error_free (error);
-        qmi_message_dms_dell_change_device_mode_input_unref (input);
+        qmi_message_dms_foxconn_change_device_mode_input_unref (input);
         return NULL;
     }
 
@@ -3693,13 +3712,13 @@ dell_change_device_mode_input_create (const gchar *str)
 }
 
 static void
-dell_change_device_mode_ready (QmiClientDms *client,
-                               GAsyncResult *res)
+foxconn_change_device_mode_ready (QmiClientDms *client,
+                                  GAsyncResult *res)
 {
-    QmiMessageDmsDellChangeDeviceModeOutput *output;
+    QmiMessageDmsFoxconnChangeDeviceModeOutput *output;
     GError *error = NULL;
 
-    output = qmi_client_dms_dell_change_device_mode_finish (client, res, &error);
+    output = qmi_client_dms_foxconn_change_device_mode_finish (client, res, &error);
     if (!output) {
         g_printerr ("error: operation failed: %s\n", error->message);
         g_error_free (error);
@@ -3707,18 +3726,18 @@ dell_change_device_mode_ready (QmiClientDms *client,
         return;
     }
 
-    if (!qmi_message_dms_dell_change_device_mode_output_get_result (output, &error)) {
-        g_printerr ("error: couldn't change Dell device mode: %s\n", error->message);
+    if (!qmi_message_dms_foxconn_change_device_mode_output_get_result (output, &error)) {
+        g_printerr ("error: couldn't change foxconn device mode: %s\n", error->message);
         g_error_free (error);
-        qmi_message_dms_dell_change_device_mode_output_unref (output);
+        qmi_message_dms_foxconn_change_device_mode_output_unref (output);
         operation_shutdown (FALSE);
         return;
     }
 
-    g_print ("[%s] Successfully changed Dell device mode\n",
+    g_print ("[%s] Successfully changed foxconn device mode\n",
              qmi_device_get_path_display (ctx->device));
 
-    qmi_message_dms_dell_change_device_mode_output_unref (output);
+    qmi_message_dms_foxconn_change_device_mode_output_unref (output);
 
     /* Changing the mode will end up power cycling the device right away, so
      * just ignore any error from now on and don't even try to release the
@@ -3726,24 +3745,24 @@ dell_change_device_mode_ready (QmiClientDms *client,
     operation_shutdown_skip_cid_release (TRUE);
 }
 
-static QmiMessageDmsDellGetFirmwareVersionInput *
-dell_get_firmware_version_input_create (const gchar *str)
+static QmiMessageDmsFoxconnGetFirmwareVersionInput *
+foxconn_get_firmware_version_input_create (const gchar *str)
 {
-    QmiMessageDmsDellGetFirmwareVersionInput *input = NULL;
-    QmiDmsDellFirmwareVersionType type;
+    QmiMessageDmsFoxconnGetFirmwareVersionInput *input = NULL;
+    QmiDmsFoxconnFirmwareVersionType type;
     GError *error = NULL;
 
-    if (!qmicli_read_dms_dell_firmware_version_type_from_string (str, &type)) {
-        g_printerr ("error: couldn't parse input dell firmware version type : '%s'\n", str);
+    if (!qmicli_read_dms_foxconn_firmware_version_type_from_string (str, &type)) {
+        g_printerr ("error: couldn't parse input foxconn firmware version type : '%s'\n", str);
         return NULL;
     }
 
-    input = qmi_message_dms_dell_get_firmware_version_input_new ();
-    if (!qmi_message_dms_dell_get_firmware_version_input_set_version_type (input, type, &error)) {
+    input = qmi_message_dms_foxconn_get_firmware_version_input_new ();
+    if (!qmi_message_dms_foxconn_get_firmware_version_input_set_version_type (input, type, &error)) {
         g_printerr ("error: couldn't create input data bundle: '%s'\n",
                     error->message);
         g_error_free (error);
-        qmi_message_dms_dell_get_firmware_version_input_unref (input);
+        qmi_message_dms_foxconn_get_firmware_version_input_unref (input);
         return NULL;
     }
 
@@ -3751,14 +3770,14 @@ dell_get_firmware_version_input_create (const gchar *str)
 }
 
 static void
-dell_get_firmware_version_ready (QmiClientDms *client,
-                                 GAsyncResult *res)
+foxconn_get_firmware_version_ready (QmiClientDms *client,
+                                    GAsyncResult *res)
 {
     const gchar *str = NULL;
-    QmiMessageDmsDellGetFirmwareVersionOutput *output;
+    QmiMessageDmsFoxconnGetFirmwareVersionOutput *output;
     GError *error = NULL;
 
-    output = qmi_client_dms_dell_get_firmware_version_finish (client, res, &error);
+    output = qmi_client_dms_foxconn_get_firmware_version_finish (client, res, &error);
     if (!output) {
         g_printerr ("error: operation failed: %s\n", error->message);
         g_error_free (error);
@@ -3766,22 +3785,88 @@ dell_get_firmware_version_ready (QmiClientDms *client,
         return;
     }
 
-    if (!qmi_message_dms_dell_get_firmware_version_output_get_result (output, &error)) {
-        g_printerr ("error: couldn't get dell firmware version: %s\n", error->message);
+    if (!qmi_message_dms_foxconn_get_firmware_version_output_get_result (output, &error)) {
+        g_printerr ("error: couldn't get foxconn firmware version: %s\n", error->message);
         g_error_free (error);
-        qmi_message_dms_dell_get_firmware_version_output_unref (output);
+        qmi_message_dms_foxconn_get_firmware_version_output_unref (output);
         operation_shutdown (FALSE);
         return;
     }
 
-    qmi_message_dms_dell_get_firmware_version_output_get_version (output, &str, NULL);
+    qmi_message_dms_foxconn_get_firmware_version_output_get_version (output, &str, NULL);
 
     g_print ("[%s] Firmware version retrieved:\n"
              "\tVersion: '%s'\n",
              qmi_device_get_path_display (ctx->device),
              VALIDATE_UNKNOWN (str));
 
-    qmi_message_dms_dell_get_firmware_version_output_unref (output);
+    qmi_message_dms_foxconn_get_firmware_version_output_unref (output);
+    operation_shutdown (TRUE);
+}
+
+static QmiMessageDmsGetMacAddressInput *
+get_mac_address_input_create (const gchar *str)
+{
+    QmiMessageDmsGetMacAddressInput *input = NULL;
+    QmiDmsMacType device;
+
+    if (qmicli_read_dms_mac_type_from_string (str, &device)) {
+        GError *error = NULL;
+
+        input = qmi_message_dms_get_mac_address_input_new ();
+        if (!qmi_message_dms_get_mac_address_input_set_device (
+                input,
+                device,
+                &error)) {
+            g_printerr ("error: couldn't create input data bundle: '%s'\n",
+                        error->message);
+            g_error_free (error);
+            qmi_message_dms_get_mac_address_input_unref (input);
+            input = NULL;
+        }
+    }
+
+    return input;
+}
+
+static void
+get_mac_address_ready (QmiClientDms *client,
+                       GAsyncResult *res)
+{
+    QmiMessageDmsGetMacAddressOutput *output;
+    GError *error = NULL;
+    gchar *mac_address_printable;
+    GArray *mac_address = NULL;
+
+    output = qmi_client_dms_get_mac_address_finish (client, res, &error);
+    if (!output) {
+        g_printerr ("error: operation failed: %s\n", error->message);
+        g_error_free (error);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    if (!qmi_message_dms_get_mac_address_output_get_result (output, &error)) {
+        g_printerr ("error: couldn't get mac address: %s\n", error->message);
+        g_error_free (error);
+        qmi_message_dms_get_mac_address_output_unref (output);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    qmi_message_dms_get_mac_address_output_get_mac_address (output, &mac_address, NULL);
+    mac_address_printable = qmicli_get_raw_data_printable (mac_address, 80, "\t\t");
+
+    g_print ("[%s] MAC address read:\n"
+             "\tSize: '%u' bytes\n"
+             "\tContents:\n"
+             "%s",
+             qmi_device_get_path_display (ctx->device),
+             mac_address->len,
+             mac_address_printable);
+    g_free (mac_address_printable);
+
+    qmi_message_dms_get_mac_address_output_unref (output);
     operation_shutdown (TRUE);
 }
 
@@ -4604,46 +4689,68 @@ qmicli_dms_run (QmiDevice *device,
     }
 
     /* Request to change device download mode */
-    if (dell_change_device_mode_str) {
-        QmiMessageDmsDellChangeDeviceModeInput *input;
+    if (foxconn_change_device_mode_str || dell_change_device_mode_str) {
+        QmiMessageDmsFoxconnChangeDeviceModeInput *input;
 
-        g_debug ("Asynchronously changing device mode (Dell specific)...");
+        g_debug ("Asynchronously changing device mode (Foxconn specific)...");
 
-        input = dell_change_device_mode_input_create (dell_change_device_mode_str);
+        input = foxconn_change_device_mode_input_create (foxconn_change_device_mode_str ? foxconn_change_device_mode_str : dell_change_device_mode_str);
         if (!input) {
             operation_shutdown (FALSE);
             return;
         }
 
-        qmi_client_dms_dell_change_device_mode (ctx->client,
-                                                input,
-                                                10,
-                                                ctx->cancellable,
-                                                (GAsyncReadyCallback)dell_change_device_mode_ready,
-                                                NULL);
-        qmi_message_dms_dell_change_device_mode_input_unref (input);
+        qmi_client_dms_foxconn_change_device_mode (ctx->client,
+                                                   input,
+                                                   10,
+                                                   ctx->cancellable,
+                                                   (GAsyncReadyCallback)foxconn_change_device_mode_ready,
+                                                   NULL);
+        qmi_message_dms_foxconn_change_device_mode_input_unref (input);
         return;
     }
 
     /* Request to get firmware version? */
-    if (dell_get_firmware_version_str) {
-        QmiMessageDmsDellGetFirmwareVersionInput *input;
+    if (foxconn_get_firmware_version_str || dell_get_firmware_version_str) {
+        QmiMessageDmsFoxconnGetFirmwareVersionInput *input;
 
-        g_debug ("Asynchronously getting firmware version (Dell specific)...");
+        g_debug ("Asynchronously getting firmware version (Foxconn specific)...");
 
-        input = dell_get_firmware_version_input_create (dell_get_firmware_version_str);
+        input = foxconn_get_firmware_version_input_create (foxconn_get_firmware_version_str ? foxconn_get_firmware_version_str : dell_get_firmware_version_str);
         if (!input) {
             operation_shutdown (FALSE);
             return;
         }
 
-        qmi_client_dms_dell_get_firmware_version (ctx->client,
-                                                  input,
-                                                  10,
-                                                  ctx->cancellable,
-                                                  (GAsyncReadyCallback)dell_get_firmware_version_ready,
-                                                  NULL);
-        qmi_message_dms_dell_get_firmware_version_input_unref (input);
+        qmi_client_dms_foxconn_get_firmware_version (ctx->client,
+                                                     input,
+                                                     10,
+                                                     ctx->cancellable,
+                                                     (GAsyncReadyCallback)foxconn_get_firmware_version_ready,
+                                                     NULL);
+        qmi_message_dms_foxconn_get_firmware_version_input_unref (input);
+        return;
+    }
+
+    /* Request to get MAC address? */
+    if (get_mac_address_str) {
+        QmiMessageDmsGetMacAddressInput *input;
+
+        g_debug ("Asynchronously getting MAC address...");
+
+        input = get_mac_address_input_create (get_mac_address_str);
+        if (!input) {
+            operation_shutdown (FALSE);
+            return;
+        }
+
+        qmi_client_dms_get_mac_address (ctx->client,
+                                        input,
+                                        10,
+                                        ctx->cancellable,
+                                        (GAsyncReadyCallback)get_mac_address_ready,
+                                        NULL);
+        qmi_message_dms_get_mac_address_input_unref (input);
         return;
     }
 

@@ -118,13 +118,14 @@
       <xi:include href="xml/qmi-message-dms-set-boot-image-download-mode.xml"/>
       <xi:include href="xml/qmi-message-dms-get-software-version.xml"/>
       <xi:include href="xml/qmi-message-dms-set-service-programming-code.xml"/>
+      <xi:include href="xml/qmi-message-dms-get-mac-address.xml"/>
       <xi:include href="xml/qmi-message-dms-hp-change-device-mode.xml"/>
       <xi:include href="xml/qmi-message-dms-swi-get-current-firmware.xml"/>
       <xi:include href="xml/qmi-message-dms-swi-get-usb-composition.xml"/>
       <xi:include href="xml/qmi-message-dms-swi-set-usb-composition.xml"/>
-      <xi:include href="xml/qmi-message-dms-dell-get-firmware-version.xml"/>
+      <xi:include href="xml/qmi-message-dms-foxconn-get-firmware-version.xml"/>
       <xi:include href="xml/qmi-message-dms-set-fcc-authentication.xml"/>
-      <xi:include href="xml/qmi-message-dms-dell-change-device-mode.xml"/>
+      <xi:include href="xml/qmi-message-dms-foxconn-change-device-mode.xml"/>
       <xi:include href="xml/qmi-message-dms-get-supported-messages.xml"/>
     </section>
   </chapter>
@@ -168,6 +169,7 @@
       <xi:include href="xml/qmi-message-nas-get-supported-messages.xml"/>
       <xi:include href="xml/qmi-message-nas-get-lte-cphy-ca-info.xml"/>
       <xi:include href="xml/qmi-message-nas-get-operator-name.xml"/>
+      <xi:include href="xml/qmi-message-nas-swi-get-status.xml"/>
     </section>
   </chapter>
 
@@ -451,6 +453,17 @@
   </chapter>
 
   <chapter>
+    <title>Data System Determination (DSD)</title>
+    <xi:include href="xml/qmi-client-dsd.xml"/>
+    <xi:include href="xml/qmi-enums-dsd.xml"/>
+    <section>
+      <title>DSD Requests</title>
+      <xi:include href="xml/qmi-message-dsd-get-apn-info.xml"/>
+      <xi:include href="xml/qmi-message-dsd-set-apn-type.xml"/>
+    </section>
+  </chapter>
+
+  <chapter>
     <title>Compatibility with older versions</title>
     <xi:include href="xml/qmi-compat.xml"/>
   </chapter>
@@ -459,66 +472,70 @@
     <title>Object Hierarchy</title>
      <xi:include href="xml/tree_index.sgml"/>
   </chapter>
-  <index id="api-index-full">
-    <title>API Index</title>
-    <xi:include href="xml/api-index-full.xml"><xi:fallback /></xi:include>
-  </index>
-  <index id="deprecated-api-index" role="deprecated">
-    <title>Index of deprecated API</title>
-    <xi:include href="xml/api-index-deprecated.xml"><xi:fallback /></xi:include>
-  </index>
-  <index id="api-index-1-0" role="1.0">
-    <title>Index of new core symbols in 1.0</title>
-    <xi:include href="xml/api-index-1.0.xml"><xi:fallback /></xi:include>
-  </index>
-  <index id="api-index-1-4" role="1.4">
-    <title>Index of new core symbols in 1.4</title>
-    <xi:include href="xml/api-index-1.4.xml"><xi:fallback /></xi:include>
-  </index>
-  <index id="api-index-1-6" role="1.6">
-    <title>Index of new core symbols in 1.6</title>
-    <xi:include href="xml/api-index-1.6.xml"><xi:fallback /></xi:include>
-  </index>
-  <index id="api-index-1-8" role="1.8">
-    <title>Index of new core symbols in 1.8</title>
-    <xi:include href="xml/api-index-1.8.xml"><xi:fallback /></xi:include>
-  </index>
-  <index id="api-index-1-10" role="1.10">
-    <title>Index of new core symbols in 1.10</title>
-    <xi:include href="xml/api-index-1.10.xml"><xi:fallback /></xi:include>
-  </index>
-  <index id="api-index-1-12" role="1.12">
-    <title>Index of new core symbols in 1.12</title>
-    <xi:include href="xml/api-index-1.12.xml"><xi:fallback /></xi:include>
-  </index>
-  <index id="api-index-1-14" role="1.14">
-    <title>Index of new core symbols in 1.14</title>
-    <xi:include href="xml/api-index-1.14.xml"><xi:fallback /></xi:include>
-  </index>
-  <index id="api-index-1-16" role="1.16">
-    <title>Index of new core symbols in 1.16</title>
-    <xi:include href="xml/api-index-1.16.xml"><xi:fallback /></xi:include>
-  </index>
-  <index id="api-index-1-18" role="1.18">
-    <title>Index of new core symbols in 1.18</title>
-    <xi:include href="xml/api-index-1.18.xml"><xi:fallback /></xi:include>
-  </index>
-  <index id="api-index-1-20" role="1.20">
-    <title>Index of new core symbols in 1.20</title>
-    <xi:include href="xml/api-index-1.20.xml"><xi:fallback /></xi:include>
-  </index>
-  <index id="api-index-1-22" role="1.22">
-    <title>Index of new core symbols in 1.22</title>
-    <xi:include href="xml/api-index-1.22.xml"><xi:fallback /></xi:include>
-  </index>
-  <index id="api-index-1-22-4" role="1.22.4">
-    <title>Index of new core symbols in 1.22.4</title>
-    <xi:include href="xml/api-index-1.22.4.xml"><xi:fallback /></xi:include>
-  </index>
-  <index id="api-index-1-24" role="1.24">
-    <title>Index of new core symbols in 1.24</title>
-    <xi:include href="xml/api-index-1.24.xml"><xi:fallback /></xi:include>
-  </index>
+  <chapter id="api-index-full">
+    <title>Index</title>
+    <xi:include href="xml/api-index-full.xml"></xi:include>
+  </chapter>
+  <chapter id="api-index-deprecated" role="deprecated">
+    <title>Index of deprecated symbols</title>
+    <xi:include href="xml/api-index-deprecated.xml"></xi:include>
+  </chapter>
+  <chapter id="api-index-1-0" role="1.0">
+    <title>Index of new symbols in 1.0</title>
+    <xi:include href="xml/api-index-1.0.xml"></xi:include>
+  </chapter>
+  <chapter id="api-index-1-4" role="1.4">
+    <title>Index of new symbols in 1.4</title>
+    <xi:include href="xml/api-index-1.4.xml"></xi:include>
+  </chapter>
+  <chapter id="api-index-1-6" role="1.6">
+    <title>Index of new symbols in 1.6</title>
+    <xi:include href="xml/api-index-1.6.xml"></xi:include>
+  </chapter>
+  <chapter id="api-index-1-8" role="1.8">
+    <title>Index of new symbols in 1.8</title>
+    <xi:include href="xml/api-index-1.8.xml"></xi:include>
+  </chapter>
+  <chapter id="api-index-1-10" role="1.10">
+    <title>Index of new symbols in 1.10</title>
+    <xi:include href="xml/api-index-1.10.xml"></xi:include>
+  </chapter>
+  <chapter id="api-index-1-12" role="1.12">
+    <title>Index of new symbols in 1.12</title>
+    <xi:include href="xml/api-index-1.12.xml"></xi:include>
+  </chapter>
+  <chapter id="api-index-1-14" role="1.14">
+    <title>Index of new symbols in 1.14</title>
+    <xi:include href="xml/api-index-1.14.xml"></xi:include>
+  </chapter>
+  <chapter id="api-index-1-16" role="1.16">
+    <title>Index of new symbols in 1.16</title>
+    <xi:include href="xml/api-index-1.16.xml"></xi:include>
+  </chapter>
+  <chapter id="api-index-1-18" role="1.18">
+    <title>Index of new symbols in 1.18</title>
+    <xi:include href="xml/api-index-1.18.xml"></xi:include>
+  </chapter>
+  <chapter id="api-index-1-20" role="1.20">
+    <title>Index of new symbols in 1.20</title>
+    <xi:include href="xml/api-index-1.20.xml"></xi:include>
+  </chapter>
+  <chapter id="api-index-1-22" role="1.22">
+    <title>Index of new symbols in 1.22</title>
+    <xi:include href="xml/api-index-1.22.xml"></xi:include>
+  </chapter>
+  <chapter id="api-index-1-22-4" role="1.22.4">
+    <title>Index of new symbols in 1.22.4</title>
+    <xi:include href="xml/api-index-1.22.4.xml"></xi:include>
+  </chapter>
+  <chapter id="api-index-1-24" role="1.24">
+    <title>Index of new symbols in 1.24</title>
+    <xi:include href="xml/api-index-1.24.xml"></xi:include>
+  </chapter>
+  <chapter id="api-index-1-26" role="1.26">
+    <title>Index of new symbols in 1.26</title>
+    <xi:include href="xml/api-index-1.26.xml"></xi:include>
+  </chapter>
 
-  <xi:include href="xml/annotation-glossary.xml"><xi:fallback /></xi:include>
+  <xi:include href="xml/annotation-glossary.xml"></xi:include>
 </book>

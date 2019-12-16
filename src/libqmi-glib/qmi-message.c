@@ -24,7 +24,7 @@
  * Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
  * Boston, MA 02110-1301 USA.
  *
- * Copyright (C) 2012-2017 Aleksander Morgado <aleksander@aleksander.es>
+ * Copyright (C) 2012-2019 Aleksander Morgado <aleksander@aleksander.es>
  */
 
 #include <glib.h>
@@ -55,6 +55,7 @@
 #include "qmi-loc.h"
 #include "qmi-qos.h"
 #include "qmi-gas.h"
+#include "qmi-dsd.h"
 
 #define PACKED __attribute__((packed))
 
@@ -478,7 +479,7 @@ qmi_message_new_from_data (QmiService   service,
     /* Set up fake QMUX header */
     buffer = (struct full_message *)(self->data);
     buffer->marker = QMI_MESSAGE_QMUX_MARKER;
-    buffer->qmux.length = buffer_len - 1;
+    buffer->qmux.length = GUINT16_TO_LE (buffer_len - 1);
     buffer->qmux.flags = 0;
     buffer->qmux.service = service;
     buffer->qmux.client = client_id;
@@ -1556,7 +1557,6 @@ qmi_message_get_printable_full (QmiMessage        *self,
     gchar *contents;
 
     g_return_val_if_fail (self != NULL, NULL);
-    g_return_val_if_fail (line_prefix != NULL, NULL);
 
     if (!line_prefix)
         line_prefix = "";
@@ -1637,6 +1637,45 @@ qmi_message_get_printable_full (QmiMessage        *self,
     case QMI_SERVICE_QOS:
         contents = __qmi_message_qos_get_printable (self, context, line_prefix);
         break;
+    case QMI_SERVICE_DSD:
+        contents = __qmi_message_dsd_get_printable (self, context, line_prefix);
+        break;
+
+    case QMI_SERVICE_UNKNOWN:
+        g_assert_not_reached ();
+
+    case QMI_SERVICE_AUTH:
+    case QMI_SERVICE_AT:
+    case QMI_SERVICE_CAT2:
+    case QMI_SERVICE_QCHAT:
+    case QMI_SERVICE_RMTFS:
+    case QMI_SERVICE_TEST:
+    case QMI_SERVICE_SAR:
+    case QMI_SERVICE_IMS:
+    case QMI_SERVICE_ADC:
+    case QMI_SERVICE_CSD:
+    case QMI_SERVICE_MFS:
+    case QMI_SERVICE_TIME:
+    case QMI_SERVICE_TS:
+    case QMI_SERVICE_TMD:
+    case QMI_SERVICE_SAP:
+    case QMI_SERVICE_TSYNC:
+    case QMI_SERVICE_RFSA:
+    case QMI_SERVICE_CSVT:
+    case QMI_SERVICE_QCMAP:
+    case QMI_SERVICE_IMSP:
+    case QMI_SERVICE_IMSVT:
+    case QMI_SERVICE_IMSA:
+    case QMI_SERVICE_COEX:
+    case QMI_SERVICE_STX:
+    case QMI_SERVICE_BIT:
+    case QMI_SERVICE_IMSRTP:
+    case QMI_SERVICE_RFRPE:
+    case QMI_SERVICE_SSCTL:
+    case QMI_SERVICE_CAT:
+    case QMI_SERVICE_RMS:
+    case QMI_SERVICE_FOTA:
+    case QMI_SERVICE_GMS:
     default:
         break;
     }
@@ -1650,53 +1689,65 @@ qmi_message_get_printable_full (QmiMessage        *self,
 }
 
 gboolean
-qmi_message_get_version_introduced_full (QmiMessage        *self,
-                                         QmiMessageContext *context,
-                                         guint             *major,
-                                         guint             *minor)
+__qmi_message_is_abortable (QmiMessage        *self,
+                            QmiMessageContext *context)
 {
     switch (qmi_message_get_service (self)) {
-    case QMI_SERVICE_CTL:
-        /* For CTL service, we'll assume the minimum one */
-        *major = 0;
-        *minor = 0;
-        return TRUE;
-
-    case QMI_SERVICE_DMS:
-        return __qmi_message_dms_get_version_introduced (self, context, major, minor);
-
     case QMI_SERVICE_WDS:
-        return __qmi_message_wds_get_version_introduced (self, context, major, minor);
-
+        return __qmi_message_wds_is_abortable (self, context);
     case QMI_SERVICE_NAS:
-        return __qmi_message_nas_get_version_introduced (self, context, major, minor);
+        return __qmi_message_nas_is_abortable (self, context);
 
+    case QMI_SERVICE_UNKNOWN:
+        g_assert_not_reached ();
+
+    case QMI_SERVICE_CTL:
+    case QMI_SERVICE_DMS:
     case QMI_SERVICE_WMS:
-        return __qmi_message_wms_get_version_introduced (self, context, major, minor);
-
     case QMI_SERVICE_PDS:
-        return __qmi_message_pds_get_version_introduced (self, context, major, minor);
-
     case QMI_SERVICE_PBM:
-        return __qmi_message_pbm_get_version_introduced (self, context, major, minor);
-
     case QMI_SERVICE_UIM:
-        return __qmi_message_uim_get_version_introduced (self, context, major, minor);
-
     case QMI_SERVICE_OMA:
-        return __qmi_message_oma_get_version_introduced (self, context, major, minor);
-
     case QMI_SERVICE_GAS:
-        return __qmi_message_oma_get_version_introduced (self, context, major, minor);
-
     case QMI_SERVICE_WDA:
-        return __qmi_message_wda_get_version_introduced (self, context, major, minor);
-
     case QMI_SERVICE_LOC:
-        return __qmi_message_loc_get_version_introduced (self, context, major, minor);
-
+    case QMI_SERVICE_AUTH:
+    case QMI_SERVICE_AT:
+    case QMI_SERVICE_CAT2:
+    case QMI_SERVICE_QCHAT:
+    case QMI_SERVICE_RMTFS:
+    case QMI_SERVICE_TEST:
+    case QMI_SERVICE_SAR:
+    case QMI_SERVICE_IMS:
+    case QMI_SERVICE_ADC:
+    case QMI_SERVICE_CSD:
+    case QMI_SERVICE_MFS:
+    case QMI_SERVICE_TIME:
+    case QMI_SERVICE_TS:
+    case QMI_SERVICE_TMD:
+    case QMI_SERVICE_SAP:
+    case QMI_SERVICE_TSYNC:
+    case QMI_SERVICE_RFSA:
+    case QMI_SERVICE_CSVT:
+    case QMI_SERVICE_QCMAP:
+    case QMI_SERVICE_IMSP:
+    case QMI_SERVICE_IMSVT:
+    case QMI_SERVICE_IMSA:
+    case QMI_SERVICE_COEX:
+    case QMI_SERVICE_STX:
+    case QMI_SERVICE_BIT:
+    case QMI_SERVICE_IMSRTP:
+    case QMI_SERVICE_RFRPE:
+    case QMI_SERVICE_SSCTL:
+    case QMI_SERVICE_CAT:
+    case QMI_SERVICE_RMS:
+    case QMI_SERVICE_FOTA:
+    case QMI_SERVICE_GMS:
+    case QMI_SERVICE_VOICE:
+    case QMI_SERVICE_PDC:
+    case QMI_SERVICE_DSD:
+    case QMI_SERVICE_QOS:
     default:
-        /* For the still unsupported services, cannot do anything */
         return FALSE;
     }
 }

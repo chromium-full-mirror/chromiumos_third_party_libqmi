@@ -1297,17 +1297,31 @@ set_read_record_properties_handle (const gchar *key,
     }
 
     if (g_ascii_strcasecmp (key, "file") == 0) {
-        props->file = strdup(value);
+        props->file = g_strdup (value);
         return TRUE;
     }
 
     if (g_ascii_strcasecmp (key, "record-number") == 0) {
-        props->record_number = (guint16) atoi(value);
+        guint aux;
+
+        if (!qmicli_read_uint_from_string (value, &aux) || (aux > G_MAXUINT16)) {
+            g_set_error (error, QMI_CORE_ERROR, QMI_CORE_ERROR_FAILED,
+                         "failed reading key 'record-number' as 16bit value");
+            return FALSE;
+        }
+        props->record_number = (guint16) aux;
         return TRUE;
     }
 
     if (g_ascii_strcasecmp (key, "record-length") == 0) {
-        props->record_length = (guint16) atoi(value);
+        guint aux;
+
+        if (!qmicli_read_uint_from_string (value, &aux) || (aux > G_MAXUINT16)) {
+            g_set_error (error, QMI_CORE_ERROR, QMI_CORE_ERROR_FAILED,
+                         "failed reading key 'record-length' as 16bit value");
+            return FALSE;
+        }
+        props->record_length = (guint16) aux;
         return TRUE;
     }
 

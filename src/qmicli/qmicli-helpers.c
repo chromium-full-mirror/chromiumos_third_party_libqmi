@@ -50,6 +50,87 @@
 QMICLI_ENUM_LIST
 #undef QMICLI_ENUM_LIST_ITEM
 
+#define QMICLI_FLAGS_LIST_ITEM(TYPE,TYPE_UNDERSCORE,DESCR)                          \
+    gboolean                                                                        \
+    qmicli_read_## TYPE_UNDERSCORE ##_from_string (const gchar *str,                \
+                                                   TYPE *out)                       \
+    {                                                                               \
+        GType type;                                                                 \
+        GFlagsClass *flags_class;                                                   \
+        GFlagsValue *flags_value;                                                   \
+        gchar **items, **iter;                                                      \
+        gboolean success = TRUE;                                                    \
+                                                                                    \
+        type = qmi_## TYPE_UNDERSCORE ##_get_type ();                               \
+        flags_class = G_FLAGS_CLASS (g_type_class_ref (type));                      \
+                                                                                    \
+        *out = 0;                                                                   \
+        items = g_strsplit_set (str, "|", 0);                                       \
+        for (iter = items; iter && *iter && success; iter++) {                      \
+            g_strstrip (*iter);                                                     \
+            if (!*iter[0])                                                          \
+                continue;                                                           \
+                                                                                    \
+            flags_value = g_flags_get_value_by_nick (flags_class, *iter);           \
+            if (flags_value) {                                                      \
+                *out |= (TYPE)flags_value->value;                                   \
+            } else {                                                                \
+                g_printerr ("error: unknown " DESCR " value given: '%s'\n", *iter); \
+                success = FALSE;                                                    \
+            }                                                                       \
+        }                                                                           \
+                                                                                    \
+        g_strfreev (items);                                                         \
+        g_type_class_unref (flags_class);                                           \
+        return success;                                                             \
+    }
+QMICLI_FLAGS_LIST
+#undef QMICLI_FLAGS_LIST_ITEM
+
+
+/* For 64-bit flags we don't have GFlagsClass as they're aren't registered in the
+ * type system. Instead, we create a temporary array with all known flag names, and
+ * use it to match the input values given */
+#define QMICLI_FLAGS64_LIST_ITEM(TYPE,TYPE_UNDERSCORE,DESCR)                        \
+    gboolean                                                                        \
+    qmicli_read_## TYPE_UNDERSCORE ##_from_string (const gchar *str,                \
+                                                   TYPE *out)                       \
+    {                                                                               \
+        gchar *flag_names[64];                                                      \
+        gchar **items, **iter;                                                      \
+        guint i;                                                                    \
+        gboolean success = TRUE;                                                    \
+                                                                                    \
+        for (i = 0; i < G_N_ELEMENTS (flag_names); i++)                             \
+            flag_names[i] = qmi_ ## TYPE_UNDERSCORE ## _build_string_from_mask (((guint64)1) << i); \
+                                                                                    \
+        *out = 0;                                                                   \
+        items = g_strsplit_set (str, "|", 0);                                       \
+        for (iter = items; iter && *iter && success; iter++) {                      \
+            g_strstrip (*iter);                                                     \
+            if (!*iter[0])                                                          \
+                continue;                                                           \
+                                                                                    \
+            for (i = 0; i < G_N_ELEMENTS (flag_names); i++) {                       \
+                if (g_strcmp0 (*iter, flag_names[i]) == 0) {                        \
+                    *out |= (TYPE)(((guint64)1) << i);                              \
+                    break;                                                          \
+                }                                                                   \
+            }                                                                       \
+            if (i == G_N_ELEMENTS (flag_names)) {                                   \
+                g_printerr ("error: unknown " DESCR " value given: '%s'\n", *iter); \
+                success = FALSE;                                                    \
+            }                                                                       \
+        }                                                                           \
+                                                                                    \
+        for (i = 0; i < G_N_ELEMENTS (flag_names); i++)                             \
+            g_free (flag_names[i]);                                                 \
+        g_strfreev (items);                                                         \
+        return success;                                                             \
+    }
+QMICLI_FLAGS64_LIST
+#undef QMICLI_FLAGS64_LIST_ITEM
+
 gchar *
 qmicli_get_raw_data_printable (const GArray *data,
                                gsize max_line_length,
@@ -530,67 +611,38 @@ qmicli_read_binary_array_from_string (const gchar *str,
 }
 
 gboolean
-qmicli_read_net_open_flags_from_string (const gchar *str,
-                                        QmiDeviceOpenFlags *out)
+qmicli_validate_device_open_flags (QmiDeviceOpenFlags mask)
 {
-    GType type;
-    GFlagsClass *flags_class;
-    GFlagsValue *flags_value;
-    gboolean success = TRUE, set = FALSE;
-    char **items, **iter;
-
-    type = qmi_device_open_flags_get_type ();
-    flags_class = G_FLAGS_CLASS (g_type_class_ref (type));
-
-    *out = 0;
-
-    items = g_strsplit_set (str, "|", 0);
-    for (iter = items; iter && *iter && success; iter++) {
-        if (!*iter[0])
-            continue;
-
-        flags_value = g_flags_get_value_by_nick (flags_class, *iter);
-        if (flags_value) {
-            *out |= (QmiDeviceOpenFlags)flags_value->value;
-            set = TRUE;
-        } else {
-            g_printerr ("error: invalid net open flags value given: '%s'\n", *iter);
-            success = FALSE;
-        }
+    if (!mask) {
+        g_printerr ("error: invalid device open flags given\n");
+        return FALSE;
     }
 
-    if (!set)
-        g_printerr ("error: invalid net open flags input given: '%s'\n", str);
-
-    if (items)
-        g_strfreev (items);
-
-    if (*out & QMI_DEVICE_OPEN_FLAGS_NET_802_3 &&
-        *out & QMI_DEVICE_OPEN_FLAGS_NET_RAW_IP) {
+    if ((mask & QMI_DEVICE_OPEN_FLAGS_NET_802_3) &&
+        (mask & QMI_DEVICE_OPEN_FLAGS_NET_RAW_IP)) {
         g_printerr ("error: cannot give both 802.3 and raw-IP options\n");
-        success = FALSE;
+        return FALSE;
     }
 
-    if (*out & QMI_DEVICE_OPEN_FLAGS_NET_QOS_HEADER &&
-        *out & QMI_DEVICE_OPEN_FLAGS_NET_NO_QOS_HEADER) {
+    if ((mask & QMI_DEVICE_OPEN_FLAGS_NET_QOS_HEADER) &&
+        (mask & QMI_DEVICE_OPEN_FLAGS_NET_NO_QOS_HEADER)) {
         g_printerr ("error: cannot request both QoS and no-QoS headers\n");
-        success = FALSE;
+        return FALSE;
     }
 
-    if ((*out & (QMI_DEVICE_OPEN_FLAGS_NET_802_3 | QMI_DEVICE_OPEN_FLAGS_NET_RAW_IP)) &&
-        !(*out & (QMI_DEVICE_OPEN_FLAGS_NET_QOS_HEADER | QMI_DEVICE_OPEN_FLAGS_NET_NO_QOS_HEADER))) {
+    if ((mask & (QMI_DEVICE_OPEN_FLAGS_NET_802_3 | QMI_DEVICE_OPEN_FLAGS_NET_RAW_IP)) &&
+        !(mask & (QMI_DEVICE_OPEN_FLAGS_NET_QOS_HEADER | QMI_DEVICE_OPEN_FLAGS_NET_NO_QOS_HEADER))) {
         g_printerr ("error: missing QoS or no-QoS header request\n");
-        success = FALSE;
+        return FALSE;
     }
 
-    if ((*out & (QMI_DEVICE_OPEN_FLAGS_NET_QOS_HEADER | QMI_DEVICE_OPEN_FLAGS_NET_NO_QOS_HEADER)) &&
-        !(*out & (QMI_DEVICE_OPEN_FLAGS_NET_802_3 | QMI_DEVICE_OPEN_FLAGS_NET_RAW_IP))) {
+    if ((mask & (QMI_DEVICE_OPEN_FLAGS_NET_QOS_HEADER | QMI_DEVICE_OPEN_FLAGS_NET_NO_QOS_HEADER)) &&
+        !(mask & (QMI_DEVICE_OPEN_FLAGS_NET_802_3 | QMI_DEVICE_OPEN_FLAGS_NET_RAW_IP))) {
         g_printerr ("error: missing link protocol (802.3 or raw IP)\n");
-        success = FALSE;
+        return FALSE;
     }
 
-    g_type_class_unref (flags_class);
-    return success && set;
+    return TRUE;
 }
 
 gboolean

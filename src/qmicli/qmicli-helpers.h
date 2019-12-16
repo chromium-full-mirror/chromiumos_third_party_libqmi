@@ -27,28 +27,48 @@
 #define __QMICLI_HELPERS_H__
 
 /* Common helpers to read enums from strings */
-#define QMICLI_ENUM_LIST                                                                                                      \
-    QMICLI_ENUM_LIST_ITEM (QmiDmsOperatingMode,             dms_operating_mode,              "operating mode")                \
-    QMICLI_ENUM_LIST_ITEM (QmiDmsUimFacility,               dms_uim_facility,                "facility")                      \
-    QMICLI_ENUM_LIST_ITEM (QmiPdcConfigurationType,         pdc_configuration_type,          "configuration type")            \
-    QMICLI_ENUM_LIST_ITEM (QmiNasRadioInterface,            nas_radio_interface,             "radio interface")               \
-    QMICLI_ENUM_LIST_ITEM (QmiDeviceExpectedDataFormat,     device_expected_data_format,     "device expected data format")   \
-    QMICLI_ENUM_LIST_ITEM (QmiWdaLinkLayerProtocol,         wda_link_layer_protocol,         "link layer protocol")           \
-    QMICLI_ENUM_LIST_ITEM (QmiWdaDataAggregationProtocol,   wda_data_aggregation_protocol,   "data aggregation protocol")     \
-    QMICLI_ENUM_LIST_ITEM (QmiDataEndpointType,             data_endpoint_type,              "data endpoint type")            \
-    QMICLI_ENUM_LIST_ITEM (QmiWdsAutoconnectSetting,        wds_autoconnect_setting,         "autoconnect setting")           \
-    QMICLI_ENUM_LIST_ITEM (QmiWdsAutoconnectSettingRoaming, wds_autoconnect_setting_roaming, "autoconnect setting roaming")   \
-    QMICLI_ENUM_LIST_ITEM (QmiDmsBootImageDownloadMode,     dms_boot_image_download_mode,    "boot image download mode")      \
-    QMICLI_ENUM_LIST_ITEM (QmiDmsHpDeviceMode,              dms_hp_device_mode,              "hp device mode")                \
-    QMICLI_ENUM_LIST_ITEM (QmiDmsSwiUsbComposition,         dms_swi_usb_composition,         "swi usb composition")           \
-    QMICLI_ENUM_LIST_ITEM (QmiDmsDellDeviceMode,            dms_dell_device_mode,            "dell device mode")              \
-    QMICLI_ENUM_LIST_ITEM (QmiDmsDellFirmwareVersionType,   dms_dell_firmware_version_type,  "dell firmware version type")    \
-    QMICLI_ENUM_LIST_ITEM (QmiUimSessionType,               uim_session_type,                "session type")
+#define QMICLI_ENUM_LIST                                                                                                         \
+    QMICLI_ENUM_LIST_ITEM (QmiDmsOperatingMode,              dms_operating_mode,                "operating mode")                \
+    QMICLI_ENUM_LIST_ITEM (QmiDmsUimFacility,                dms_uim_facility,                  "facility")                      \
+    QMICLI_ENUM_LIST_ITEM (QmiPdcConfigurationType,          pdc_configuration_type,            "configuration type")            \
+    QMICLI_ENUM_LIST_ITEM (QmiNasRadioInterface,             nas_radio_interface,               "radio interface")               \
+    QMICLI_ENUM_LIST_ITEM (QmiDeviceExpectedDataFormat,      device_expected_data_format,       "device expected data format")   \
+    QMICLI_ENUM_LIST_ITEM (QmiWdaLinkLayerProtocol,          wda_link_layer_protocol,           "link layer protocol")           \
+    QMICLI_ENUM_LIST_ITEM (QmiWdaDataAggregationProtocol,    wda_data_aggregation_protocol,     "data aggregation protocol")     \
+    QMICLI_ENUM_LIST_ITEM (QmiDataEndpointType,              data_endpoint_type,                "data endpoint type")            \
+    QMICLI_ENUM_LIST_ITEM (QmiWdsAutoconnectSetting,         wds_autoconnect_setting,           "autoconnect setting")           \
+    QMICLI_ENUM_LIST_ITEM (QmiWdsAutoconnectSettingRoaming,  wds_autoconnect_setting_roaming,   "autoconnect setting roaming")   \
+    QMICLI_ENUM_LIST_ITEM (QmiDmsBootImageDownloadMode,      dms_boot_image_download_mode,      "boot image download mode")      \
+    QMICLI_ENUM_LIST_ITEM (QmiDmsHpDeviceMode,               dms_hp_device_mode,                "hp device mode")                \
+    QMICLI_ENUM_LIST_ITEM (QmiDmsSwiUsbComposition,          dms_swi_usb_composition,           "swi usb composition")           \
+    QMICLI_ENUM_LIST_ITEM (QmiDmsFoxconnDeviceMode,          dms_foxconn_device_mode,           "foxconn device mode")           \
+    QMICLI_ENUM_LIST_ITEM (QmiDmsFoxconnFirmwareVersionType, dms_foxconn_firmware_version_type, "foxconn firmware version type") \
+    QMICLI_ENUM_LIST_ITEM (QmiUimSessionType,                uim_session_type,                  "session type")                  \
+    QMICLI_ENUM_LIST_ITEM (QmiDsdApnType,                    dsd_apn_type,                      "apn type")                      \
+    QMICLI_ENUM_LIST_ITEM (QmiDmsMacType,                    dms_mac_type,                      "mac address type")
 
 #define QMICLI_ENUM_LIST_ITEM(TYPE,TYPE_UNDERSCORE,DESCR)        \
     gboolean qmicli_read_## TYPE_UNDERSCORE ##_from_string (const gchar *str, TYPE *out);
 QMICLI_ENUM_LIST
 #undef QMICLI_ENUM_LIST_ITEM
+
+/* Common helpers to read flags from strings */
+#define QMICLI_FLAGS_LIST                                                              \
+    QMICLI_FLAGS_LIST_ITEM (QmiDeviceOpenFlags, device_open_flags, "device open flags")
+
+#define QMICLI_FLAGS_LIST_ITEM(TYPE,TYPE_UNDERSCORE,DESCR)        \
+    gboolean qmicli_read_## TYPE_UNDERSCORE ##_from_string (const gchar *str, TYPE *out);
+QMICLI_FLAGS_LIST
+#undef QMICLI_FLAGS_LIST_ITEM
+
+/* Common helpers to read 64bit flags from strings */
+#define QMICLI_FLAGS64_LIST                                                                            \
+    QMICLI_FLAGS64_LIST_ITEM (QmiDsdApnTypePreference, dsd_apn_type_preference, "apn type preference")
+
+#define QMICLI_FLAGS64_LIST_ITEM(TYPE,TYPE_UNDERSCORE,DESCR)        \
+    gboolean qmicli_read_## TYPE_UNDERSCORE ##_from_string (const gchar *str, TYPE *out);
+QMICLI_FLAGS64_LIST
+#undef QMICLI_FLAGS64_LIST_ITEM
 
 gchar *qmicli_get_raw_data_printable (const GArray *data,
                                       gsize max_line_length,
@@ -60,10 +80,6 @@ gboolean qmicli_read_dms_uim_pin_id_from_string              (const gchar *str,
                                                               QmiDmsUimPinId *out);
 gboolean qmicli_read_uim_pin_id_from_string                  (const gchar *str,
                                                               QmiUimPinId *out);
-gboolean qmicli_read_uim_session_type_from_string            (const gchar *str,
-                                                              QmiUimSessionType *out);
-gboolean qmicli_read_operating_mode_from_string              (const gchar *str,
-                                                              QmiDmsOperatingMode *out);
 gboolean qmicli_read_ssp_rat_options_from_string             (const gchar              *str,
                                                               QmiNasRatModePreference  *out_mode_preference,
                                                               GArray                  **out_acquisition_order);
@@ -71,8 +87,7 @@ gboolean qmicli_read_ssp_net_options_from_string             (const gchar *str,
                                                               QmiNasNetworkSelectionPreference *out_network_preference,
                                                               guint16 *out_network_mcc,
                                                               guint16 *out_network_mnc);
-gboolean qmicli_read_facility_from_string                    (const gchar *str,
-                                                              QmiDmsUimFacility *out);
+
 gboolean qmicli_read_enable_disable_from_string              (const gchar *str,
                                                               gboolean *out);
 gboolean qmicli_read_firmware_id_from_string                 (const gchar *str,
@@ -80,38 +95,10 @@ gboolean qmicli_read_firmware_id_from_string                 (const gchar *str,
                                                               guint *out_index);
 gboolean qmicli_read_binary_array_from_string                (const gchar *str,
                                                               GArray **out);
-gboolean qmicli_read_pdc_configuration_type_from_string      (const gchar *str,
-                                                              QmiPdcConfigurationType *out);
-gboolean qmicli_read_radio_interface_from_string             (const gchar *str,
-                                                              QmiNasRadioInterface *out);
-gboolean qmicli_read_net_open_flags_from_string              (const gchar *str,
-                                                              QmiDeviceOpenFlags *out);
-gboolean qmicli_read_expected_data_format_from_string        (const gchar *str,
-                                                              QmiDeviceExpectedDataFormat *out);
-gboolean qmicli_read_link_layer_protocol_from_string         (const gchar *str,
-                                                              QmiWdaLinkLayerProtocol *out);
-gboolean qmicli_read_data_aggregation_protocol_from_string   (const gchar *str,
-                                                              QmiWdaDataAggregationProtocol *out);
-gboolean qmicli_read_data_endpoint_type_from_string          (const gchar *str,
-                                                              QmiDataEndpointType *out);
-gboolean qmicli_read_autoconnect_setting_from_string         (const gchar *str,
-                                                              QmiWdsAutoconnectSetting *out);
-gboolean qmicli_read_autoconnect_setting_roaming_from_string (const gchar *str,
-                                                              QmiWdsAutoconnectSettingRoaming *out);
 gboolean qmicli_read_authentication_from_string              (const gchar *str,
                                                               QmiWdsAuthentication *out);
 gboolean qmicli_read_pdp_type_from_string                    (const gchar *str,
                                                               QmiWdsPdpType *out);
-gboolean qmicli_read_boot_image_download_mode_from_string    (const gchar *str,
-                                                              QmiDmsBootImageDownloadMode *out);
-gboolean qmicli_read_hp_device_mode_from_string              (const gchar *str,
-                                                              QmiDmsHpDeviceMode *out);
-gboolean qmicli_read_swi_usb_composition_from_string         (const gchar *str,
-                                                              QmiDmsSwiUsbComposition *out);
-gboolean qmicli_read_dell_device_mode_from_string            (const gchar *str,
-                                                              QmiDmsDellDeviceMode *out);
-gboolean qmicli_read_dell_firmware_version_type_from_string  (const gchar *str,
-                                                              QmiDmsDellFirmwareVersionType *out);
 
 gboolean qmicli_read_non_empty_string           (const gchar *str,
                                                  const gchar *description,
@@ -127,6 +114,8 @@ gchar *qmicli_get_supported_messages_list (const guint8 *data,
                                            gsize len);
 
 const char *qmicli_earfcn_to_eutra_band_string (guint16 earfcn);
+
+gboolean qmicli_validate_device_open_flags (QmiDeviceOpenFlags mask);
 
 typedef gboolean (*QmiParseKeyValueForeachFn) (const gchar *key,
                                                const gchar *value,

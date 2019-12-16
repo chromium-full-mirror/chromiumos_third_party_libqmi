@@ -195,10 +195,17 @@ class MessageList:
 
 
     """
-    Emit the method responsible for getting in which version the messages were
-    introduced.
+    Emit the method responsible for checking whether a given message is abortable
     """
-    def __emit_get_version_introduced(self, hfile, cfile):
+    def __emit_is_abortable(self, hfile, cfile):
+
+        # do nothing if no abortable messages in service
+        for message in self.list:
+            if message.type == 'Message' and message.abort:
+                break
+        else:
+            return
+
         translations = { 'service'    : self.service.lower() }
 
         template = (
@@ -206,11 +213,9 @@ class MessageList:
             '#if defined (LIBQMI_GLIB_COMPILATION)\n'
             '\n'
             'G_GNUC_INTERNAL\n'
-            'gboolean __qmi_message_${service}_get_version_introduced (\n'
+            'gboolean __qmi_message_${service}_is_abortable (\n'
             '    QmiMessage *self,\n'
-            '    QmiMessageContext *context,\n'
-            '    guint *major,\n'
-            '    guint *minor);\n'
+            '    QmiMessageContext *context);\n'
             '\n'
             '#endif\n'
             '\n')
@@ -219,11 +224,9 @@ class MessageList:
         template = (
             '\n'
             'gboolean\n'
-            '__qmi_message_${service}_get_version_introduced (\n'
+            '__qmi_message_${service}_is_abortable (\n'
             '    QmiMessage *self,\n'
-            '    QmiMessageContext *context,\n'
-            '    guint *major,\n'
-            '    guint *minor)\n'
+            '    QmiMessageContext *context)\n'
             '{\n'
             '    guint16 vendor_id;\n'
             '\n'
@@ -233,15 +236,11 @@ class MessageList:
 
         for message in self.list:
             if message.type == 'Message' and message.vendor is None:
-                # Only add if we know the version info
-                if message.version_info != []:
+                # Only add if it's abortable
+                if message.abort:
                     translations['enum_name'] = message.id_enum_name
-                    translations['message_major'] = message.version_info[0]
-                    translations['message_minor'] = message.version_info[1]
                     inner_template = (
                         '        case ${enum_name}:\n'
-                        '            *major = ${message_major};\n'
-                        '            *minor = ${message_minor};\n'
                         '            return TRUE;\n')
                     template += string.Template(inner_template).substitute(translations)
 
@@ -253,16 +252,12 @@ class MessageList:
 
         for message in self.list:
             if message.type == 'Message' and message.vendor is not None:
-                # Only add if we know the version info
-                if message.version_info != []:
+                # Only add if it's abortable
+                if message.abort:
                     translations['enum_name'] = message.id_enum_name
-                    translations['message_major'] = message.version_info[0]
-                    translations['message_minor'] = message.version_info[1]
                     translations['message_vendor'] = message.vendor
                     inner_template = (
                         '        if (vendor_id == ${message_vendor} && (qmi_message_get_message_id (self) == ${enum_name})) {\n'
-                        '            *major = ${message_major};\n'
-                        '            *minor = ${message_minor};\n'
                         '            return TRUE;\n'
                         '        }\n')
                     template += string.Template(inner_template).substitute(translations)
@@ -288,10 +283,10 @@ class MessageList:
             message.emit(hfile, cfile)
 
         # First, emit common class code
-        utils.add_separator(hfile, 'Service-specific printable', self.service);
-        utils.add_separator(cfile, 'Service-specific printable', self.service);
+        utils.add_separator(hfile, 'Service-specific utils', self.service);
+        utils.add_separator(cfile, 'Service-specific utils', self.service);
         self.__emit_get_printable(hfile, cfile)
-        self.__emit_get_version_introduced(hfile, cfile)
+        self.__emit_is_abortable(hfile, cfile)
 
     """
     Emit the sections

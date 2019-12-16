@@ -177,7 +177,7 @@ send_request (QfuSaharaDevice  *self,
 
     /* We treat EINTR as an error, so we also treat as an error if not all bytes
      * were wlen */
-    if (wlen != request_size) {
+    if ((gsize)wlen != request_size) {
         g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED,
                      "error writing: only %" G_GSSIZE_FORMAT "/%" G_GSIZE_FORMAT " bytes written",
                      wlen, request_size);
@@ -290,7 +290,7 @@ send_receive (QfuSaharaDevice  *self,
 
     if (self->priv->fd < 0) {
         g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED, "device is closed");
-        return FALSE;
+        return -1;
     }
 
     if (request_size > 0) {
@@ -960,6 +960,7 @@ firehose_init_prepare_request (QfuSaharaDevice     *self,
     case FIREHOSE_INIT_STEP_WAIT_STORAGE_INFO:
         /* not sending anything, just processing responses */
         return NULL;
+    case FIREHOSE_INIT_STEP_LAST:
     default:
         g_assert_not_reached ();
         return NULL;
@@ -1127,6 +1128,7 @@ sahara_device_run_protocol_step (QfuSaharaDevice    *self,
         break;
     case SAHARA_PROTOCOL_STEP_UNKNOWN:
     case SAHARA_PROTOCOL_STEP_LAST:
+    default:
         g_assert_not_reached ();
         break;
     }
@@ -1140,6 +1142,11 @@ sahara_device_run_protocol_step (QfuSaharaDevice    *self,
                            error);
     if (rsplen < 0)
         return SAHARA_PROTOCOL_STEP_UNKNOWN;
+
+    if (rsplen == 0) {
+        g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED, "no sahara response received");
+        return SAHARA_PROTOCOL_STEP_UNKNOWN;
+    }
 
     /* The sahara initialization finishes once the switch to firehose is confirmed.
      * The EM7565 replies "confirmed" explicitly, but we'll just accept any printable
@@ -1158,7 +1165,7 @@ sahara_device_run_protocol_step (QfuSaharaDevice    *self,
         gsize            msglen;
         QfuSaharaHeader *msghdr;
 
-        if (rsplen < QFU_SAHARA_MESSAGE_MAX_HEADER_SIZE) {
+        if ((gsize)rsplen < QFU_SAHARA_MESSAGE_MAX_HEADER_SIZE) {
             g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED, "sahara header not fully received: %" G_GSSIZE_FORMAT " < %" G_GSIZE_FORMAT,
                          rsplen, QFU_SAHARA_MESSAGE_MAX_HEADER_SIZE);
             return SAHARA_PROTOCOL_STEP_UNKNOWN;
@@ -1166,7 +1173,7 @@ sahara_device_run_protocol_step (QfuSaharaDevice    *self,
 
         msghdr = (QfuSaharaHeader *)rsp;
         msglen = GUINT32_FROM_LE (msghdr->size);
-        if (rsplen < msglen) {
+        if ((gsize)rsplen < msglen) {
             g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED, "sahara message not fully received: %" G_GSSIZE_FORMAT " < %" G_GSIZE_FORMAT,
                          rsplen, msglen);
             return SAHARA_PROTOCOL_STEP_UNKNOWN;
@@ -1203,6 +1210,7 @@ sahara_device_run_protocol_step (QfuSaharaDevice    *self,
         rsplen -= msglen;
     }
 
+    g_assert (next_step != SAHARA_PROTOCOL_STEP_UNKNOWN);
     return next_step;
 }
 

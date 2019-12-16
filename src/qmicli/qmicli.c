@@ -196,7 +196,6 @@ log_handler (const gchar *log_domain,
         break;
 
     case G_LOG_LEVEL_CRITICAL:
-    case G_LOG_FLAG_FATAL:
     case G_LOG_LEVEL_ERROR:
         log_level_str = "-Error **";
         err = TRUE;
@@ -206,9 +205,16 @@ log_handler (const gchar *log_domain,
         log_level_str = "[Debug]";
         break;
 
-    default:
+    case G_LOG_LEVEL_MESSAGE:
+    case G_LOG_LEVEL_INFO:
         log_level_str = "";
         break;
+
+    case G_LOG_FLAG_FATAL:
+    case G_LOG_LEVEL_MASK:
+    case G_LOG_FLAG_RECURSION:
+    default:
+        g_assert_not_reached ();
     }
 
     if (!verbose_flag && !err)
@@ -391,6 +397,45 @@ allocate_client_ready (QmiDevice *dev,
     case QMI_SERVICE_GAS:
         qmicli_gas_run (dev, QMI_CLIENT_GAS (client), cancellable);
         return;
+    case QMI_SERVICE_DSD:
+        qmicli_dsd_run (dev, QMI_CLIENT_DSD (client), cancellable);
+        return;
+    case QMI_SERVICE_UNKNOWN:
+    case QMI_SERVICE_CTL:
+    case QMI_SERVICE_AUTH:
+    case QMI_SERVICE_AT:
+    case QMI_SERVICE_CAT2:
+    case QMI_SERVICE_QCHAT:
+    case QMI_SERVICE_RMTFS:
+    case QMI_SERVICE_TEST:
+    case QMI_SERVICE_SAR:
+    case QMI_SERVICE_IMS:
+    case QMI_SERVICE_ADC:
+    case QMI_SERVICE_CSD:
+    case QMI_SERVICE_MFS:
+    case QMI_SERVICE_TIME:
+    case QMI_SERVICE_TS:
+    case QMI_SERVICE_TMD:
+    case QMI_SERVICE_SAP:
+    case QMI_SERVICE_TSYNC:
+    case QMI_SERVICE_RFSA:
+    case QMI_SERVICE_CSVT:
+    case QMI_SERVICE_QCMAP:
+    case QMI_SERVICE_IMSP:
+    case QMI_SERVICE_IMSVT:
+    case QMI_SERVICE_IMSA:
+    case QMI_SERVICE_COEX:
+    case QMI_SERVICE_STX:
+    case QMI_SERVICE_BIT:
+    case QMI_SERVICE_IMSRTP:
+    case QMI_SERVICE_RFRPE:
+    case QMI_SERVICE_SSCTL:
+    case QMI_SERVICE_CAT:
+    case QMI_SERVICE_RMS:
+    case QMI_SERVICE_FOTA:
+    case QMI_SERVICE_GMS:
+    case QMI_SERVICE_PDS:
+    case QMI_SERVICE_OMA:
     default:
         g_assert_not_reached ();
     }
@@ -672,9 +717,11 @@ device_new_ready (GObject *unused,
         open_flags |= QMI_DEVICE_OPEN_FLAGS_AUTO;
     if (expect_indications)
         open_flags |= QMI_DEVICE_OPEN_FLAGS_EXPECT_INDICATIONS;
-    if (device_open_net_str)
-        if (!qmicli_read_net_open_flags_from_string (device_open_net_str, &open_flags))
+    if (device_open_net_str) {
+        if (!qmicli_read_device_open_flags_from_string (device_open_net_str, &open_flags) ||
+            !qmicli_validate_device_open_flags (open_flags))
             exit (EXIT_FAILURE);
+    }
 
     /* Open the device */
     qmi_device_open (device,
@@ -770,6 +817,12 @@ parse_actions (void)
         actions_enabled++;
     }
 
+    /* DSD options? */
+    if (qmicli_dsd_options_enabled ()) {
+        service = QMI_SERVICE_DSD;
+        actions_enabled++;
+    }
+
     /* Cannot mix actions from different services */
     if (actions_enabled > 1) {
         g_printerr ("error: cannot execute multiple actions of different services\n");
@@ -819,6 +872,8 @@ int main (int argc, char **argv)
                                 qmicli_qos_get_option_group ());
     g_option_context_add_group (context,
                                 qmicli_gas_get_option_group ());
+    g_option_context_add_group (context,
+                                qmicli_dsd_get_option_group ());
     g_option_context_add_main_entries (context, main_entries, NULL);
     if (!g_option_context_parse (context, &argc, &argv, &error)) {
         g_printerr ("error: %s\n",

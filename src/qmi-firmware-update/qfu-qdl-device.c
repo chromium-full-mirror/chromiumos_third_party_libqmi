@@ -266,7 +266,7 @@ send_request (QfuQdlDevice  *self,
 
     /* We treat EINTR as an error, so we also treat as an error if not all bytes
      * were wlen */
-    if (wlen != request_size) {
+    if ((gsize)wlen != request_size) {
         g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED,
                      "error writing: only %" G_GSSIZE_FORMAT "/%" G_GSIZE_FORMAT " bytes written",
                      wlen, request_size);
@@ -323,12 +323,12 @@ receive_response (QfuQdlDevice  *self,
                   GCancellable  *cancellable,
                   GError       **error)
 {
-	fd_set         rd;
-	struct timeval tv;
+    fd_set         rd;
+    struct timeval tv;
     gint           aux;
     gssize         rlen;
     guint8        *end;
-    gsize          frame_size;
+    gssize         frame_size;
     gsize          max_unframed_size;
     gsize          unframed_size;
 
@@ -336,8 +336,8 @@ receive_response (QfuQdlDevice  *self,
     tv.tv_sec  = timeout_secs;
     tv.tv_usec = 0;
 
-	FD_ZERO (&rd);
-	FD_SET (self->priv->fd, &rd);
+    FD_ZERO (&rd);
+    FD_SET (self->priv->fd, &rd);
     aux = select (self->priv->fd + 1, &rd, NULL, NULL, &tv);
 
     if (g_cancellable_set_error_if_cancelled (cancellable, error))
@@ -357,8 +357,8 @@ receive_response (QfuQdlDevice  *self,
     }
 
     /* Receive in the primary buffer */
-	rlen = read (self->priv->fd, self->priv->buffer->data, self->priv->buffer->len);
-	if (rlen < 0) {
+    rlen = read (self->priv->fd, self->priv->buffer->data, self->priv->buffer->len);
+    if (rlen < 0) {
         g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED,
                      "couldn't read response: %s",
                      g_strerror (errno));
@@ -395,6 +395,7 @@ receive_response (QfuQdlDevice  *self,
     }
 
     frame_size = end - self->priv->buffer->data + 1;
+    g_assert (frame_size >= 0);
     g_assert (frame_size <= rlen);
     if (frame_size < 5) {
         g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED,
@@ -403,14 +404,14 @@ receive_response (QfuQdlDevice  *self,
     }
 
     if (frame_size < rlen)
-        g_debug ("[qfu-qdl-device] received %" G_GSIZE_FORMAT " trailing bytes after HDLC frame (ignored)",
+        g_debug ("[qfu-qdl-device] received %" G_GSSIZE_FORMAT " trailing bytes after HDLC frame (ignored)",
                  rlen - frame_size);
 
     max_unframed_size = hdlc_max_unframed_size (frame_size);
     if (G_UNLIKELY (max_unframed_size > self->priv->secondary_buffer->len))
         g_byte_array_set_size (self->priv->secondary_buffer, max_unframed_size);
 
-    unframed_size = hdlc_unframe (self->priv->buffer->data, frame_size, self->priv->secondary_buffer->data, self->priv->secondary_buffer->len, error);
+    unframed_size = hdlc_unframe (self->priv->buffer->data, (gsize)frame_size, self->priv->secondary_buffer->data, self->priv->secondary_buffer->len, error);
     if (unframed_size == 0) {
         g_prefix_error (error, "error unframing message: ");
         return -1;
@@ -677,12 +678,12 @@ qdl_device_detect_version (QfuQdlDevice  *self,
 
 #define MAX_VALID_VERSION 6
 
-	/* Attempt to probe supported protocol version
-	 *  Newer modems like Sierra Wireless MC7710 must use '6' for both fields
-	 *  Gobi2000 modems like HP un2420 must use '5' for both fields
-	 *  Gobi1000 modems  must use '4' for both fields
-	 */
-	for (version = 4; version <= MAX_VALID_VERSION; version++) {
+    /* Attempt to probe supported protocol version
+     *  Newer modems like Sierra Wireless MC7710 must use '6' for both fields
+     *  Gobi2000 modems like HP un2420 must use '5' for both fields
+     *  Gobi1000 modems  must use '4' for both fields
+     */
+    for (version = 4; version <= MAX_VALID_VERSION; version++) {
         gsize   reqlen;
         gssize  rsplen;
         guint8 *rsp = NULL;

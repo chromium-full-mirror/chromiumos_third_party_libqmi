@@ -51,6 +51,7 @@
 #include "qmi-loc.h"
 #include "qmi-qos.h"
 #include "qmi-gas.h"
+#include "qmi-dsd.h"
 #include "qmi-utils.h"
 #include "qmi-error-types.h"
 #include "qmi-enum-types.h"
@@ -115,7 +116,7 @@ struct _QmiDevicePrivate {
 
 typedef struct {
     QmiDevice *self;
-    gpointer key;
+    gpointer   key;
 } TransactionWaitContext;
 
 typedef struct {
@@ -126,6 +127,14 @@ typedef struct {
     GCancellable           *cancellable;
     gulong                  cancellable_id;
     TransactionWaitContext *wait_ctx;
+
+    /* abortable support */
+    GError                                   *abort_error;
+    GCancellable                             *abort_cancellable;
+    QmiDeviceCommandAbortableBuildRequestFn   abort_build_request_fn;
+    QmiDeviceCommandAbortableParseResponseFn  abort_parse_response_fn;
+    gpointer                                  abort_user_data;
+    GDestroyNotify                            abort_user_data_free;
 } Transaction;
 
 static Transaction *
@@ -152,11 +161,29 @@ transaction_new (QmiDevice           *self,
 }
 
 static void
-transaction_complete_and_free (Transaction *tr,
-                               QmiMessage *reply,
+transaction_complete_and_free (Transaction  *tr,
+                               QmiMessage   *reply,
                                const GError *error)
 {
     g_assert (reply != NULL || error != NULL);
+
+    /* always set result first, as we may be using one of the GErrors
+     * stored in the Transaction as result itself */
+    if (reply) {
+        /* if we got a valid response, we can cancel any ongoing abort
+         * operation for this request */
+        if (tr->abort_cancellable) {
+            g_debug ("transaction 0x%x completed with a response: cancelling the abort operation",
+                     qmi_message_get_transaction_id (tr->message));
+            g_cancellable_cancel (tr->abort_cancellable);
+        }
+        g_simple_async_result_set_op_res_gpointer (tr->result,
+                                                   qmi_message_ref (reply),
+                                                   (GDestroyNotify)qmi_message_unref);
+    } else if (error)
+        g_simple_async_result_set_from_error (tr->result, error);
+    else
+        g_assert_not_reached ();
 
     if (tr->timeout_source)
         g_source_destroy (tr->timeout_source);
@@ -170,12 +197,14 @@ transaction_complete_and_free (Transaction *tr,
     if (tr->wait_ctx)
         g_slice_free (TransactionWaitContext, tr->wait_ctx);
 
-    if (reply)
-        g_simple_async_result_set_op_res_gpointer (tr->result,
-                                                   qmi_message_ref (reply),
-                                                   (GDestroyNotify)qmi_message_unref);
-    else
-        g_simple_async_result_set_from_error (tr->result, error);
+    if (tr->abort_error)
+        g_error_free (tr->abort_error);
+
+    if (tr->abort_cancellable)
+        g_object_unref (tr->abort_cancellable);
+
+    if (tr->abort_user_data && tr->abort_user_data_free)
+        tr->abort_user_data_free (tr->abort_user_data);
 
     g_simple_async_result_complete_in_idle (tr->result);
     g_object_unref (tr->result);
@@ -204,19 +233,141 @@ build_transaction_key (QmiMessage *message)
 }
 
 static Transaction *
+device_peek_transaction (QmiDevice *self,
+                         gconstpointer key)
+{
+    return g_hash_table_lookup (self->priv->transactions, key);
+}
+
+static Transaction *
 device_release_transaction (QmiDevice *self,
                             gconstpointer key)
 {
     Transaction *tr = NULL;
 
-    if (self->priv->transactions) {
-        tr = g_hash_table_lookup (self->priv->transactions, key);
-        if (tr)
-            /* If found, remove it from the HT */
-            g_hash_table_remove (self->priv->transactions, key);
-    }
+    /* If found, remove it from the HT */
+    tr = device_peek_transaction (self, key);
+    if (tr)
+        g_hash_table_remove (self->priv->transactions, key);
 
     return tr;
+}
+
+static void
+transaction_abort_ready (QmiDevice    *self,
+                         GAsyncResult *res,
+                         gpointer      key)
+{
+    Transaction *tr;
+    GError      *error = NULL;
+    QmiMessage  *abort_response;
+
+    /* Always try to remove from the HT at this point. Note that the transaction
+     * pointer may be NULL already, e.g. if the abort was cancelled. In this case
+     * we totally ignore the result of the abort operation. */
+    tr = device_release_transaction (self, key);
+    if (!tr) {
+        g_debug ("not processing abort response, operation has already been completed");
+        return;
+    }
+
+    g_assert (tr->abort_parse_response_fn);
+
+    abort_response = qmi_device_command_full_finish (self, res, &error);
+    if (!abort_response ||
+        !tr->abort_parse_response_fn (self,
+                                      abort_response,
+                                      tr->abort_user_data,
+                                      &error)) {
+        GError *built_error;
+
+        g_debug ("abort operation failed: %s", error->message);
+
+        /* We don't want to return any kind of error, because what failed here
+         * is the abort operation for the user request, so always return
+         * QMI_CORE_ERROR_FAILED and provide the description on the error
+         * in the message. */
+        built_error = g_error_new (QMI_CORE_ERROR, QMI_CORE_ERROR_FAILED,
+                                   "operation failed and couldn't be aborted: %s",
+                                   error->message);
+        g_error_free (error);
+
+        transaction_complete_and_free (tr, NULL, built_error);
+        g_error_free (built_error);
+    } else {
+        /* aborted successfully */
+        g_debug ("operation aborted successfully");
+        g_assert (tr->abort_error);
+        transaction_complete_and_free (tr, NULL, tr->abort_error);
+    }
+
+    if (abort_response)
+        qmi_message_unref (abort_response);
+}
+
+static void
+transaction_abort (QmiDevice   *self,
+                   Transaction *tr,
+                   GError      *abort_error_take)
+{
+    QmiMessage *abort_request;
+    GError     *error = NULL;
+    guint16     transaction_id;
+
+    transaction_id = qmi_message_get_transaction_id (tr->message);
+
+    /* If the command is not abortable, we'll return the error right away
+     * to the user. */
+    if (!__qmi_message_is_abortable (tr->message, tr->message_context)) {
+        g_debug ("transaction 0x%x aborted, but message is not abortable", transaction_id);
+        device_release_transaction (self, tr->wait_ctx->key);
+        transaction_complete_and_free (tr, NULL, abort_error_take);
+        g_error_free (abort_error_take);
+        return;
+    }
+
+    /* if the command is abortable but the user didn't use qmi_device_command_abortable(),
+     * then return the error right away anyway */
+    if (!tr->abort_build_request_fn || !tr->abort_parse_response_fn) {
+        g_debug ("transaction 0x%x aborted, but no way to build abort request", transaction_id);
+        device_release_transaction (self, tr->wait_ctx->key);
+        transaction_complete_and_free (tr, NULL, abort_error_take);
+        g_error_free (abort_error_take);
+        return;
+    }
+
+    g_debug ("transaction 0x%x aborted, building abort request...", transaction_id);
+
+    /* Try to build abort request */
+    abort_request = tr->abort_build_request_fn (self,
+                                                tr->message,
+                                                tr->abort_user_data,
+                                                &error);
+    if (!abort_request) {
+        /* complete the transaction with the error we got while building the
+         * abort request */
+        g_debug ("transaction 0x%x aborted, but building abort request failed", transaction_id);
+        device_release_transaction (self, tr->wait_ctx->key);
+        transaction_complete_and_free (tr, NULL, error);
+        g_error_free (error);
+        return;
+    }
+
+    /* If command is abortable, let's abort the operation in the
+     * device. We'll store the specific abort error to use once the abort
+     * operation has been acknowledged by the device. */
+    tr->abort_error = abort_error_take;
+    tr->abort_cancellable = g_cancellable_new ();
+
+    qmi_device_command_full (self,
+                             abort_request,
+                             NULL,
+                             30,
+                             tr->abort_cancellable,
+                             (GAsyncReadyCallback) transaction_abort_ready,
+                             tr->wait_ctx->key);
+
+    qmi_message_unref (abort_request);
 }
 
 static gboolean
@@ -225,17 +376,16 @@ transaction_timed_out (TransactionWaitContext *ctx)
     Transaction *tr;
     GError *error = NULL;
 
-    tr = device_release_transaction (ctx->self, ctx->key);
+    /* A timed out transaction is always tracked */
+    tr = device_peek_transaction (ctx->self, ctx->key);
+    g_assert (tr);
+
     tr->timeout_source = NULL;
 
-    /* Complete transaction with a timeout error */
-    error = g_error_new (QMI_CORE_ERROR,
-                         QMI_CORE_ERROR_TIMEOUT,
-                         "Transaction timed out");
-    transaction_complete_and_free (tr, NULL, error);
-    g_error_free (error);
+    error = g_error_new (QMI_CORE_ERROR, QMI_CORE_ERROR_TIMEOUT, "Transaction timed out");
+    transaction_abort (ctx->self, tr, error);
 
-    return FALSE;
+    return G_SOURCE_REMOVE;
 }
 
 static void
@@ -245,21 +395,18 @@ transaction_cancelled (GCancellable *cancellable,
     Transaction *tr;
     GError *error = NULL;
 
-    tr = device_release_transaction (ctx->self, ctx->key);
+    tr = device_peek_transaction (ctx->self, ctx->key);
 
     /* The transaction may have already been cancelled before we stored it in
-     * the tracking table */
+     * the tracking table, which means the command was NOT sent to the device
+     * and we can safely ignore the cancellation request. */
     if (!tr)
         return;
 
     tr->cancellable_id = 0;
 
-    /* Complete transaction with an abort error */
-    error = g_error_new (QMI_PROTOCOL_ERROR,
-                         QMI_PROTOCOL_ERROR_ABORTED,
-                         "Transaction aborted");
-    transaction_complete_and_free (tr, NULL, error);
-    g_error_free (error);
+    error = g_error_new (QMI_PROTOCOL_ERROR, QMI_PROTOCOL_ERROR_ABORTED, "Transaction aborted");
+    transaction_abort (ctx->self, tr, error);
 }
 
 static gboolean
@@ -447,72 +594,6 @@ check_service_supported (QmiDevice *self,
     }
 
     return !!find_service_version_info (self, service);
-}
-
-static gboolean
-check_message_supported (QmiDevice *self,
-                         QmiMessage *message,
-                         GError **error)
-{
-    const QmiMessageCtlGetVersionInfoOutputServiceListService *info;
-    guint message_major = 0;
-    guint message_minor = 0;
-    guint device_major = 0;
-    guint device_minor = 0;
-
-    /* If we didn't check supported services, just assume it is supported */
-    if (!self->priv->supported_services)
-        return TRUE;
-
-    /* For CTL, we assume all are supported */
-    if (qmi_message_get_service (message) == QMI_SERVICE_CTL)
-        return TRUE;
-
-    /* If we cannot get in which version this message was introduced, we'll just
-     * assume it's supported */
-    if (!qmi_message_get_version_introduced_full (message, NULL, &message_major, &message_minor))
-        return TRUE;
-
-    /* Get version info. It MUST exist because we allowed creating a client
-     * of this service type */
-    info = find_service_version_info (self, qmi_message_get_service (message));
-    g_assert (info != NULL);
-    g_assert (info->service == qmi_message_get_service (message));
-    device_major = info->major_version;
-    device_minor = info->minor_version;
-
-    /* Some device firmware versions (Quectel EC21) lie about their supported
-     * DMS version, so assume a reasonable DMS version if the WDS version is
-     * high enough */
-    if (info->service == QMI_SERVICE_DMS && device_major == 1 && device_minor == 0) {
-        const QmiMessageCtlGetVersionInfoOutputServiceListService *wds;
-
-        wds = find_service_version_info (self, QMI_SERVICE_WDS);
-        g_assert (wds != NULL);
-        if (wds->major_version >= 1 && wds->minor_version >= 9) {
-            device_major = 1;
-            device_minor = 3;
-        }
-    }
-
-    /* If the version of the message is greater than the version of the service,
-     * report unsupported */
-    if (message_major > device_major ||
-        (message_major == device_major &&
-         message_minor > device_minor)) {
-        g_set_error (error,
-                     QMI_CORE_ERROR,
-                     QMI_CORE_ERROR_UNSUPPORTED,
-                     "QMI service '%s' version '%u.%u' required, got version '%u.%u'",
-                     qmi_service_get_string (qmi_message_get_service (message)),
-                     message_major, message_minor,
-                     info->major_version,
-                     info->minor_version);
-        return FALSE;
-    }
-
-    /* Supported! */
-    return TRUE;
 }
 
 /*****************************************************************************/
@@ -1018,63 +1099,87 @@ qmi_device_allocate_client (QmiDevice *self,
                                  "Cannot create additional clients for the CTL service");
         g_object_unref (task);
         return;
-
     case QMI_SERVICE_DMS:
         ctx->client_type = QMI_TYPE_CLIENT_DMS;
         break;
-
     case QMI_SERVICE_WDS:
         ctx->client_type = QMI_TYPE_CLIENT_WDS;
         break;
-
     case QMI_SERVICE_NAS:
         ctx->client_type = QMI_TYPE_CLIENT_NAS;
         break;
-
     case QMI_SERVICE_WMS:
         ctx->client_type = QMI_TYPE_CLIENT_WMS;
         break;
-
     case QMI_SERVICE_PDS:
         ctx->client_type = QMI_TYPE_CLIENT_PDS;
         break;
-
     case QMI_SERVICE_PDC:
         ctx->client_type = QMI_TYPE_CLIENT_PDC;
         break;
-
     case QMI_SERVICE_PBM:
         ctx->client_type = QMI_TYPE_CLIENT_PBM;
         break;
-
     case QMI_SERVICE_UIM:
         ctx->client_type = QMI_TYPE_CLIENT_UIM;
         break;
-
     case QMI_SERVICE_OMA:
         ctx->client_type = QMI_TYPE_CLIENT_OMA;
         break;
-
     case QMI_SERVICE_GAS:
         ctx->client_type = QMI_TYPE_CLIENT_GAS;
         break;
-
     case QMI_SERVICE_WDA:
         ctx->client_type = QMI_TYPE_CLIENT_WDA;
         break;
-
     case QMI_SERVICE_VOICE:
         ctx->client_type = QMI_TYPE_CLIENT_VOICE;
         break;
-
     case QMI_SERVICE_LOC:
         ctx->client_type = QMI_TYPE_CLIENT_LOC;
         break;
-
     case QMI_SERVICE_QOS:
         ctx->client_type = QMI_TYPE_CLIENT_QOS;
         break;
+    case QMI_SERVICE_DSD:
+        ctx->client_type = QMI_TYPE_CLIENT_DSD;
+        break;
 
+    case QMI_SERVICE_UNKNOWN:
+        g_assert_not_reached ();
+
+    case QMI_SERVICE_AUTH:
+    case QMI_SERVICE_AT:
+    case QMI_SERVICE_CAT2:
+    case QMI_SERVICE_QCHAT:
+    case QMI_SERVICE_RMTFS:
+    case QMI_SERVICE_TEST:
+    case QMI_SERVICE_SAR:
+    case QMI_SERVICE_IMS:
+    case QMI_SERVICE_ADC:
+    case QMI_SERVICE_CSD:
+    case QMI_SERVICE_MFS:
+    case QMI_SERVICE_TIME:
+    case QMI_SERVICE_TS:
+    case QMI_SERVICE_TMD:
+    case QMI_SERVICE_SAP:
+    case QMI_SERVICE_TSYNC:
+    case QMI_SERVICE_RFSA:
+    case QMI_SERVICE_CSVT:
+    case QMI_SERVICE_QCMAP:
+    case QMI_SERVICE_IMSP:
+    case QMI_SERVICE_IMSVT:
+    case QMI_SERVICE_IMSA:
+    case QMI_SERVICE_COEX:
+    case QMI_SERVICE_STX:
+    case QMI_SERVICE_BIT:
+    case QMI_SERVICE_IMSRTP:
+    case QMI_SERVICE_RFRPE:
+    case QMI_SERVICE_SSCTL:
+    case QMI_SERVICE_CAT:
+    case QMI_SERVICE_RMS:
+    case QMI_SERVICE_FOTA:
+    case QMI_SERVICE_GMS:
     default:
         g_task_return_new_error (task,
                                  QMI_CORE_ERROR,
@@ -1483,13 +1588,34 @@ process_message (QmiMessage *message,
             trace_message (self, message, FALSE, "response", NULL);
             g_debug ("[%s] No transaction matched in received message",
                      qmi_file_get_path_display (self->priv->file));
-        } else {
-            /* Matched transactions translated with the same context as the request */
-            trace_message (self, message, FALSE, "response", tr->message_context);
-            /* Report the reply message */
-            transaction_complete_and_free (tr, message, NULL);
+            return;
         }
 
+        /* Did the transaction sequence get out of sync? e.g. if the module reboots itself
+         * while we're talking to it. If so, fail the transaction right away without setting the
+         * message as response, or otherwise the parsers will complain */
+        if (qmi_message_get_message_id (tr->message) != qmi_message_get_message_id (message)) {
+            /* Translate without an explicit context as this message has nothing to do with the
+             * request. */
+            trace_message (self, message, FALSE, "response", NULL);
+            g_debug ("[%s] Mismatched message id in received message for transaction 0x%04x (expected 0x%04x, received 0x%04x)",
+                     qmi_file_get_path_display (self->priv->file),
+                     qmi_message_get_transaction_id (message),
+                     qmi_message_get_message_id (tr->message),
+                     qmi_message_get_message_id (message));
+            transaction_complete_and_free (tr, NULL,
+                                           g_error_new (QMI_CORE_ERROR,
+                                                        QMI_CORE_ERROR_UNEXPECTED_MESSAGE,
+                                                        "Unexpected response of type 0x%04x received matching transaction for request of type 0x%04x",
+                                                        qmi_message_get_message_id (message),
+                                                        qmi_message_get_message_id (tr->message)));
+            return;
+        }
+
+        /* Matched transactions translated with the same context as the request */
+        trace_message (self, message, FALSE, "response", tr->message_context);
+        /* Report the reply message */
+        transaction_complete_and_free (tr, message, NULL);
         return;
     }
 
@@ -1796,68 +1922,66 @@ device_create_endpoint (QmiDevice *self,
 }
 
 static gboolean
-device_setup_open_flags_by_driver (QmiDevice          *self,
-                                   DeviceOpenContext  *ctx,
-                                   GError            **error)
+device_setup_open_flags_by_transport (QmiDevice          *self,
+                                      DeviceOpenContext  *ctx,
+                                      GError            **error)
 {
-    gchar  *driver;
-    GError *inner_error = NULL;
+    __QmiTransportType  transport;
+    GError             *inner_error = NULL;
 
-    driver = __qmi_utils_get_driver (qmi_file_get_path (self->priv->file), &inner_error);
-    if (driver)
-        g_debug ("[%s] loaded driver of cdc-wdm port: %s", qmi_file_get_path_display (self->priv->file), driver);
-    else if (!self->priv->no_file_check)
-        g_warning ("[%s] couldn't load driver of cdc-wdm port: %s", qmi_file_get_path_display (self->priv->file), inner_error->message);
+    transport = __qmi_utils_get_transport_type (qmi_file_get_path (self->priv->file), &inner_error);
+    if ((transport == __QMI_TRANSPORT_TYPE_UNKNOWN) && !self->priv->no_file_check)
+        g_warning ("[%s] couldn't detect transport type of port: %s", qmi_file_get_path_display (self->priv->file), inner_error->message);
     g_clear_error (&inner_error);
 
 #if defined MBIM_QMUX_ENABLED
 
     /* Auto mode requested? */
     if (ctx->flags & QMI_DEVICE_OPEN_FLAGS_AUTO) {
-        if (!g_strcmp0 (driver, "cdc_mbim")) {
+        switch (transport) {
+        case __QMI_TRANSPORT_TYPE_MBIM:
             g_debug ("[%s] automatically selecting MBIM mode", qmi_file_get_path_display (self->priv->file));
             ctx->flags |= QMI_DEVICE_OPEN_FLAGS_MBIM;
-            goto out;
-        }
-        if (!g_strcmp0 (driver, "qmi_wwan")) {
+            break;
+        case __QMI_TRANSPORT_TYPE_QMUX:
             g_debug ("[%s] automatically selecting QMI mode", qmi_file_get_path_display (self->priv->file));
             ctx->flags &= ~QMI_DEVICE_OPEN_FLAGS_MBIM;
-            goto out;
+            break;
+        case __QMI_TRANSPORT_TYPE_UNKNOWN:
+            g_set_error (&inner_error, QMI_CORE_ERROR, QMI_CORE_ERROR_FAILED,
+                         "Cannot automatically select QMI/MBIM mode");
+            break;
+        default:
+            g_assert_not_reached ();
         }
-        g_set_error (&inner_error,
-                     QMI_CORE_ERROR,
-                     QMI_CORE_ERROR_FAILED,
-                     "Cannot automatically select QMI/MBIM mode: driver %s",
-                     driver ? driver : "unknown");
         goto out;
     }
 
     /* MBIM mode requested? */
     if (ctx->flags & QMI_DEVICE_OPEN_FLAGS_MBIM) {
-        if (g_strcmp0 (driver, "cdc_mbim") && !self->priv->no_file_check)
-            g_warning ("[%s] requested MBIM mode but unexpected driver found: %s", qmi_file_get_path_display (self->priv->file), driver);
+        if ((transport != __QMI_TRANSPORT_TYPE_MBIM) && !self->priv->no_file_check)
+            g_warning ("[%s] requested MBIM mode but unexpected transport type found", qmi_file_get_path_display (self->priv->file));
         goto out;
     }
 
 #else
 
-    if (ctx->flags & QMI_DEVICE_OPEN_FLAGS_AUTO)
-        g_warning ("[%s] requested auto mode but no MBIM QMUX support available", qmi_file_get_path_display (self->priv->file));
-    if (ctx->flags & QMI_DEVICE_OPEN_FLAGS_MBIM)
+    /* MBIM mode requested? */
+    if (ctx->flags & QMI_DEVICE_OPEN_FLAGS_MBIM) {
         g_warning ("[%s] requested MBIM mode but no MBIM QMUX support available", qmi_file_get_path_display (self->priv->file));
+        goto out;
+    }
+
+    /* Treat AUTO as QMI mode, without warnings */
 
 #endif /* MBIM_QMUX_ENABLED */
 
     /* QMI mode requested? */
-    if (g_strcmp0 (driver, "qmi_wwan") && !self->priv->no_file_check)
-        g_warning ("[%s] requested QMI mode but unexpected driver found: %s",
-                   qmi_file_get_path_display (self->priv->file), driver ? driver : "unknown");
+    if ((transport != __QMI_TRANSPORT_TYPE_QMUX) && !self->priv->no_file_check)
+        g_warning ("[%s] requested QMI mode but unexpected transport type found",
+                   qmi_file_get_path_display (self->priv->file));
 
-#if defined MBIM_QMUX_ENABLED
 out:
-#endif
-
-    g_free (driver);
 
     if (inner_error) {
         g_propagate_error (error, inner_error);
@@ -1883,7 +2007,7 @@ device_open_step (GTask *task)
         /* Fall through */
 
     case DEVICE_OPEN_CONTEXT_STEP_DRIVER:
-        if (!device_setup_open_flags_by_driver (self, ctx, &error)) {
+        if (!device_setup_open_flags_by_transport (self, ctx, &error)) {
             g_task_return_error (task, error);
             g_object_unref (task);
             return;
@@ -2128,9 +2252,9 @@ qmi_device_close_async (QmiDevice           *self,
 /* Command */
 
 QmiMessage *
-qmi_device_command_full_finish (QmiDevice     *self,
-                                GAsyncResult  *res,
-                                GError       **error)
+qmi_device_command_abortable_finish (QmiDevice     *self,
+                                     GAsyncResult  *res,
+                                     GError       **error)
 {
     if (g_simple_async_result_propagate_error (G_SIMPLE_ASYNC_RESULT (res), error))
         return NULL;
@@ -2157,13 +2281,17 @@ transaction_early_error (QmiDevice   *self,
 }
 
 void
-qmi_device_command_full (QmiDevice           *self,
-                         QmiMessage          *message,
-                         QmiMessageContext   *message_context,
-                         guint                timeout,
-                         GCancellable        *cancellable,
-                         GAsyncReadyCallback  callback,
-                         gpointer             user_data)
+qmi_device_command_abortable (QmiDevice                                *self,
+                              QmiMessage                               *message,
+                              QmiMessageContext                        *message_context,
+                              guint                                     timeout,
+                              QmiDeviceCommandAbortableBuildRequestFn   abort_build_request_fn,
+                              QmiDeviceCommandAbortableParseResponseFn  abort_parse_response_fn,
+                              gpointer                                  abort_user_data,
+                              GDestroyNotify                            abort_user_data_free,
+                              GCancellable                             *cancellable,
+                              GAsyncReadyCallback                       callback,
+                              gpointer                                  user_data)
 {
     GError *error = NULL;
     Transaction *tr;
@@ -2171,6 +2299,10 @@ qmi_device_command_full (QmiDevice           *self,
     g_return_if_fail (QMI_IS_DEVICE (self));
     g_return_if_fail (message != NULL);
     g_return_if_fail (timeout > 0);
+
+    /* either none or both set */
+    g_return_if_fail ((!abort_build_request_fn && !abort_parse_response_fn) ||
+                      (abort_build_request_fn  && abort_parse_response_fn));
 
     /* Use a proper transaction id for CTL messages if they don't have one */
     if (qmi_message_get_service (message) == QMI_SERVICE_CTL &&
@@ -2204,12 +2336,21 @@ qmi_device_command_full (QmiDevice           *self,
         return;
     }
 
-    /* Check if the message to be sent is supported by the device
-     * (only applicable if we did version info check when opening) */
-    if (!check_message_supported (self, message, &error)) {
-        g_prefix_error (&error, "Cannot send message: ");
-        transaction_early_error (self, tr, FALSE, error);
-        return;
+    /* If message is not abortable, we should not allow using the abortable() interface */
+    if (!__qmi_message_is_abortable (message, message_context)) {
+        if (abort_build_request_fn || abort_parse_response_fn) {
+            error = g_error_new (QMI_CORE_ERROR,
+                                 QMI_CORE_ERROR_FAILED,
+                                 "Message is not abortable");
+            transaction_early_error (self, tr, FALSE, error);
+            return;
+        }
+    } else {
+        /* Store abortable info, if any */
+        tr->abort_build_request_fn  = abort_build_request_fn;
+        tr->abort_parse_response_fn = abort_parse_response_fn;
+        tr->abort_user_data         = abort_user_data;
+        tr->abort_user_data_free    = abort_user_data_free;
     }
 
     /* Setup context to match response */
@@ -2228,6 +2369,39 @@ qmi_device_command_full (QmiDevice           *self,
         transaction_early_error (self, tr, TRUE, error);
         return;
     }
+}
+
+/*****************************************************************************/
+/* Non-abortable standard command */
+
+QmiMessage *
+qmi_device_command_full_finish (QmiDevice     *self,
+                                GAsyncResult  *res,
+                                GError       **error)
+{
+    return qmi_device_command_abortable_finish (self, res, error);
+}
+
+void
+qmi_device_command_full (QmiDevice           *self,
+                         QmiMessage          *message,
+                         QmiMessageContext   *message_context,
+                         guint                timeout,
+                         GCancellable        *cancellable,
+                         GAsyncReadyCallback  callback,
+                         gpointer             user_data)
+{
+    qmi_device_command_abortable (self,
+                                  message,
+                                  message_context,
+                                  timeout,
+                                  NULL, /* abort_build_request_fn  */
+                                  NULL, /* abort_parse_response_fn */
+                                  NULL, /* abort_user_data         */
+                                  NULL, /* abort_user_data_free    */
+                                  cancellable,
+                                  callback,
+                                  user_data);
 }
 
 /*****************************************************************************/

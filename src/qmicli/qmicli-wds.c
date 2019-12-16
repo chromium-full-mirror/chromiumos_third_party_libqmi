@@ -60,7 +60,6 @@ static gboolean get_packet_service_status_flag;
 static gboolean get_packet_statistics_flag;
 static gboolean get_data_bearer_technology_flag;
 static gboolean get_current_data_bearer_technology_flag;
-static gboolean get_current_data_bearer_technology_flag;
 static gboolean go_dormant_flag;
 static gboolean go_active_flag;
 static gboolean get_dormancy_status_flag;
@@ -520,7 +519,7 @@ start_network_input_create (const gchar                     *str,
                             GError                         **error)
 {
     gchar *aux_auth_str = NULL;
-    gchar *ip_type_str = NULL;
+    const gchar *ip_type_str = NULL;
     gchar **split = NULL;
     StartNetworkProperties props = {
         .auth    = QMI_WDS_AUTHENTICATION_NONE,
@@ -2392,10 +2391,10 @@ noop_cb (gpointer unused)
 }
 
 typedef struct {
-    guint32 mux_id;
+    guint8 mux_id;
     guint8 ep_type;
-    guint32 ep_iface_number;
-    guint32 client_type;
+    gint ep_iface_number;
+    QmiWdsClientType client_type;
 } BindMuxDataPortProperties;
 
 static gboolean
@@ -2416,12 +2415,28 @@ bind_mux_data_port_properties_handle (const gchar *key,
     }
 
     if (g_ascii_strcasecmp (key, "mux-id") == 0) {
-        props->mux_id = atoi(value);
+        guint aux;
+
+        /* QMI_WDS_MUX_ID_UNDEFINED is G_MAXUINT8 (0xff) */
+        if (!qmicli_read_uint_from_string (value, &aux) || (aux >= G_MAXUINT8)) {
+            g_set_error (error, QMI_CORE_ERROR, QMI_CORE_ERROR_FAILED,
+                         "failed reading key 'mux-id' value in range [0,254]");
+            return FALSE;
+        }
+        props->mux_id = (guint8) aux;
         return TRUE;
     }
 
     if (g_ascii_strcasecmp (key, "ep-iface-number") == 0) {
-        props->ep_iface_number = atoi(value);
+        guint aux;
+
+        if (!qmicli_read_uint_from_string (value, &aux)) {
+            g_set_error (error, QMI_CORE_ERROR, QMI_CORE_ERROR_FAILED,
+                         "failed reading key 'ep-iface-number' value");
+            return FALSE;
+        }
+
+        props->ep_iface_number = (gint) aux;
         return TRUE;
     }
 
