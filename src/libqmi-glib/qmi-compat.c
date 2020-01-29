@@ -970,4 +970,96 @@ qmi_client_dms_dell_change_device_mode_finish (
     return qmi_client_dms_foxconn_change_device_mode_finish (self, res, error);
 }
 
+gboolean
+qmi_message_nas_get_operator_name_output_get_operator_nitz_information (
+    QmiMessageNasGetOperatorNameOutput *self,
+    QmiNasPlmnEncodingScheme *value_operator_nitz_information_name_encoding,
+    QmiNasPlmnNameCountryInitials *value_operator_nitz_information_short_country_initials,
+    QmiNasPlmnNameSpareBits *value_operator_nitz_information_long_name_spare_bits,
+    QmiNasPlmnNameSpareBits *value_operator_nitz_information_short_name_spare_bits,
+    const gchar **value_operator_nitz_information_long_name,
+    const gchar **value_operator_nitz_information_short_name,
+    GError **error)
+{
+    GArray *long_name = NULL;
+    GArray *short_name = NULL;
+
+    if (!qmi_message_nas_get_operator_name_output_get_nitz_information (
+            self,
+            value_operator_nitz_information_name_encoding,
+            value_operator_nitz_information_short_country_initials,
+            value_operator_nitz_information_long_name_spare_bits,
+            value_operator_nitz_information_short_name_spare_bits,
+            &long_name,
+            &short_name,
+            error))
+        return FALSE;
+
+    if (value_operator_nitz_information_long_name)
+        *value_operator_nitz_information_long_name = (const gchar *)long_name->data;
+    if (value_operator_nitz_information_short_name)
+        *value_operator_nitz_information_short_name = (const gchar *)short_name->data;
+    return TRUE;
+}
+
+gboolean
+qmi_indication_nas_operator_name_output_get_operator_nitz_information (
+    QmiIndicationNasOperatorNameOutput *self,
+    QmiNasPlmnEncodingScheme *value_operator_nitz_information_name_encoding,
+    QmiNasPlmnNameCountryInitials *value_operator_nitz_information_short_country_initials,
+    QmiNasPlmnNameSpareBits *value_operator_nitz_information_long_name_spare_bits,
+    QmiNasPlmnNameSpareBits *value_operator_nitz_information_short_name_spare_bits,
+    const gchar **value_operator_nitz_information_long_name,
+    const gchar **value_operator_nitz_information_short_name,
+    GError **error)
+{
+    GArray *long_name = NULL;
+    GArray *short_name = NULL;
+
+    if (!qmi_indication_nas_operator_name_output_get_nitz_information (
+            self,
+            value_operator_nitz_information_name_encoding,
+            value_operator_nitz_information_short_country_initials,
+            value_operator_nitz_information_long_name_spare_bits,
+            value_operator_nitz_information_short_name_spare_bits,
+            &long_name,
+            &short_name,
+            error))
+        return FALSE;
+
+    if (value_operator_nitz_information_long_name)
+        *value_operator_nitz_information_long_name = (const gchar *)long_name->data;
+    if (value_operator_nitz_information_short_name)
+        *value_operator_nitz_information_short_name = (const gchar *)short_name->data;
+    return TRUE;
+}
+
+gboolean
+qmi_message_nas_get_home_network_output_get_home_network_3gpp2 (
+    QmiMessageNasGetHomeNetworkOutput *self,
+    guint16 *value_home_network_3gpp2_mcc,
+    guint16 *value_home_network_3gpp2_mnc,
+    QmiNasNetworkDescriptionDisplay *value_home_network_3gpp2_display_description,
+    QmiNasNetworkDescriptionEncoding *value_home_network_3gpp2_description_encoding,
+    const gchar **value_home_network_3gpp2_description,
+    GError **error)
+{
+    GArray *description = NULL;
+
+    if (!qmi_message_nas_get_home_network_output_get_home_network_3gpp2_ext (
+            self,
+            value_home_network_3gpp2_mcc,
+            value_home_network_3gpp2_mnc,
+            value_home_network_3gpp2_display_description,
+            value_home_network_3gpp2_description_encoding,
+            &description,
+            error))
+        return FALSE;
+
+    if (value_home_network_3gpp2_description)
+        *value_home_network_3gpp2_description = (const gchar *)description->data;
+
+    return TRUE;
+}
+
 #endif /* QMI_DISABLE_DEPRECATED */

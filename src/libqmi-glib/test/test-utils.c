@@ -10,1258 +10,250 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details:
  *
- * Copyright (C) 2012 Aleksander Morgado <aleksander@gnu.org>
+ * Copyright (C) 2020 Aleksander Morgado <aleksander@aleksander.es>
  */
 
 #include <glib-object.h>
 #include <string.h>
 #include "qmi-utils.h"
-#include "qmi-compat.h"
+#include "qmi-enums-nas.h"
 
-#ifndef QMI_DISABLE_DEPRECATED
+/******************************************************************************/
 
 static void
-test_utils_uint8 (void)
+common_test_read_string_from_plmn_encoded_array (QmiNasPlmnEncodingScheme  encoding,
+                                                 const guint8             *data,
+                                                 gsize                     data_len,
+                                                 const gchar              *expected_utf8)
 {
-    static const guint8 in_buffer[8] = {
-        0x0F, 0x50, 0xEB, 0xE2, 0xB6, 0x00, 0x00, 0x00
-    };
-    guint8 out_buffer[8] = { 0 };
+    g_autofree gchar *utf8 = NULL;
+    g_autoptr(GArray) array = NULL;
 
-    guint16 in_buffer_size;
-    const guint8 *in_buffer_walker;
-    guint16 out_buffer_size;
-    guint8 *out_buffer_walker;
+    array = g_array_append_vals (g_array_sized_new (FALSE, FALSE, sizeof (guint8), data_len),
+                                 data, data_len);
 
-    in_buffer_size = sizeof (in_buffer);
-    in_buffer_walker = &in_buffer[0];
-    out_buffer_size = sizeof (out_buffer);
-    out_buffer_walker = &out_buffer[0];
+    utf8 = qmi_nas_read_string_from_plmn_encoded_array (encoding, array);
 
-    while (in_buffer_size) {
-        guint8 tmp;
-
-        qmi_utils_read_guint8_from_buffer (&in_buffer_walker, &in_buffer_size, &tmp);
-        qmi_utils_write_guint8_to_buffer (&out_buffer_walker, &out_buffer_size, &tmp);
-    }
-
-    g_assert_cmpuint (out_buffer_size, ==, 0);
-    g_assert (memcmp (in_buffer, out_buffer, sizeof (in_buffer)) == 0);
+    g_assert_nonnull (utf8);
+    g_assert_cmpstr (utf8, ==, expected_utf8);
 }
 
 static void
-test_utils_int8 (void)
+test_read_string_from_plmn_encoded_array_gsm7_default_chars (void)
 {
-    static const guint8 in_buffer[8] = {
-        0x0F, 0x50, 0xEB, 0xE2, 0xB6, 0x00, 0x00, 0x00
+    const guint8 gsm[] = {
+        0x80, 0x80, 0x60, 0x40, 0x28, 0x18, 0x0E, 0x88,
+        0x84, 0x62, 0xC1, 0x68, 0x38, 0x1E, 0x90, 0x88,
+        0x64, 0x42, 0xA9, 0x58, 0x2E, 0x98, 0x8C, 0x86,
+        0xD3, 0xF1, 0x7C, 0x40, 0x21, 0xD1, 0x88, 0x54,
+        0x32, 0x9D, 0x50, 0x29, 0xD5, 0x8A, 0xD5, 0x72,
+        0xBD, 0x60, 0x31, 0xD9, 0x8C, 0x56, 0xB3, 0xDD,
+        0x70, 0x39, 0xDD, 0x8E, 0xD7, 0xF3, 0xFD, 0x80,
+        0x41, 0xE1, 0x90, 0x58, 0x34, 0x1E, 0x91, 0x49,
+        0xE5, 0x92, 0xD9, 0x74, 0x3E, 0xA1, 0x51, 0xE9,
+        0x94, 0x5A, 0xB5, 0x5E, 0xB1, 0x59, 0xED, 0x96,
+        0xDB, 0xF5, 0x7E, 0xC1, 0x61, 0xF1, 0x98, 0x5C,
+        0x36, 0x9F, 0xD1, 0x69, 0xF5, 0x9A, 0xDD, 0x76,
+        0xBF, 0xE1, 0x71, 0xF9, 0x9C, 0x5E, 0xB7, 0xDF,
+        0xF1, 0x79, 0xFD, 0x9E, 0xDF, 0xF7, 0xFF, 0x01,
     };
-    guint8 out_buffer[8] = { 0 };
+    const gchar *expected_utf8 = "@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà";
 
-    guint16 in_buffer_size;
-    const guint8 *in_buffer_walker;
-    guint16 out_buffer_size;
-    guint8 *out_buffer_walker;
-
-    in_buffer_size = sizeof (in_buffer);
-    in_buffer_walker = &in_buffer[0];
-    out_buffer_size = sizeof (out_buffer);
-    out_buffer_walker = &out_buffer[0];
-
-    while (in_buffer_size) {
-        gint8 tmp;
-
-        qmi_utils_read_gint8_from_buffer (&in_buffer_walker, &in_buffer_size, &tmp);
-        qmi_utils_write_gint8_to_buffer (&out_buffer_walker, &out_buffer_size, &tmp);
-    }
-
-    g_assert_cmpuint (out_buffer_size, ==, 0);
-    g_assert (memcmp (in_buffer, out_buffer, sizeof (in_buffer)) == 0);
+    common_test_read_string_from_plmn_encoded_array (QMI_NAS_PLMN_ENCODING_SCHEME_GSM, gsm, G_N_ELEMENTS (gsm), expected_utf8);
 }
 
 static void
-test_utils_uint16_le (void)
+test_read_string_from_plmn_encoded_array_gsm7_extended_chars (void)
 {
-    static const guint8 in_buffer[8] = {
-        0x0F, 0x50, 0xEB, 0xE2, 0xB6, 0x00, 0x00, 0x00
+    const guint8 gsm[] = {
+        0x1B, 0xC5, 0x86, 0xB2, 0x41, 0x6D, 0x52, 0x9B,
+        0xD7, 0x86, 0xB7, 0xE9, 0x6D, 0x7C, 0x1B, 0xE0,
+        0xA6, 0x0C
     };
-    static const guint16 values[4] = {
-        0x500F, 0xE2EB, 0x00B6, 0x0000
-    };
-    guint8 out_buffer[8] = { 0 };
+    const gchar *expected_utf8 = "\f^{}\\[~]|€";
 
-    guint i;
-    guint16 in_buffer_size;
-    const guint8 *in_buffer_walker;
-    guint16 out_buffer_size;
-    guint8 *out_buffer_walker;
-
-    in_buffer_size = sizeof (in_buffer);
-    in_buffer_walker = &in_buffer[0];
-    out_buffer_size = sizeof (out_buffer);
-    out_buffer_walker = &out_buffer[0];
-    i = 0;
-
-    while (in_buffer_size) {
-        guint16 tmp;
-
-        qmi_utils_read_guint16_from_buffer (&in_buffer_walker, &in_buffer_size, QMI_ENDIAN_LITTLE, &tmp);
-        g_assert_cmpuint (tmp, ==, values[i++]);
-        qmi_utils_write_guint16_to_buffer (&out_buffer_walker, &out_buffer_size, QMI_ENDIAN_LITTLE, &tmp);
-    }
-
-    g_assert_cmpuint (out_buffer_size, ==, 0);
-    g_assert (memcmp (in_buffer, out_buffer, sizeof (in_buffer)) == 0);
+    common_test_read_string_from_plmn_encoded_array (QMI_NAS_PLMN_ENCODING_SCHEME_GSM, gsm, G_N_ELEMENTS (gsm), expected_utf8);
 }
 
 static void
-test_utils_uint16_be (void)
+test_read_string_from_plmn_encoded_array_gsm7_mixed_chars (void)
 {
-    static const guint8 in_buffer[8] = {
-        0x50, 0x0F, 0xE2, 0xEB, 0x00, 0xB6, 0x00, 0x00
+    const guint8 gsm[] = {
+        0x80, 0x80, 0x60, 0x40, 0x28, 0x18, 0x0E, 0x8C,
+        0x8D, 0xA2, 0x62, 0xB9, 0x60, 0x32, 0x1B, 0x94,
+        0x86, 0xD3, 0xF1, 0xA0, 0x36, 0xA9, 0xD4, 0x0D,
+        0x97, 0xDB, 0xBC, 0x74, 0x3B, 0x5E, 0xCF, 0xB7,
+        0xE1, 0xFD, 0x80, 0x51, 0xE9, 0x74, 0xE3, 0xA3,
+        0x56, 0xB9, 0x1B, 0x60, 0xD7, 0xFB, 0x05, 0x87,
+        0xC5, 0xF0, 0xB8, 0x7C, 0x4E, 0xAF, 0xDB, 0xF9,
+        0x7D, 0xFF, 0x7F, 0x53, 0x06
     };
-    static const guint16 values[4] = {
-        0x500F, 0xE2EB, 0x00B6, 0x0000
-    };
-    guint8 out_buffer[8] = { 0 };
+    const gchar *expected_utf8 = "@£$¥èéùìø\fΩΠΨΣΘ{ΞÆæß(})789\\:;<=>[?¡QRS]TUÖ|ÑÜ§¿abpqrstuvöñüà€";
 
-    guint i;
-    guint16 in_buffer_size;
-    const guint8 *in_buffer_walker;
-    guint16 out_buffer_size;
-    guint8 *out_buffer_walker;
-
-    in_buffer_size = sizeof (in_buffer);
-    in_buffer_walker = &in_buffer[0];
-    out_buffer_size = sizeof (out_buffer);
-    out_buffer_walker = &out_buffer[0];
-    i = 0;
-
-    while (in_buffer_size) {
-        guint16 tmp;
-
-        qmi_utils_read_guint16_from_buffer (&in_buffer_walker, &in_buffer_size, QMI_ENDIAN_BIG, &tmp);
-        g_assert_cmpuint (tmp, ==, values[i++]);
-        qmi_utils_write_guint16_to_buffer (&out_buffer_walker, &out_buffer_size, QMI_ENDIAN_BIG, &tmp);
-    }
-
-    g_assert_cmpuint (out_buffer_size, ==, 0);
-    g_assert (memcmp (in_buffer, out_buffer, sizeof (in_buffer)) == 0);
+    common_test_read_string_from_plmn_encoded_array (QMI_NAS_PLMN_ENCODING_SCHEME_GSM, gsm, G_N_ELEMENTS (gsm), expected_utf8);
 }
 
 static void
-test_utils_int16_le (void)
+test_read_string_from_plmn_encoded_array_ucs2le (void)
 {
-    static const guint8 in_buffer[8] = {
-        0x0F, 0x50, 0xEB, 0xE2, 0xB6, 0x00, 0x00, 0x00
+    const guint8 ucs2le[] = {
+        0x54, 0x00, 0x2d, 0x00, 0x4d, 0x00, 0x6f, 0x00,
+        0x62, 0x00, 0x69, 0x00, 0x6c, 0x00, 0x65, 0x00
     };
-    static const gint16 values[4] = {
-        0x500F, 0xE2EB, 0x00B6, 0x0000
-    };
-    guint8 out_buffer[8] = { 0 };
+    const gchar *expected_utf8 = "T-Mobile";
 
-    guint i;
-    guint16 in_buffer_size;
-    const guint8 *in_buffer_walker;
-    guint16 out_buffer_size;
-    guint8 *out_buffer_walker;
+    common_test_read_string_from_plmn_encoded_array (QMI_NAS_PLMN_ENCODING_SCHEME_UCS2LE, ucs2le, G_N_ELEMENTS (ucs2le), expected_utf8);
+}
 
-    in_buffer_size = sizeof (in_buffer);
-    in_buffer_walker = &in_buffer[0];
-    out_buffer_size = sizeof (out_buffer);
-    out_buffer_walker = &out_buffer[0];
-    i = 0;
+/******************************************************************************/
 
-    while (in_buffer_size) {
-        gint16 tmp;
+static void
+common_test_read_string_from_network_description_encoded_array (QmiNasNetworkDescriptionEncoding  encoding,
+                                                                const guint8                     *data,
+                                                                gsize                             data_len,
+                                                                const gchar                      *expected_utf8)
+{
+    g_autofree gchar *utf8 = NULL;
+    g_autoptr(GArray) array = NULL;
 
-        qmi_utils_read_gint16_from_buffer (&in_buffer_walker, &in_buffer_size, QMI_ENDIAN_LITTLE, &tmp);
-        g_assert_cmpint (tmp, ==, values[i++]);
-        qmi_utils_write_gint16_to_buffer (&out_buffer_walker, &out_buffer_size, QMI_ENDIAN_LITTLE, &tmp);
-    }
+    array = g_array_append_vals (g_array_sized_new (FALSE, FALSE, sizeof (guint8), data_len),
+                                 data, data_len);
 
-    g_assert_cmpuint (out_buffer_size, ==, 0);
-    g_assert (memcmp (in_buffer, out_buffer, sizeof (in_buffer)) == 0);
+    utf8 = qmi_nas_read_string_from_network_description_encoded_array (encoding, array);
+
+    if (expected_utf8) {
+        g_assert_nonnull (utf8);
+        g_assert_cmpstr (utf8, ==, expected_utf8);
+    } else
+        g_assert_null (utf8);
 }
 
 static void
-test_utils_int16_be (void)
+test_read_string_from_network_description_encoded_array_gsm7_default_chars (void)
 {
-    static const guint8 in_buffer[8] = {
-        0x50, 0x0F, 0xE2, 0xEB, 0x00, 0xB6, 0x00, 0x00
+    const guint8 gsm[] = {
+        0x80, 0x80, 0x60, 0x40, 0x28, 0x18, 0x0E, 0x88,
+        0x84, 0x62, 0xC1, 0x68, 0x38, 0x1E, 0x90, 0x88,
+        0x64, 0x42, 0xA9, 0x58, 0x2E, 0x98, 0x8C, 0x86,
+        0xD3, 0xF1, 0x7C, 0x40, 0x21, 0xD1, 0x88, 0x54,
+        0x32, 0x9D, 0x50, 0x29, 0xD5, 0x8A, 0xD5, 0x72,
+        0xBD, 0x60, 0x31, 0xD9, 0x8C, 0x56, 0xB3, 0xDD,
+        0x70, 0x39, 0xDD, 0x8E, 0xD7, 0xF3, 0xFD, 0x80,
+        0x41, 0xE1, 0x90, 0x58, 0x34, 0x1E, 0x91, 0x49,
+        0xE5, 0x92, 0xD9, 0x74, 0x3E, 0xA1, 0x51, 0xE9,
+        0x94, 0x5A, 0xB5, 0x5E, 0xB1, 0x59, 0xED, 0x96,
+        0xDB, 0xF5, 0x7E, 0xC1, 0x61, 0xF1, 0x98, 0x5C,
+        0x36, 0x9F, 0xD1, 0x69, 0xF5, 0x9A, 0xDD, 0x76,
+        0xBF, 0xE1, 0x71, 0xF9, 0x9C, 0x5E, 0xB7, 0xDF,
+        0xF1, 0x79, 0xFD, 0x9E, 0xDF, 0xF7, 0xFF, 0x01,
     };
-    static const gint16 values[4] = {
-        0x500F, 0xE2EB, 0x00B6, 0x0000
-    };
-    guint8 out_buffer[8] = { 0 };
+    const gchar *expected_utf8 = "@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà";
 
-    guint i;
-    guint16 in_buffer_size;
-    const guint8 *in_buffer_walker;
-    guint16 out_buffer_size;
-    guint8 *out_buffer_walker;
-
-    in_buffer_size = sizeof (in_buffer);
-    in_buffer_walker = &in_buffer[0];
-    out_buffer_size = sizeof (out_buffer);
-    out_buffer_walker = &out_buffer[0];
-    i = 0;
-
-    while (in_buffer_size) {
-        gint16 tmp;
-
-        qmi_utils_read_gint16_from_buffer (&in_buffer_walker, &in_buffer_size, QMI_ENDIAN_BIG, &tmp);
-        g_assert_cmpint (tmp, ==, values[i++]);
-        qmi_utils_write_gint16_to_buffer (&out_buffer_walker, &out_buffer_size, QMI_ENDIAN_BIG, &tmp);
-    }
-
-    g_assert_cmpuint (out_buffer_size, ==, 0);
-    g_assert (memcmp (in_buffer, out_buffer, sizeof (in_buffer)) == 0);
+    common_test_read_string_from_network_description_encoded_array (QMI_NAS_NETWORK_DESCRIPTION_ENCODING_GSM, gsm, G_N_ELEMENTS (gsm), expected_utf8);
 }
 
 static void
-test_utils_uint16_unaligned_le (void)
+test_read_string_from_network_description_encoded_array_gsm7_extended_chars (void)
 {
-    static const guint8 in_buffer[9] = {
-        0x00, 0x0F, 0x50, 0xEB, 0xE2, 0xB6, 0x00, 0x00, 0x00
+    const guint8 gsm[] = {
+        0x1B, 0xC5, 0x86, 0xB2, 0x41, 0x6D, 0x52, 0x9B,
+        0xD7, 0x86, 0xB7, 0xE9, 0x6D, 0x7C, 0x1B, 0xE0,
+        0xA6, 0x0C
     };
-    static guint16 values[4] = {
-        0x500F, 0xE2EB, 0x00B6, 0x0000
-    };
-    guint8 out_buffer[8] = { 0 };
+    const gchar *expected_utf8 = "\f^{}\\[~]|€";
 
-    guint i;
-    guint16 in_buffer_size;
-    const guint8 *in_buffer_walker;
-    guint16 out_buffer_size;
-    guint8 *out_buffer_walker;
-
-    in_buffer_size = sizeof (in_buffer) - 1;
-    in_buffer_walker = &in_buffer[1];
-    out_buffer_size = sizeof (out_buffer);
-    out_buffer_walker = &out_buffer[0];
-    i = 0;
-
-    while (in_buffer_size) {
-        guint16 tmp;
-
-        qmi_utils_read_guint16_from_buffer (&in_buffer_walker, &in_buffer_size, QMI_ENDIAN_LITTLE, &tmp);
-        g_assert_cmpuint (tmp, ==, values[i++]);
-        qmi_utils_write_guint16_to_buffer (&out_buffer_walker, &out_buffer_size, QMI_ENDIAN_LITTLE, &tmp);
-    }
-
-    g_assert_cmpuint (out_buffer_size, ==, 0);
-    g_assert (memcmp (&in_buffer[1], out_buffer, sizeof (in_buffer) - 1) == 0);
+    common_test_read_string_from_network_description_encoded_array (QMI_NAS_NETWORK_DESCRIPTION_ENCODING_GSM, gsm, G_N_ELEMENTS (gsm), expected_utf8);
 }
 
 static void
-test_utils_uint16_unaligned_be (void)
+test_read_string_from_network_description_encoded_array_gsm7_mixed_chars (void)
 {
-    static const guint8 in_buffer[9] = {
-        0x00, 0x50, 0x0F, 0xE2, 0xEB, 0x00, 0xB6, 0x00, 0x00
+    const guint8 gsm[] = {
+        0x80, 0x80, 0x60, 0x40, 0x28, 0x18, 0x0E, 0x8C,
+        0x8D, 0xA2, 0x62, 0xB9, 0x60, 0x32, 0x1B, 0x94,
+        0x86, 0xD3, 0xF1, 0xA0, 0x36, 0xA9, 0xD4, 0x0D,
+        0x97, 0xDB, 0xBC, 0x74, 0x3B, 0x5E, 0xCF, 0xB7,
+        0xE1, 0xFD, 0x80, 0x51, 0xE9, 0x74, 0xE3, 0xA3,
+        0x56, 0xB9, 0x1B, 0x60, 0xD7, 0xFB, 0x05, 0x87,
+        0xC5, 0xF0, 0xB8, 0x7C, 0x4E, 0xAF, 0xDB, 0xF9,
+        0x7D, 0xFF, 0x7F, 0x53, 0x06
     };
-    static guint16 values[4] = {
-        0x500F, 0xE2EB, 0x00B6, 0x0000
-    };
-    guint8 out_buffer[8] = { 0 };
+    const gchar *expected_utf8 = "@£$¥èéùìø\fΩΠΨΣΘ{ΞÆæß(})789\\:;<=>[?¡QRS]TUÖ|ÑÜ§¿abpqrstuvöñüà€";
 
-    guint i;
-    guint16 in_buffer_size;
-    const guint8 *in_buffer_walker;
-    guint16 out_buffer_size;
-    guint8 *out_buffer_walker;
-
-    in_buffer_size = sizeof (in_buffer) - 1;
-    in_buffer_walker = &in_buffer[1];
-    out_buffer_size = sizeof (out_buffer);
-    out_buffer_walker = &out_buffer[0];
-    i = 0;
-
-    while (in_buffer_size) {
-        guint16 tmp;
-
-        qmi_utils_read_guint16_from_buffer (&in_buffer_walker, &in_buffer_size, QMI_ENDIAN_BIG, &tmp);
-        g_assert_cmpuint (tmp, ==, values[i++]);
-        qmi_utils_write_guint16_to_buffer (&out_buffer_walker, &out_buffer_size, QMI_ENDIAN_BIG, &tmp);
-    }
-
-    g_assert_cmpuint (out_buffer_size, ==, 0);
-    g_assert (memcmp (&in_buffer[1], out_buffer, sizeof (in_buffer) - 1) == 0);
+    common_test_read_string_from_network_description_encoded_array (QMI_NAS_NETWORK_DESCRIPTION_ENCODING_GSM, gsm, G_N_ELEMENTS (gsm), expected_utf8);
 }
 
 static void
-test_utils_int16_unaligned_le (void)
+test_read_string_from_network_description_encoded_array_ucs2le (void)
 {
-    static const guint8 in_buffer[9] = {
-        0x00, 0x0F, 0x50, 0xEB, 0xE2, 0xB6, 0x00, 0x00, 0x00
+    const guint8 ucs2le[] = {
+        0x54, 0x00, 0x2d, 0x00, 0x4d, 0x00, 0x6f, 0x00,
+        0x62, 0x00, 0x69, 0x00, 0x6c, 0x00, 0x65, 0x00
     };
-    static gint16 values[4] = {
-        0x500F, 0xE2EB, 0x00B6, 0x0000
-    };
-    guint8 out_buffer[8] = { 0 };
+    const gchar *expected_utf8 = "T-Mobile";
 
-    guint i;
-    guint16 in_buffer_size;
-    const guint8 *in_buffer_walker;
-    guint16 out_buffer_size;
-    guint8 *out_buffer_walker;
-
-    in_buffer_size = sizeof (in_buffer) - 1;
-    in_buffer_walker = &in_buffer[1];
-    out_buffer_size = sizeof (out_buffer);
-    out_buffer_walker = &out_buffer[0];
-    i = 0;
-
-    while (in_buffer_size) {
-        gint16 tmp;
-
-        qmi_utils_read_gint16_from_buffer (&in_buffer_walker, &in_buffer_size, QMI_ENDIAN_LITTLE, &tmp);
-        g_assert_cmpint (tmp, ==, values[i++]);
-        qmi_utils_write_gint16_to_buffer (&out_buffer_walker, &out_buffer_size, QMI_ENDIAN_LITTLE, &tmp);
-    }
-
-    g_assert_cmpuint (out_buffer_size, ==, 0);
-    g_assert (memcmp (&in_buffer[1], out_buffer, sizeof (in_buffer) - 1) == 0);
+    common_test_read_string_from_network_description_encoded_array (QMI_NAS_NETWORK_DESCRIPTION_ENCODING_UNICODE, ucs2le, G_N_ELEMENTS (ucs2le), expected_utf8);
 }
 
 static void
-test_utils_int16_unaligned_be (void)
+test_read_string_from_network_description_encoded_array_ascii (void)
 {
-    static const guint8 in_buffer[9] = {
-        0x00, 0x50, 0x0F, 0xE2, 0xEB, 0x00, 0xB6, 0x00, 0x00
-    };
-    static gint16 values[4] = {
-        0x500F, 0xE2EB, 0x00B6, 0x0000
-    };
-    guint8 out_buffer[8] = { 0 };
+    const guint8 ascii[] = { 'T', '-', 'M', 'o', 'b', 'i', 'l', 'e' };
+    const gchar *expected_utf8 = "T-Mobile";
 
-    guint i;
-    guint16 in_buffer_size;
-    const guint8 *in_buffer_walker;
-    guint16 out_buffer_size;
-    guint8 *out_buffer_walker;
-
-    in_buffer_size = sizeof (in_buffer) - 1;
-    in_buffer_walker = &in_buffer[1];
-    out_buffer_size = sizeof (out_buffer);
-    out_buffer_walker = &out_buffer[0];
-    i = 0;
-
-    while (in_buffer_size) {
-        gint16 tmp;
-
-        qmi_utils_read_gint16_from_buffer (&in_buffer_walker, &in_buffer_size, QMI_ENDIAN_BIG, &tmp);
-        g_assert_cmpint (tmp, ==, values[i++]);
-        qmi_utils_write_gint16_to_buffer (&out_buffer_walker, &out_buffer_size, QMI_ENDIAN_BIG, &tmp);
-    }
-
-    g_assert_cmpuint (out_buffer_size, ==, 0);
-    g_assert (memcmp (&in_buffer[1], out_buffer, sizeof (in_buffer) - 1) == 0);
+    common_test_read_string_from_network_description_encoded_array (QMI_NAS_NETWORK_DESCRIPTION_ENCODING_ASCII7, ascii, G_N_ELEMENTS (ascii), expected_utf8);
 }
 
 static void
-test_utils_uint32_le (void)
+test_read_string_from_network_description_encoded_array_unspecified_ascii (void)
 {
-    static const guint8 in_buffer[8] = {
-        0x0F, 0x50, 0xEB, 0xE2, 0xB6, 0x00, 0x00, 0x00
-    };
-    static const guint32 values[2] = {
-        0xE2EB500F, 0x000000B6
-    };
-    guint8 out_buffer[8] = { 0 };
+    const guint8 ascii[] = { 'T', '-', 'M', 'o', 'b', 'i', 'l', 'e' };
+    const gchar *expected_utf8 = "T-Mobile";
 
-    guint i;
-    guint16 in_buffer_size;
-    const guint8 *in_buffer_walker;
-    guint16 out_buffer_size;
-    guint8 *out_buffer_walker;
-
-    in_buffer_size = sizeof (in_buffer);
-    in_buffer_walker = &in_buffer[0];
-    out_buffer_size = sizeof (out_buffer);
-    out_buffer_walker = &out_buffer[0];
-    i = 0;
-
-    while (in_buffer_size) {
-        guint32 tmp;
-
-        qmi_utils_read_guint32_from_buffer (&in_buffer_walker, &in_buffer_size, QMI_ENDIAN_LITTLE, &tmp);
-        g_assert_cmpuint (tmp, ==, values[i++]);
-        qmi_utils_write_guint32_to_buffer (&out_buffer_walker, &out_buffer_size, QMI_ENDIAN_LITTLE, &tmp);
-    }
-
-    g_assert_cmpuint (out_buffer_size, ==, 0);
-    g_assert (memcmp (in_buffer, out_buffer, sizeof (in_buffer)) == 0);
+    common_test_read_string_from_network_description_encoded_array (QMI_NAS_NETWORK_DESCRIPTION_ENCODING_UNSPECIFIED, ascii, G_N_ELEMENTS (ascii), expected_utf8);
 }
 
 static void
-test_utils_uint32_be (void)
+test_read_string_from_network_description_encoded_array_unspecified_other (void)
 {
-    static const guint8 in_buffer[8] = {
-        0xE2, 0xEB, 0x50, 0x0F, 0x00, 0x00, 0x00, 0xB6
+    const guint8 other[] = {
+        0x54, 0x00, 0x2d, 0x00, 0x4d, 0x00, 0x6f, 0x00,
+        0x62, 0x00, 0x69, 0x00, 0x6c, 0x00, 0x65, 0x00
     };
-    static const guint32 values[2] = {
-        0xE2EB500F, 0x000000B6
-    };
-    guint8 out_buffer[8] = { 0 };
 
-    guint i;
-    guint16 in_buffer_size;
-    const guint8 *in_buffer_walker;
-    guint16 out_buffer_size;
-    guint8 *out_buffer_walker;
-
-    in_buffer_size = sizeof (in_buffer);
-    in_buffer_walker = &in_buffer[0];
-    out_buffer_size = sizeof (out_buffer);
-    out_buffer_walker = &out_buffer[0];
-    i = 0;
-
-    while (in_buffer_size) {
-        guint32 tmp;
-
-        qmi_utils_read_guint32_from_buffer (&in_buffer_walker, &in_buffer_size, QMI_ENDIAN_BIG, &tmp);
-        g_assert_cmpuint (tmp, ==, values[i++]);
-        qmi_utils_write_guint32_to_buffer (&out_buffer_walker, &out_buffer_size, QMI_ENDIAN_BIG, &tmp);
-    }
-
-    g_assert_cmpuint (out_buffer_size, ==, 0);
-    g_assert (memcmp (in_buffer, out_buffer, sizeof (in_buffer)) == 0);
+    common_test_read_string_from_network_description_encoded_array (QMI_NAS_NETWORK_DESCRIPTION_ENCODING_UNSPECIFIED, other, G_N_ELEMENTS (other), NULL);
 }
 
 static void
-test_utils_int32_le (void)
+test_read_string_from_network_description_encoded_array_unknown (void)
 {
-    static const guint8 in_buffer[8] = {
-        0x0F, 0x50, 0xEB, 0xE2, 0xB6, 0x00, 0x00, 0x00
+    const guint8 other[] = {
+        0x54, 0x00, 0x2d, 0x00, 0x4d, 0x00, 0x6f, 0x00,
+        0x62, 0x00, 0x69, 0x00, 0x6c, 0x00, 0x65, 0x00
     };
-    static const gint32 values[2] = {
-        0xE2EB500F, 0x000000B6
-    };
-    guint8 out_buffer[8] = { 0 };
 
-    guint i;
-    guint16 in_buffer_size;
-    const guint8 *in_buffer_walker;
-    guint16 out_buffer_size;
-    guint8 *out_buffer_walker;
-
-    in_buffer_size = sizeof (in_buffer);
-    in_buffer_walker = &in_buffer[0];
-    out_buffer_size = sizeof (out_buffer);
-    out_buffer_walker = &out_buffer[0];
-    i = 0;
-
-    while (in_buffer_size) {
-        gint32 tmp;
-
-        qmi_utils_read_gint32_from_buffer (&in_buffer_walker, &in_buffer_size, QMI_ENDIAN_LITTLE, &tmp);
-        g_assert_cmpint (tmp, ==, values[i++]);
-        qmi_utils_write_gint32_to_buffer (&out_buffer_walker, &out_buffer_size, QMI_ENDIAN_LITTLE, &tmp);
-    }
-
-    g_assert_cmpuint (out_buffer_size, ==, 0);
-    g_assert (memcmp (in_buffer, out_buffer, sizeof (in_buffer)) == 0);
+    common_test_read_string_from_network_description_encoded_array (0xFF, other, G_N_ELEMENTS (other), NULL);
 }
 
-static void
-test_utils_int32_be (void)
-{
-    static const guint8 in_buffer[8] = {
-        0xE2, 0xEB, 0x50, 0x0F, 0x00, 0x00, 0x00, 0xB6
-    };
-    static const gint32 values[2] = {
-        0xE2EB500F, 0x000000B6
-    };
-    guint8 out_buffer[8] = { 0 };
-
-    guint i;
-    guint16 in_buffer_size;
-    const guint8 *in_buffer_walker;
-    guint16 out_buffer_size;
-    guint8 *out_buffer_walker;
-
-    in_buffer_size = sizeof (in_buffer);
-    in_buffer_walker = &in_buffer[0];
-    out_buffer_size = sizeof (out_buffer);
-    out_buffer_walker = &out_buffer[0];
-    i = 0;
-
-    while (in_buffer_size) {
-        gint32 tmp;
-
-        qmi_utils_read_gint32_from_buffer (&in_buffer_walker, &in_buffer_size, QMI_ENDIAN_BIG, &tmp);
-        g_assert_cmpint (tmp, ==, values[i++]);
-        qmi_utils_write_gint32_to_buffer (&out_buffer_walker, &out_buffer_size, QMI_ENDIAN_BIG, &tmp);
-    }
-
-    g_assert_cmpuint (out_buffer_size, ==, 0);
-    g_assert (memcmp (in_buffer, out_buffer, sizeof (in_buffer)) == 0);
-}
-
-static void
-test_utils_uint32_unaligned_le (void)
-{
-    static const guint8 in_buffer[9] = {
-        0x00, 0x0F, 0x50, 0xEB, 0xE2, 0xB6, 0x00, 0x00, 0x00
-    };
-    static guint32 values[2] = {
-        0xE2EB500F, 0x000000B6
-    };
-    guint8 out_buffer[8] = { 0 };
-
-    guint i;
-    guint16 in_buffer_size;
-    const guint8 *in_buffer_walker;
-    guint16 out_buffer_size;
-    guint8 *out_buffer_walker;
-
-    in_buffer_size = sizeof (in_buffer) - 1;
-    in_buffer_walker = &in_buffer[1];
-    out_buffer_size = sizeof (out_buffer);
-    out_buffer_walker = &out_buffer[0];
-    i = 0;
-
-    while (in_buffer_size) {
-        guint32 tmp;
-
-        qmi_utils_read_guint32_from_buffer (&in_buffer_walker, &in_buffer_size, QMI_ENDIAN_LITTLE, &tmp);
-        g_assert_cmpuint (tmp, ==, values[i++]);
-        qmi_utils_write_guint32_to_buffer (&out_buffer_walker, &out_buffer_size, QMI_ENDIAN_LITTLE, &tmp);
-    }
-
-    g_assert_cmpuint (out_buffer_size, ==, 0);
-    g_assert (memcmp (&in_buffer[1], out_buffer, sizeof (in_buffer) - 1) == 0);
-}
-
-static void
-test_utils_uint32_unaligned_be (void)
-{
-    static const guint8 in_buffer[9] = {
-        0x00, 0xE2, 0xEB, 0x50, 0x0F, 0x00, 0x00, 0x00, 0xB6
-    };
-    static guint32 values[2] = {
-        0xE2EB500F, 0x000000B6
-    };
-    guint8 out_buffer[8] = { 0 };
-
-    guint i;
-    guint16 in_buffer_size;
-    const guint8 *in_buffer_walker;
-    guint16 out_buffer_size;
-    guint8 *out_buffer_walker;
-
-    in_buffer_size = sizeof (in_buffer) - 1;
-    in_buffer_walker = &in_buffer[1];
-    out_buffer_size = sizeof (out_buffer);
-    out_buffer_walker = &out_buffer[0];
-    i = 0;
-
-    while (in_buffer_size) {
-        guint32 tmp;
-
-        qmi_utils_read_guint32_from_buffer (&in_buffer_walker, &in_buffer_size, QMI_ENDIAN_BIG, &tmp);
-        g_assert_cmpuint (tmp, ==, values[i++]);
-        qmi_utils_write_guint32_to_buffer (&out_buffer_walker, &out_buffer_size, QMI_ENDIAN_BIG, &tmp);
-    }
-
-    g_assert_cmpuint (out_buffer_size, ==, 0);
-    g_assert (memcmp (&in_buffer[1], out_buffer, sizeof (in_buffer) - 1) == 0);
-}
-
-static void
-test_utils_int32_unaligned_le (void)
-{
-    static const guint8 in_buffer[9] = {
-        0x00, 0x0F, 0x50, 0xEB, 0xE2, 0xB6, 0x00, 0x00, 0x00
-    };
-    static gint32 values[2] = {
-        0xE2EB500F, 0x000000B6
-    };
-    guint8 out_buffer[8] = { 0 };
-
-    guint i;
-    guint16 in_buffer_size;
-    const guint8 *in_buffer_walker;
-    guint16 out_buffer_size;
-    guint8 *out_buffer_walker;
-
-    in_buffer_size = sizeof (in_buffer) - 1;
-    in_buffer_walker = &in_buffer[1];
-    out_buffer_size = sizeof (out_buffer);
-    out_buffer_walker = &out_buffer[0];
-    i = 0;
-
-    while (in_buffer_size) {
-        gint32 tmp;
-
-        qmi_utils_read_gint32_from_buffer (&in_buffer_walker, &in_buffer_size, QMI_ENDIAN_LITTLE, &tmp);
-        g_assert_cmpint (tmp, ==, values[i++]);
-        qmi_utils_write_gint32_to_buffer (&out_buffer_walker, &out_buffer_size, QMI_ENDIAN_LITTLE, &tmp);
-    }
-
-    g_assert_cmpuint (out_buffer_size, ==, 0);
-    g_assert (memcmp (&in_buffer[1], out_buffer, sizeof (in_buffer) - 1) == 0);
-}
-
-static void
-test_utils_int32_unaligned_be (void)
-{
-    static const guint8 in_buffer[9] = {
-        0x00, 0xE2, 0xEB, 0x50, 0x0F, 0x00, 0x00, 0x00, 0xB6
-    };
-    static gint32 values[2] = {
-        0xE2EB500F, 0x000000B6
-    };
-    guint8 out_buffer[8] = { 0 };
-
-    guint i;
-    guint16 in_buffer_size;
-    const guint8 *in_buffer_walker;
-    guint16 out_buffer_size;
-    guint8 *out_buffer_walker;
-
-    in_buffer_size = sizeof (in_buffer) - 1;
-    in_buffer_walker = &in_buffer[1];
-    out_buffer_size = sizeof (out_buffer);
-    out_buffer_walker = &out_buffer[0];
-    i = 0;
-
-    while (in_buffer_size) {
-        gint32 tmp;
-
-        qmi_utils_read_gint32_from_buffer (&in_buffer_walker, &in_buffer_size, QMI_ENDIAN_BIG, &tmp);
-        g_assert_cmpint (tmp, ==, values[i++]);
-        qmi_utils_write_gint32_to_buffer (&out_buffer_walker, &out_buffer_size, QMI_ENDIAN_BIG, &tmp);
-    }
-
-    g_assert_cmpuint (out_buffer_size, ==, 0);
-    g_assert (memcmp (&in_buffer[1], out_buffer, sizeof (in_buffer) - 1) == 0);
-}
-
-static void
-test_utils_uint64_le (void)
-{
-    static const guint8 in_buffer[8] = {
-        0x0F, 0x50, 0xEB, 0xE2, 0xB6, 0x00, 0x00, 0x00
-    };
-    static const guint64 values[1] = {
-        0x000000B6E2EB500FULL
-    };
-    guint8 out_buffer[8] = { 0 };
-
-    guint i;
-    guint16 in_buffer_size;
-    const guint8 *in_buffer_walker;
-    guint16 out_buffer_size;
-    guint8 *out_buffer_walker;
-
-    in_buffer_size = sizeof (in_buffer);
-    in_buffer_walker = &in_buffer[0];
-    out_buffer_size = sizeof (out_buffer);
-    out_buffer_walker = &out_buffer[0];
-    i = 0;
-
-    while (in_buffer_size) {
-        guint64 tmp;
-
-        qmi_utils_read_guint64_from_buffer (&in_buffer_walker, &in_buffer_size, QMI_ENDIAN_LITTLE, &tmp);
-        g_assert_cmpuint (tmp, ==, values[i++]);
-        qmi_utils_write_guint64_to_buffer (&out_buffer_walker, &out_buffer_size, QMI_ENDIAN_LITTLE, &tmp);
-    }
-
-    g_assert_cmpuint (out_buffer_size, ==, 0);
-    g_assert (memcmp (in_buffer, out_buffer, sizeof (in_buffer)) == 0);
-}
-
-static void
-test_utils_uint64_be (void)
-{
-    static const guint8 in_buffer[8] = {
-        0x00, 0x00, 0x00, 0xB6, 0xE2, 0xEB, 0x50, 0x0F
-    };
-    static const guint64 values[1] = {
-        0x000000B6E2EB500FULL
-    };
-    guint8 out_buffer[8] = { 0 };
-
-    guint i;
-    guint16 in_buffer_size;
-    const guint8 *in_buffer_walker;
-    guint16 out_buffer_size;
-    guint8 *out_buffer_walker;
-
-    in_buffer_size = sizeof (in_buffer);
-    in_buffer_walker = &in_buffer[0];
-    out_buffer_size = sizeof (out_buffer);
-    out_buffer_walker = &out_buffer[0];
-    i = 0;
-
-    while (in_buffer_size) {
-        guint64 tmp;
-
-        qmi_utils_read_guint64_from_buffer (&in_buffer_walker, &in_buffer_size, QMI_ENDIAN_BIG, &tmp);
-        g_assert_cmpuint (tmp, ==, values[i++]);
-        qmi_utils_write_guint64_to_buffer (&out_buffer_walker, &out_buffer_size, QMI_ENDIAN_BIG, &tmp);
-    }
-
-    g_assert_cmpuint (out_buffer_size, ==, 0);
-    g_assert (memcmp (in_buffer, out_buffer, sizeof (in_buffer)) == 0);
-}
-
-static void
-test_utils_int64_le (void)
-{
-    static const guint8 in_buffer[8] = {
-        0x0F, 0x50, 0xEB, 0xE2, 0xB6, 0x00, 0x00, 0x00
-    };
-    static const gint64 values[1] = {
-        0x000000B6E2EB500FLL
-    };
-    guint8 out_buffer[8] = { 0 };
-
-    guint i;
-    guint16 in_buffer_size;
-    const guint8 *in_buffer_walker;
-    guint16 out_buffer_size;
-    guint8 *out_buffer_walker;
-
-    in_buffer_size = sizeof (in_buffer);
-    in_buffer_walker = &in_buffer[0];
-    out_buffer_size = sizeof (out_buffer);
-    out_buffer_walker = &out_buffer[0];
-    i = 0;
-
-    while (in_buffer_size) {
-        gint64 tmp;
-
-        qmi_utils_read_gint64_from_buffer (&in_buffer_walker, &in_buffer_size, QMI_ENDIAN_LITTLE, &tmp);
-        g_assert_cmpint (tmp, ==, values[i++]);
-        qmi_utils_write_gint64_to_buffer (&out_buffer_walker, &out_buffer_size, QMI_ENDIAN_LITTLE, &tmp);
-    }
-
-    g_assert_cmpuint (out_buffer_size, ==, 0);
-    g_assert (memcmp (in_buffer, out_buffer, sizeof (in_buffer)) == 0);
-}
-
-static void
-test_utils_int64_be (void)
-{
-    static const guint8 in_buffer[8] = {
-        0x00, 0x00, 0x00, 0xB6, 0xE2, 0xEB, 0x50, 0x0F
-    };
-    static const gint64 values[1] = {
-        0x000000B6E2EB500FLL
-    };
-    guint8 out_buffer[8] = { 0 };
-
-    guint i;
-    guint16 in_buffer_size;
-    const guint8 *in_buffer_walker;
-    guint16 out_buffer_size;
-    guint8 *out_buffer_walker;
-
-    in_buffer_size = sizeof (in_buffer);
-    in_buffer_walker = &in_buffer[0];
-    out_buffer_size = sizeof (out_buffer);
-    out_buffer_walker = &out_buffer[0];
-    i = 0;
-
-    while (in_buffer_size) {
-        gint64 tmp;
-
-        qmi_utils_read_gint64_from_buffer (&in_buffer_walker, &in_buffer_size, QMI_ENDIAN_BIG, &tmp);
-        g_assert_cmpint (tmp, ==, values[i++]);
-        qmi_utils_write_gint64_to_buffer (&out_buffer_walker, &out_buffer_size, QMI_ENDIAN_BIG, &tmp);
-    }
-
-    g_assert_cmpuint (out_buffer_size, ==, 0);
-    g_assert (memcmp (in_buffer, out_buffer, sizeof (in_buffer)) == 0);
-}
-
-static void
-test_utils_uint64_unaligned_le (void)
-{
-    static const guint8 in_buffer[9] = {
-        0x00, 0x0F, 0x50, 0xEB, 0xE2, 0xB6, 0x00, 0x00, 0x00
-    };
-    static guint64 values[1] = {
-        0x000000B6E2EB500FULL
-    };
-    guint8 out_buffer[8] = { 0 };
-
-    guint i;
-    guint16 in_buffer_size;
-    const guint8 *in_buffer_walker;
-    guint16 out_buffer_size;
-    guint8 *out_buffer_walker;
-
-    in_buffer_size = sizeof (in_buffer) - 1;
-    in_buffer_walker = &in_buffer[1];
-    out_buffer_size = sizeof (out_buffer);
-    out_buffer_walker = &out_buffer[0];
-    i = 0;
-
-    while (in_buffer_size) {
-        guint64 tmp;
-
-        qmi_utils_read_guint64_from_buffer (&in_buffer_walker, &in_buffer_size, QMI_ENDIAN_LITTLE, &tmp);
-        g_assert_cmpuint (tmp, ==, values[i++]);
-        qmi_utils_write_guint64_to_buffer (&out_buffer_walker, &out_buffer_size, QMI_ENDIAN_LITTLE, &tmp);
-    }
-
-    g_assert_cmpuint (out_buffer_size, ==, 0);
-    g_assert (memcmp (&in_buffer[1], out_buffer, sizeof (in_buffer) - 1) == 0);
-}
-
-static void
-test_utils_uint64_unaligned_be (void)
-{
-    static const guint8 in_buffer[9] = {
-        0x00, 0x00, 0x00, 0x00, 0xB6, 0xE2, 0xEB, 0x50, 0x0F
-    };
-    static guint64 values[1] = {
-        0x000000B6E2EB500FULL
-    };
-    guint8 out_buffer[8] = { 0 };
-
-    guint i;
-    guint16 in_buffer_size;
-    const guint8 *in_buffer_walker;
-    guint16 out_buffer_size;
-    guint8 *out_buffer_walker;
-
-    in_buffer_size = sizeof (in_buffer) - 1;
-    in_buffer_walker = &in_buffer[1];
-    out_buffer_size = sizeof (out_buffer);
-    out_buffer_walker = &out_buffer[0];
-    i = 0;
-
-    while (in_buffer_size) {
-        guint64 tmp;
-
-        qmi_utils_read_guint64_from_buffer (&in_buffer_walker, &in_buffer_size, QMI_ENDIAN_BIG, &tmp);
-        g_assert_cmpuint (tmp, ==, values[i++]);
-        qmi_utils_write_guint64_to_buffer (&out_buffer_walker, &out_buffer_size, QMI_ENDIAN_BIG, &tmp);
-    }
-
-    g_assert_cmpuint (out_buffer_size, ==, 0);
-    g_assert (memcmp (&in_buffer[1], out_buffer, sizeof (in_buffer) - 1) == 0);
-}
-
-static void
-test_utils_int64_unaligned_le (void)
-{
-    static const guint8 in_buffer[9] = {
-        0x00, 0x0F, 0x50, 0xEB, 0xE2, 0xB6, 0x00, 0x00, 0x00
-    };
-    static gint64 values[1] = {
-        0x000000B6E2EB500FLL
-    };
-    guint8 out_buffer[8] = { 0 };
-
-    guint i;
-    guint16 in_buffer_size;
-    const guint8 *in_buffer_walker;
-    guint16 out_buffer_size;
-    guint8 *out_buffer_walker;
-
-    in_buffer_size = sizeof (in_buffer) - 1;
-    in_buffer_walker = &in_buffer[1];
-    out_buffer_size = sizeof (out_buffer);
-    out_buffer_walker = &out_buffer[0];
-    i = 0;
-
-    while (in_buffer_size) {
-        gint64 tmp;
-
-        qmi_utils_read_gint64_from_buffer (&in_buffer_walker, &in_buffer_size, QMI_ENDIAN_LITTLE, &tmp);
-        g_assert_cmpint (tmp, ==, values[i++]);
-        qmi_utils_write_gint64_to_buffer (&out_buffer_walker, &out_buffer_size, QMI_ENDIAN_LITTLE, &tmp);
-    }
-
-    g_assert_cmpuint (out_buffer_size, ==, 0);
-    g_assert (memcmp (&in_buffer[1], out_buffer, sizeof (in_buffer) - 1) == 0);
-}
-
-static void
-test_utils_int64_unaligned_be (void)
-{
-    static const guint8 in_buffer[9] = {
-        0x00, 0x00, 0x00, 0x00, 0xB6, 0xE2, 0xEB, 0x50, 0x0F
-    };
-    static gint64 values[1] = {
-        0x000000B6E2EB500FLL
-    };
-    guint8 out_buffer[8] = { 0 };
-
-    guint i;
-    guint16 in_buffer_size;
-    const guint8 *in_buffer_walker;
-    guint16 out_buffer_size;
-    guint8 *out_buffer_walker;
-
-    in_buffer_size = sizeof (in_buffer) - 1;
-    in_buffer_walker = &in_buffer[1];
-    out_buffer_size = sizeof (out_buffer);
-    out_buffer_walker = &out_buffer[0];
-    i = 0;
-
-    while (in_buffer_size) {
-        gint64 tmp;
-
-        qmi_utils_read_gint64_from_buffer (&in_buffer_walker, &in_buffer_size, QMI_ENDIAN_BIG, &tmp);
-        g_assert_cmpint (tmp, ==, values[i++]);
-        qmi_utils_write_gint64_to_buffer (&out_buffer_walker, &out_buffer_size, QMI_ENDIAN_BIG, &tmp);
-    }
-
-    g_assert_cmpuint (out_buffer_size, ==, 0);
-    g_assert (memcmp (&in_buffer[1], out_buffer, sizeof (in_buffer) - 1) == 0);
-}
-
-static void
-common_test_utils_uint_sized_le (guint n_bytes)
-{
-    static const guint8 in_buffer[8] = {
-        0x0F, 0x50, 0xEB, 0xE2, 0xB6, 0x00, 0x00, 0x00
-    };
-    guint64 value = 0x000000B6E2EB500FULL;
-    guint8 expected_out_buffer[8] = { 0 };
-    guint8 out_buffer[8] = { 0 };
-
-    guint64 tmp;
-    guint i;
-    guint16 in_buffer_size;
-    const guint8 *in_buffer_walker;
-    guint16 out_buffer_size;
-    guint8 *out_buffer_walker;
-
-    /* Build expected intermediate value */
-    tmp = 0xFF;
-    for (i = 1; i < n_bytes; i++) {
-        tmp <<= 8;
-        tmp |= 0xFF;
-    }
-    value &= tmp;
-
-    /* Build expected output buffer */
-    memcpy (expected_out_buffer, in_buffer, n_bytes);
-
-    in_buffer_size = sizeof (in_buffer);
-    in_buffer_walker = &in_buffer[0];
-    out_buffer_size = sizeof (out_buffer);
-    out_buffer_walker = &out_buffer[0];
-
-    qmi_utils_read_sized_guint_from_buffer (&in_buffer_walker, &in_buffer_size, n_bytes, QMI_ENDIAN_LITTLE, &tmp);
-    g_assert_cmpuint (tmp, ==, value);
-    qmi_utils_write_sized_guint_to_buffer (&out_buffer_walker, &out_buffer_size, n_bytes, QMI_ENDIAN_LITTLE, &tmp);
-
-    g_assert_cmpuint (out_buffer_size, ==, 8 - n_bytes);
-    g_assert (memcmp (expected_out_buffer, out_buffer, sizeof (expected_out_buffer)) == 0);
-}
-
-static void
-test_utils_uint_sized_1_le (void)
-{
-    common_test_utils_uint_sized_le (1);
-}
-
-static void
-test_utils_uint_sized_2_le (void)
-{
-    common_test_utils_uint_sized_le (2);
-}
-
-static void
-test_utils_uint_sized_4_le (void)
-{
-    common_test_utils_uint_sized_le (4);
-}
-
-static void
-test_utils_uint_sized_8_le (void)
-{
-    common_test_utils_uint_sized_le (8);
-}
-
-static void
-common_test_utils_uint_sized_be (guint n_bytes)
-{
-    static const guint8 in_buffer[8] = {
-        0x00, 0x00, 0x00, 0xB6, 0xE2, 0xEB, 0x50, 0x0F
-    };
-    guint64 value = 0x000000B6E2EB500FULL;
-    guint8 expected_out_buffer[8] = { 0 };
-    guint8 out_buffer[8] = { 0 };
-    guint8 in_buffer_aux[8] = { 0 };
-
-    guint64 tmp;
-    guint i;
-    guint16 in_buffer_size;
-    const guint8 *in_buffer_walker;
-    guint16 out_buffer_size;
-    guint8 *out_buffer_walker;
-
-    /* Build expected intermediate value */
-    tmp = 0xFF;
-    for (i = 1; i < n_bytes; i++) {
-        tmp <<= 8;
-        tmp |= 0xFF;
-    }
-    value &= tmp;
-
-    /* In BIG ENDIAN buffers, let's read only the bytes we want, starting from
-     * the byte we want, not from the beginning of the input buffer. But we do
-     * want to be aligned while reading, so we copy the bytes to read to the
-     * beginning of an aux buffer */
-    g_assert (n_bytes <= sizeof (in_buffer));
-    memcpy (&in_buffer_aux[0], &in_buffer[sizeof (in_buffer) - n_bytes], n_bytes);
-
-    /* Build expected output buffer */
-    memcpy (&expected_out_buffer[0], &in_buffer_aux[0], n_bytes);
-
-    in_buffer_size = sizeof (in_buffer);
-    in_buffer_walker = &in_buffer_aux[0];
-    out_buffer_size = sizeof (out_buffer);
-    out_buffer_walker = &out_buffer[0];
-
-    qmi_utils_read_sized_guint_from_buffer (&in_buffer_walker, &in_buffer_size, n_bytes, QMI_ENDIAN_BIG, &tmp);
-    g_assert_cmpuint (tmp, ==, value);
-    qmi_utils_write_sized_guint_to_buffer (&out_buffer_walker, &out_buffer_size, n_bytes, QMI_ENDIAN_BIG, &tmp);
-
-    g_assert_cmpuint (out_buffer_size, ==, 8 - n_bytes);
-    if (memcmp (expected_out_buffer, out_buffer, sizeof (expected_out_buffer)) != 0) {
-        g_print ("OUTPUT: %x, %x, %x, %x, %x, %x, %x, %x\n",
-                 out_buffer[0], out_buffer[1], out_buffer[2], out_buffer[3],
-                 out_buffer[4], out_buffer[5], out_buffer[6], out_buffer[7]);
-        g_print ("EXPECTED: %x, %x, %x, %x, %x, %x, %x, %x\n",
-                 expected_out_buffer[0], expected_out_buffer[1], expected_out_buffer[2], expected_out_buffer[3],
-                 expected_out_buffer[4], expected_out_buffer[5], expected_out_buffer[6], expected_out_buffer[7]);
-    }
-    g_assert (memcmp (expected_out_buffer, out_buffer, sizeof (expected_out_buffer)) == 0);
-}
-
-static void
-test_utils_uint_sized_1_be (void)
-{
-    common_test_utils_uint_sized_be (1);
-}
-
-static void
-test_utils_uint_sized_2_be (void)
-{
-    common_test_utils_uint_sized_be (2);
-}
-
-static void
-test_utils_uint_sized_4_be (void)
-{
-    common_test_utils_uint_sized_be (4);
-}
-
-static void
-test_utils_uint_sized_8_be (void)
-{
-    common_test_utils_uint_sized_be (8);
-}
-
-static void
-common_test_utils_uint_sized_unaligned_le (guint n_bytes)
-{
-    static const guint8 in_buffer[9] = {
-        0x00, 0x0F, 0x50, 0xEB, 0xE2, 0xB6, 0x00, 0x00, 0x00
-    };
-    guint64 value = 0x000000B6E2EB500FULL;
-    guint8 expected_out_buffer[8] = { 0 };
-    guint8 out_buffer[8] = { 0 };
-
-    guint64 tmp;
-    guint i;
-    guint16 in_buffer_size;
-    const guint8 *in_buffer_walker;
-    guint16 out_buffer_size;
-    guint8 *out_buffer_walker;
-
-    /* Build expected intermediate value */
-    tmp = 0xFF;
-    for (i = 1; i < n_bytes; i++) {
-        tmp <<= 8;
-        tmp |= 0xFF;
-    }
-    value &= tmp;
-
-    /* Build expected output buffer */
-    memcpy (expected_out_buffer, &in_buffer[1], n_bytes);
-
-    in_buffer_size = sizeof (in_buffer) - 1;
-    in_buffer_walker = &in_buffer[1];
-    out_buffer_size = sizeof (out_buffer);
-    out_buffer_walker = &out_buffer[0];
-
-    qmi_utils_read_sized_guint_from_buffer (&in_buffer_walker, &in_buffer_size, n_bytes, QMI_ENDIAN_LITTLE, &tmp);
-    g_assert_cmpuint (tmp, ==, value);
-    qmi_utils_write_sized_guint_to_buffer (&out_buffer_walker, &out_buffer_size, n_bytes, QMI_ENDIAN_LITTLE, &tmp);
-
-    g_assert_cmpuint (out_buffer_size, ==, 8 - n_bytes);
-    g_assert (memcmp (expected_out_buffer, out_buffer, sizeof (expected_out_buffer)) == 0);
-}
-
-static void
-test_utils_uint_sized_1_unaligned_le (void)
-{
-    common_test_utils_uint_sized_unaligned_le (1);
-}
-
-static void
-test_utils_uint_sized_2_unaligned_le (void)
-{
-    common_test_utils_uint_sized_unaligned_le (2);
-}
-
-static void
-test_utils_uint_sized_4_unaligned_le (void)
-{
-    common_test_utils_uint_sized_unaligned_le (4);
-}
-
-static void
-test_utils_uint_sized_8_unaligned_le (void)
-{
-    common_test_utils_uint_sized_unaligned_le (8);
-}
-
-static void
-common_test_utils_uint_sized_unaligned_be (guint n_bytes)
-{
-    static const guint8 in_buffer[8] = {
-        0x00, 0x00, 0x00, 0xB6, 0xE2, 0xEB, 0x50, 0x0F
-    };
-    guint64 value = 0x000000B6E2EB500FULL;
-    guint8 expected_out_buffer[8] = { 0 };
-    guint8 out_buffer[8] = { 0 };
-    guint8 in_buffer_aux[9] = { 0 };
-
-    guint64 tmp;
-    guint i;
-    guint16 in_buffer_size;
-    const guint8 *in_buffer_walker;
-    guint16 out_buffer_size;
-    guint8 *out_buffer_walker;
-
-    /* Build expected intermediate value */
-    tmp = 0xFF;
-    for (i = 1; i < n_bytes; i++) {
-        tmp <<= 8;
-        tmp |= 0xFF;
-    }
-    value &= tmp;
-
-    /* In BIG ENDIAN buffers, let's read only the bytes we want, starting from
-     * the byte we want, not from the beginning of the input buffer. But we do
-     * not want to be aligned while reading, so we copy the bytes to read to
-     * almost the beginning of an aux buffer */
-    g_assert (n_bytes <= (sizeof (in_buffer)));
-    memcpy (&in_buffer_aux[1], &in_buffer[sizeof (in_buffer) - n_bytes], n_bytes);
-
-    /* Build expected output buffer */
-    memcpy (expected_out_buffer, &in_buffer_aux[1], n_bytes);
-
-    in_buffer_size = sizeof (in_buffer_aux) - 1;
-    in_buffer_walker = &in_buffer_aux[1];
-    out_buffer_size = sizeof (out_buffer);
-    out_buffer_walker = &out_buffer[0];
-
-    qmi_utils_read_sized_guint_from_buffer (&in_buffer_walker, &in_buffer_size, n_bytes, QMI_ENDIAN_BIG, &tmp);
-    g_assert_cmpuint (tmp, ==, value);
-    qmi_utils_write_sized_guint_to_buffer (&out_buffer_walker, &out_buffer_size, n_bytes, QMI_ENDIAN_BIG, &tmp);
-
-    g_assert_cmpuint (out_buffer_size, ==, 8 - n_bytes);
-    if (memcmp (expected_out_buffer, out_buffer, sizeof (expected_out_buffer)) != 0) {
-        g_print ("OUTPUT: %x, %x, %x, %x, %x, %x, %x, %x\n",
-                 out_buffer[0], out_buffer[1], out_buffer[2], out_buffer[3],
-                 out_buffer[4], out_buffer[5], out_buffer[6], out_buffer[7]);
-        g_print ("EXPECTED: %x, %x, %x, %x, %x, %x, %x, %x\n",
-                 expected_out_buffer[0], expected_out_buffer[1], expected_out_buffer[2], expected_out_buffer[3],
-                 expected_out_buffer[4], expected_out_buffer[5], expected_out_buffer[6], expected_out_buffer[7]);
-    }
-    g_assert (memcmp (expected_out_buffer, out_buffer, sizeof (expected_out_buffer)) == 0);
-}
-
-static void
-test_utils_uint_sized_1_unaligned_be (void)
-{
-    common_test_utils_uint_sized_unaligned_be (1);
-}
-
-static void
-test_utils_uint_sized_2_unaligned_be (void)
-{
-    common_test_utils_uint_sized_unaligned_be (2);
-}
-
-static void
-test_utils_uint_sized_4_unaligned_be (void)
-{
-    common_test_utils_uint_sized_unaligned_be (4);
-}
-
-static void
-test_utils_uint_sized_8_unaligned_be (void)
-{
-    common_test_utils_uint_sized_unaligned_be (8);
-}
+/******************************************************************************/
 
 int main (int argc, char **argv)
 {
     g_test_init (&argc, &argv, NULL);
 
-    g_test_add_func ("/libqmi-glib/utils/uint8",  test_utils_uint8);
-    g_test_add_func ("/libqmi-glib/utils/int8",   test_utils_int8);
+    g_test_add_func ("/libqmi-glib/utils/read-string-from-plmn-encoded-array/gsm7-default-chars",  test_read_string_from_plmn_encoded_array_gsm7_default_chars);
+    g_test_add_func ("/libqmi-glib/utils/read-string-from-plmn-encoded-array/gsm7-extended-chars", test_read_string_from_plmn_encoded_array_gsm7_extended_chars);
+    g_test_add_func ("/libqmi-glib/utils/read-string-from-plmn-encoded-array/gsm7-mixed-chars",    test_read_string_from_plmn_encoded_array_gsm7_mixed_chars);
+    g_test_add_func ("/libqmi-glib/utils/read-string-from-plmn-encoded-array/ucs2le",              test_read_string_from_plmn_encoded_array_ucs2le);
 
-    g_test_add_func ("/libqmi-glib/utils/uint16-LE",           test_utils_uint16_le);
-    g_test_add_func ("/libqmi-glib/utils/uint16-BE",           test_utils_uint16_be);
-    g_test_add_func ("/libqmi-glib/utils/int16-LE",            test_utils_int16_le);
-    g_test_add_func ("/libqmi-glib/utils/int16-BE",            test_utils_int16_be);
-    g_test_add_func ("/libqmi-glib/utils/uint16-unaligned-LE", test_utils_uint16_unaligned_le);
-    g_test_add_func ("/libqmi-glib/utils/uint16-unaligned-Be", test_utils_uint16_unaligned_be);
-    g_test_add_func ("/libqmi-glib/utils/int16-unaligned-LE",  test_utils_int16_unaligned_le);
-    g_test_add_func ("/libqmi-glib/utils/int16-unaligned-BE",  test_utils_int16_unaligned_be);
-
-    g_test_add_func ("/libqmi-glib/utils/uint32-LE",           test_utils_uint32_le);
-    g_test_add_func ("/libqmi-glib/utils/uint32-BE",           test_utils_uint32_be);
-    g_test_add_func ("/libqmi-glib/utils/int32-LE",            test_utils_int32_le);
-    g_test_add_func ("/libqmi-glib/utils/int32-BE",            test_utils_int32_be);
-    g_test_add_func ("/libqmi-glib/utils/uint32/unaligned-LE", test_utils_uint32_unaligned_le);
-    g_test_add_func ("/libqmi-glib/utils/uint32/unaligned-BE", test_utils_uint32_unaligned_be);
-    g_test_add_func ("/libqmi-glib/utils/int32/unaligned-LE",  test_utils_int32_unaligned_le);
-    g_test_add_func ("/libqmi-glib/utils/int32/unaligned-BE",  test_utils_int32_unaligned_be);
-
-    g_test_add_func ("/libqmi-glib/utils/uint64-LE",           test_utils_uint64_le);
-    g_test_add_func ("/libqmi-glib/utils/uint64-BE",           test_utils_uint64_be);
-    g_test_add_func ("/libqmi-glib/utils/int64-LE",            test_utils_int64_le);
-    g_test_add_func ("/libqmi-glib/utils/int64-BE",            test_utils_int64_be);
-    g_test_add_func ("/libqmi-glib/utils/uint64/unaligned-LE", test_utils_uint64_unaligned_le);
-    g_test_add_func ("/libqmi-glib/utils/uint64/unaligned-BE", test_utils_uint64_unaligned_be);
-    g_test_add_func ("/libqmi-glib/utils/int64/unaligned-LE",  test_utils_int64_unaligned_le);
-    g_test_add_func ("/libqmi-glib/utils/int64/unaligned-BE",  test_utils_int64_unaligned_be);
-
-    g_test_add_func ("/libqmi-glib/utils/uint-sized-1-LE",           test_utils_uint_sized_1_le);
-    g_test_add_func ("/libqmi-glib/utils/uint-sized-2-LE",           test_utils_uint_sized_2_le);
-    g_test_add_func ("/libqmi-glib/utils/uint-sized-4-LE",           test_utils_uint_sized_4_le);
-    g_test_add_func ("/libqmi-glib/utils/uint-sized-8-LE",           test_utils_uint_sized_8_le);
-    g_test_add_func ("/libqmi-glib/utils/uint-sized-1-BE",           test_utils_uint_sized_1_be);
-    g_test_add_func ("/libqmi-glib/utils/uint-sized-2-BE",           test_utils_uint_sized_2_be);
-    g_test_add_func ("/libqmi-glib/utils/uint-sized-4-BE",           test_utils_uint_sized_4_be);
-    g_test_add_func ("/libqmi-glib/utils/uint-sized-8-BE",           test_utils_uint_sized_8_be);
-    g_test_add_func ("/libqmi-glib/utils/uint-sized-1-unaligned-LE", test_utils_uint_sized_1_unaligned_le);
-    g_test_add_func ("/libqmi-glib/utils/uint-sized-2-unaligned-LE", test_utils_uint_sized_2_unaligned_le);
-    g_test_add_func ("/libqmi-glib/utils/uint-sized-4-unaligned-LE", test_utils_uint_sized_4_unaligned_le);
-    g_test_add_func ("/libqmi-glib/utils/uint-sized-8-unaligned-LE", test_utils_uint_sized_8_unaligned_le);
-    g_test_add_func ("/libqmi-glib/utils/uint-sized-1-unaligned-BE", test_utils_uint_sized_1_unaligned_be);
-    g_test_add_func ("/libqmi-glib/utils/uint-sized-2-unaligned-BE", test_utils_uint_sized_2_unaligned_be);
-    g_test_add_func ("/libqmi-glib/utils/uint-sized-4-unaligned-BE", test_utils_uint_sized_4_unaligned_be);
-    g_test_add_func ("/libqmi-glib/utils/uint-sized-8-unaligned-BE", test_utils_uint_sized_8_unaligned_be);
+    g_test_add_func ("/libqmi-glib/utils/read-string-from-network-description-encoded-array/gsm7-default-chars",  test_read_string_from_network_description_encoded_array_gsm7_default_chars);
+    g_test_add_func ("/libqmi-glib/utils/read-string-from-network-description-encoded-array/gsm7-extended-chars", test_read_string_from_network_description_encoded_array_gsm7_extended_chars);
+    g_test_add_func ("/libqmi-glib/utils/read-string-from-network-description-encoded-array/gsm7-mixed-chars",    test_read_string_from_network_description_encoded_array_gsm7_mixed_chars);
+    g_test_add_func ("/libqmi-glib/utils/read-string-from-network-description-encoded-array/ucs2le",              test_read_string_from_network_description_encoded_array_ucs2le);
+    g_test_add_func ("/libqmi-glib/utils/read-string-from-network-description-encoded-array/ascii",               test_read_string_from_network_description_encoded_array_ascii);
+    g_test_add_func ("/libqmi-glib/utils/read-string-from-network-description-encoded-array/unspecified-ascii",   test_read_string_from_network_description_encoded_array_unspecified_ascii);
+    g_test_add_func ("/libqmi-glib/utils/read-string-from-network-description-encoded-array/unspecified-other",   test_read_string_from_network_description_encoded_array_unspecified_other);
+    g_test_add_func ("/libqmi-glib/utils/read-string-from-network-description-encoded-array/unknown",             test_read_string_from_network_description_encoded_array_unknown);
 
     return g_test_run ();
 }
-
-#endif /* QMI_DISABLE_DEPRECATED */

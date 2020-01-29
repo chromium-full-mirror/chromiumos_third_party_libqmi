@@ -764,6 +764,22 @@ typedef enum {
  * Since: 1.0
  */
 
+/**
+ * qmi_nas_read_string_from_network_description_encoded_array:
+ * @encoding: a #QmiNasNetworkDescriptionEncoding.
+ * @array: a #GArray with the encoded data.
+ *
+ * Converts the encoded data in @array to UTF-8 and returns a newly allocated
+ * NUL-terminated string.
+ *
+ * Returns: the UTF-8 encoded string, or %NULL if an error happened during the conversion.
+ * The returned value should be freed with g_free().
+ *
+ * Since: 1.26
+ */
+gchar *qmi_nas_read_string_from_network_description_encoded_array (QmiNasNetworkDescriptionEncoding  encoding,
+                                                                   const GArray                     *array);
+
 /*****************************************************************************/
 /* Helper enums for the 'QMI NAS Get Technology Preference' request/response */
 
@@ -1419,6 +1435,22 @@ typedef enum {
     QMI_NAS_PLMN_ENCODING_SCHEME_GSM    = 0,
     QMI_NAS_PLMN_ENCODING_SCHEME_UCS2LE = 1,
 } QmiNasPlmnEncodingScheme;
+
+/**
+ * qmi_nas_read_string_from_plmn_encoded_array:
+ * @encoding: a #QmiNasPlmnEncodingScheme.
+ * @array: a #GArray with the encoded data.
+ *
+ * Converts the encoded data in @array to UTF-8 and returns a newly allocated
+ * NUL-terminated string.
+ *
+ * Returns: the UTF-8 encoded string, or %NULL if an error happened during the conversion.
+ * The returned value should be freed with g_free().
+ *
+ * Since: 1.26
+ */
+gchar *qmi_nas_read_string_from_plmn_encoded_array (QmiNasPlmnEncodingScheme  encoding,
+                                                    const GArray             *array);
 
 /**
  * QmiNasNetworkNameDisplayCondition:

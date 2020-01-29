@@ -114,7 +114,7 @@ class Message:
             '    %s,\n'
             '    GError **error)\n'
             '{\n'
-            '    QmiMessage *self;\n'
+            '    g_autoptr(QmiMessage) self = NULL;\n'
             '\n'
             '    self = qmi_message_new (QMI_SERVICE_${service},\n'
             '                            cid,\n'
@@ -136,7 +136,7 @@ class Message:
                     '\n'
                     '    /* All TLVs are optional, we allow NULL input */\n'
                     '    if (!input)\n'
-                    '        return self;\n')
+                    '        return g_steal_pointer (&self);\n')
             else:
                 # If we do have mandatory fields, issue error if no input
                 # given.
@@ -148,7 +148,7 @@ class Message:
                     '                     QMI_CORE_ERROR,\n'
                     '                     QMI_CORE_ERROR_INVALID_ARGS,\n'
                     '                     "Message \'${name}\' has mandatory TLVs");\n'
-                    '        goto error_out;\n'
+                    '        return NULL;\n'
                     '    }\n')
                 cfile.write(string.Template(template).substitute(translations))
 
@@ -172,21 +172,14 @@ class Message:
                         '                     QMI_CORE_ERROR,\n'
                         '                     QMI_CORE_ERROR_INVALID_ARGS,\n'
                         '                     "Missing mandatory TLV \'${tlv_name}\' in message \'${name}\'");\n'
-                        '        goto error_out;\n')
+                        '        return NULL;\n')
                     cfile.write(string.Template(template).substitute(translations))
 
                 cfile.write(
                     '    }\n')
         cfile.write(
             '\n'
-            '    return self;\n')
-        if self.input.fields:
-            cfile.write(
-                '\n'
-                'error_out:\n'
-                '    qmi_message_unref (self);\n'
-                '    return NULL;\n')
-        cfile.write(
+            '    return g_steal_pointer (&self);\n'
             '}\n')
 
 
@@ -280,7 +273,7 @@ class Message:
                 '    struct ${type}_${underscore}_context *ctx)\n'
                 '{\n'
                 '    const gchar *tlv_type_str = NULL;\n'
-                '    gchar *translated_value;\n'
+                '    g_autofree gchar *translated_value = NULL;\n'
                 '\n')
 
             if self.type == 'Message':
@@ -332,7 +325,7 @@ class Message:
                 '    }\n'
                 '\n'
                 '    if (!tlv_type_str) {\n'
-                '        gchar *value_str = NULL;\n'
+                '        g_autofree gchar *value_str = NULL;\n'
                 '\n'
                 '        value_str = qmi_message_get_tlv_printable (ctx->self,\n'
                 '                                                   ctx->line_prefix,\n'
@@ -340,9 +333,8 @@ class Message:
                 '                                                   value,\n'
                 '                                                   length);\n'
                 '        g_string_append (ctx->printable, value_str);\n'
-                '        g_free (value_str);\n'
                 '    } else {\n'
-                '        gchar *value_hex;\n'
+                '        g_autofree gchar *value_hex = NULL;\n'
                 '\n'
                 '        value_hex = __qmi_utils_str_hex (value, length, \':\');\n'
                 '        g_string_append_printf (ctx->printable,\n'
@@ -356,8 +348,6 @@ class Message:
                 '                                ctx->line_prefix, length,\n'
                 '                                ctx->line_prefix, value_hex,\n'
                 '                                ctx->line_prefix, translated_value ? translated_value : "");\n'
-                '        g_free (value_hex);\n'
-                '        g_free (translated_value);\n'
                 '    }\n'
                 '}\n')
 

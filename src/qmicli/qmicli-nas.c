@@ -32,7 +32,6 @@
 
 #include "qmicli.h"
 #include "qmicli-helpers.h"
-#include "qmicli-charsets.h"
 
 /* Context */
 typedef struct {
@@ -775,22 +774,27 @@ get_home_network_ready (QmiClientNas *client,
     {
         guint16 mcc;
         guint16 mnc;
+        QmiNasNetworkDescriptionEncoding description_encoding;
+        GArray *description_array;
 
-        if (qmi_message_nas_get_home_network_output_get_home_network_3gpp2 (
+        if (qmi_message_nas_get_home_network_output_get_home_network_3gpp2_ext (
                 output,
                 &mcc,
                 &mnc,
                 NULL, /* display_description */
-                NULL, /* description_encoding */
-                NULL, /* description */
+                &description_encoding,
+                &description_array,
                 NULL)) {
+            g_autofree gchar *description = NULL;
+
+            description = qmi_nas_read_string_from_network_description_encoded_array (description_encoding, description_array);
             g_print ("\t3GPP2 Home network (extended):\n"
                      "\t\tMCC: '%" G_GUINT16_FORMAT"'\n"
-                     "\t\tMNC: '%" G_GUINT16_FORMAT"'\n",
+                     "\t\tMNC: '%" G_GUINT16_FORMAT"'\n"
+                     "\t\tDescription: '%s'\n",
                      mcc,
-                     mnc);
-
-            /* TODO: convert description to UTF-8 and display */
+                     mnc,
+                     description ?: "");
         }
     }
 
@@ -3040,39 +3044,6 @@ force_network_search_ready (QmiClientNas *client,
     operation_shutdown (TRUE);
 }
 
-static gchar *
-garray_of_uint8_to_string (GArray *array,
-                           QmiNasPlmnEncodingScheme scheme)
-{
-    gchar *decoded = NULL;
-
-    if (array->len == 0)
-        return NULL;
-
-    if (scheme == QMI_NAS_PLMN_ENCODING_SCHEME_GSM) {
-        guint8 *unpacked;
-        guint32 unpacked_len = 0;
-
-        /* Unpack the GSM and decode it */
-        unpacked = qmicli_charset_gsm_unpack ((const guint8 *) array->data, (array->len * 8) / 7, &unpacked_len);
-        if (unpacked) {
-            decoded = (gchar *) qmicli_charset_gsm_unpacked_to_utf8 (unpacked, unpacked_len);
-            g_free (unpacked);
-        }
-    } else if (scheme == QMI_NAS_PLMN_ENCODING_SCHEME_UCS2LE) {
-        decoded = g_convert (
-                        array->data,
-                        array->len,
-                        "UTF-8",
-                        "UCS-2LE",
-                        NULL,
-                        NULL,
-                        NULL);
-    }
-
-    return decoded;
-}
-
 static void
 get_operator_name_ready (QmiClientNas *client,
                          GAsyncResult *res)
@@ -3083,6 +3054,12 @@ get_operator_name_ready (QmiClientNas *client,
     const gchar *spn;
     const gchar *operator_name;
     GArray *array;
+    QmiNasPlmnEncodingScheme nitz_information_name_encoding;
+    QmiNasPlmnNameCountryInitials nitz_information_short_country_initials;
+    QmiNasPlmnNameSpareBits nitz_information_long_name_spare_bits;
+    QmiNasPlmnNameSpareBits nitz_information_short_name_spare_bits;
+    GArray *nitz_information_long_name;
+    GArray *nitz_information_short_name;
 
     output = qmi_client_nas_get_operator_name_finish (client, res, &error);
     if (!output) {
@@ -3158,8 +3135,8 @@ get_operator_name_ready (QmiClientNas *client,
             gchar *short_name;
 
             element = &g_array_index (array, QmiMessageNasGetOperatorNameOutputOperatorPlmnNameElement, i);
-            long_name = garray_of_uint8_to_string (element->long_name, element->name_encoding);
-            short_name = garray_of_uint8_to_string (element->short_name, element->name_encoding);
+            long_name = qmi_nas_read_string_from_plmn_encoded_array (element->name_encoding, element->long_name);
+            short_name = qmi_nas_read_string_from_plmn_encoded_array (element->name_encoding, element->short_name);
             g_print ("\t%d: '%s'%s%s%s\t\tCountry: '%s'\n",
                      i,
                      long_name ?: "",
@@ -3170,6 +3147,29 @@ get_operator_name_ready (QmiClientNas *client,
             g_free (long_name);
             g_free (short_name);
         }
+    }
+
+    if (qmi_message_nas_get_operator_name_output_get_nitz_information (
+            output,
+            &nitz_information_name_encoding,
+            &nitz_information_short_country_initials,
+            &nitz_information_long_name_spare_bits,
+            &nitz_information_short_name_spare_bits,
+            &nitz_information_long_name,
+            &nitz_information_short_name,
+            NULL)) {
+        g_autofree gchar *long_name = NULL;
+        g_autofree gchar *short_name = NULL;
+
+        long_name = qmi_nas_read_string_from_plmn_encoded_array (nitz_information_name_encoding, nitz_information_long_name);
+        short_name = qmi_nas_read_string_from_plmn_encoded_array (nitz_information_name_encoding, nitz_information_short_name);
+        g_print ("NITZ information:\n"
+                 "\tLong Name:  '%s'\n"
+                 "\tShort Name: '%s'\n"
+                 "\tCountry:    '%s'\n",
+                 long_name ?: "",
+                 short_name ?: "",
+                 qmi_nas_plmn_name_country_initials_get_string (nitz_information_short_country_initials));
     }
 
     qmi_message_nas_get_operator_name_output_unref (output);
@@ -3297,6 +3297,8 @@ get_rf_band_info_ready (QmiClientNas *client,
     QmiMessageNasGetRfBandInformationOutput *output;
     GError *error = NULL;
     GArray *band_array = NULL;
+    GArray *extended_band_array = NULL;
+    GArray *bandwidth_array = NULL;
     guint i;
 
     output = qmi_client_nas_get_rf_band_information_finish (client, res, &error);
@@ -3329,6 +3331,7 @@ get_rf_band_info_ready (QmiClientNas *client,
         return;
     }
 
+    g_print ("Band Information:\n");
     for (i = 0; band_array && i < band_array->len; i++) {
         QmiMessageNasGetRfBandInformationOutputListElement *info;
 
@@ -3339,6 +3342,39 @@ get_rf_band_info_ready (QmiClientNas *client,
                  qmi_nas_radio_interface_get_string (info->radio_interface),
                  qmi_nas_active_band_get_string (info->active_band_class),
                  info->active_channel);
+    }
+
+    if (qmi_message_nas_get_rf_band_information_output_get_extended_list (
+        output,
+        &extended_band_array,
+        &error)) {
+        g_print ("Band Information (Extended):\n");
+        for (i = 0; extended_band_array && i < extended_band_array->len; i++) {
+            QmiMessageNasGetRfBandInformationOutputExtendedListElement *info;
+
+            info = &g_array_index (extended_band_array, QmiMessageNasGetRfBandInformationOutputExtendedListElement, i);
+            g_print ("\tRadio Interface:   '%s'\n"
+                     "\tActive Band Class: '%s'\n"
+                     "\tActive Channel:    '%" G_GUINT32_FORMAT"'\n",
+                     qmi_nas_radio_interface_get_string (info->radio_interface),
+                     qmi_nas_active_band_get_string (info->active_band_class),
+                     info->active_channel);
+        }
+    }
+
+    if (qmi_message_nas_get_rf_band_information_output_get_bandwidth_list (
+        output,
+        &bandwidth_array,
+        &error)) {
+        g_print ("Bandwidth:\n");
+        for (i = 0; bandwidth_array && i < bandwidth_array->len; i++) {
+            QmiMessageNasGetRfBandInformationOutputBandwidthListElement *info;
+            info = &g_array_index (bandwidth_array, QmiMessageNasGetRfBandInformationOutputBandwidthListElement, i);
+            g_print ("\tRadio Interface:   '%s'\n"
+                     "\tBandwidth:         '%s'\n",
+                 qmi_nas_radio_interface_get_string (info->radio_interface),
+                 qmi_nas_dl_bandwidth_get_string (info->bandwidth));
+        }
     }
 
     qmi_message_nas_get_rf_band_information_output_unref (output);

@@ -101,6 +101,7 @@ class Client:
             '};\n'
             '\n'
             'GType ${underscore}_get_type (void);\n'
+            'G_DEFINE_AUTOPTR_CLEANUP_FUNC (${camelcase}, g_object_unref);\n'
             '\n')
         hfile.write(string.Template(template).substitute(translations))
 
@@ -118,7 +119,7 @@ class Client:
                 ' */\n'
                 '\n')
         template += (
-            'G_DEFINE_TYPE (${camelcase}, ${underscore}, QMI_TYPE_CLIENT);\n')
+            'G_DEFINE_TYPE (${camelcase}, ${underscore}, QMI_TYPE_CLIENT)\n')
 
         if has_indications:
             template += (
@@ -383,7 +384,7 @@ class Client:
                     '{\n'
                     '    QmiMessage *abort_request;\n'
                     '    guint16 transaction_id;\n'
-                    '    QmiMessage${service_camelcase}AbortInput *input;\n'
+                    '    g_autoptr(QmiMessage${service_camelcase}AbortInput) input = NULL;\n'
                     '\n'
                     '    transaction_id = qmi_message_get_transaction_id (message);\n'
                     '    g_assert (transaction_id != 0);\n'
@@ -398,7 +399,6 @@ class Client:
                     '                        qmi_client_get_cid (client),\n'
                     '                        input,\n'
                     '                        NULL);\n'
-                    '    qmi_message_${service_lowercase}_abort_input_unref (input);\n'
                     '    return abort_request;\n'
                     '}\n'
                     '\n'
@@ -409,15 +409,12 @@ class Client:
                     '    QmiClient   *client,\n'
                     '    GError     **error)\n'
                     '{\n'
-                    '    QmiMessage${service_camelcase}AbortOutput *output;\n'
+                    '    g_autoptr(QmiMessage${service_camelcase}AbortOutput) output = NULL;\n'
                     '\n'
                     '    output = __qmi_message_${service_lowercase}_abort_response_parse (\n'
                     '               abort_response,\n'
                     '               error);\n'
-                    '    if (!output)\n'
-                    '        return FALSE;\n'
-                    '    qmi_message_${service_lowercase}_abort_output_unref (output);\n'
-                    '    return TRUE;\n'
+                    '    return !!output;\n'
                     '}\n')
 
             template += (
@@ -471,13 +468,13 @@ class Client:
                 '    gpointer user_data)\n'
                 '{\n'
                 '    GTask *task;\n'
-                '    QmiMessage *request;\n'
                 '    GError *error = NULL;\n'
-                '    guint16 transaction_id;\n')
+                '    guint16 transaction_id;\n'
+                '    g_autoptr(QmiMessage) request = NULL;\n')
 
             if message.vendor is not None:
                 template += (
-                    '    QmiMessageContext *context;\n')
+                    '    g_autoptr(QmiMessageContext) context = NULL;\n')
 
             template += (
                 '\n'
@@ -541,12 +538,7 @@ class Client:
             template += (
                 '                             cancellable,\n'
                 '                             (GAsyncReadyCallback)${message_underscore}_ready,\n'
-                '                             task);\n'
-                '    qmi_message_unref (request);\n')
-
-            if message.vendor is not None:
-                template += (
-                    '    qmi_message_context_unref (context);\n')
+                '                             task);\n')
 
             template += (
                 '}\n'
