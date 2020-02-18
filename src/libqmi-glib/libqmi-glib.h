@@ -93,4 +93,8 @@
 #include "qmi-enum-types.h"
 #include "qmi-flags64-types.h"
 
+#if QMI_QRTR_SUPPORTED
+# include <libqrtr-glib.h>
+#endif
+
 #endif /* _LIBQMI_GLIB_H_ */

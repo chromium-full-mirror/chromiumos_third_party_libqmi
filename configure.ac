@@ -4,7 +4,7 @@ AC_PREREQ([2.68])
 dnl The QMI version number
 m4_define([qmi_major_version], [1])
 m4_define([qmi_minor_version], [25])
-m4_define([qmi_micro_version], [1])
+m4_define([qmi_micro_version], [3])
 m4_define([qmi_version],
           [qmi_major_version.qmi_minor_version.qmi_micro_version])
 
@@ -199,6 +199,29 @@ fi
 AC_SUBST(QMI_MBIM_QMUX_SUPPORTED)
 AM_CONDITIONAL([QMI_MBIM_QMUX_SUPPORTED], [test "x$QMI_MBIM_QMUX_SUPPORTED" = "x1"])
 
+# QRTR support
+AC_CHECK_HEADER(linux/qrtr.h, [have_qrtr=yes], [have_qrtr=no], [])
+AC_ARG_ENABLE(qrtr,
+              AS_HELP_STRING([--enable-qrtr], [Enable support for QRTR protocol [default=auto]]),
+              [enable_qrtr=$enableval],
+              [enable_qrtr=no])
+
+if test "x$enable_qrtr" = "xauto"; then
+    enable_qrtr=$have_qrtr
+fi
+
+if test "x$enable_qrtr" = "xyes"; then
+    if test "x$have_qrtr" = "xno"; then
+        AC_MSG_ERROR([Couldn't find linux/qrtr.h. Install it, or otherwise configure using --disable-qrtr to disable QRTR support.])
+    fi
+    AC_DEFINE(QRTR_ENABLED, 1, [Define if QRTR support enabled])
+    QMI_QRTR_SUPPORTED=1
+else
+    QMI_QRTR_SUPPORTED=0
+fi
+AC_SUBST(QMI_QRTR_SUPPORTED)
+AM_CONDITIONAL([QMI_QRTR_SUPPORTED], [test "x$QMI_QRTR_SUPPORTED" = "x1"])
+
 # udev base directory
 AC_ARG_WITH(udev-base-dir, AS_HELP_STRING([--with-udev-base-dir=DIR], [where udev base directory is]))
 if test -n "$with_udev_base_dir" ; then
@@ -220,6 +243,7 @@ AC_CONFIG_FILES([Makefile
                  build-aux/templates/Makefile
                  build-aux/qmi-codegen/Makefile
                  src/Makefile
+                 src/libqrtr-glib/Makefile
                  src/libqmi-glib/Makefile
                  src/libqmi-glib/qmi-version.h
                  src/libqmi-glib/generated/Makefile
@@ -264,6 +288,7 @@ echo "
       QMI username:        ${QMI_USERNAME_ENABLED} (${QMI_USERNAME})
 
     Built items:
+      libqrtr-glib:        ${enable_qrtr}
       libqmi-glib:         yes
       qmicli:              yes
       qmi-firmware-update: ${build_firmware_update}
