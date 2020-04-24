@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * Copyright (C) 2013-2017 Aleksander Morgado <aleksander@aleksander.es>
+ * Copyright (C) 2013-2020 Aleksander Morgado <aleksander@aleksander.es>
  */
 
 #include "config.h"
@@ -33,6 +33,8 @@
 
 #include "qmicli.h"
 #include "qmicli-helpers.h"
+
+#if defined HAVE_QMI_SERVICE_PDC
 
 #define LIST_CONFIGS_TIMEOUT_SECS 2
 #define LOAD_CONFIG_CHUNK_SIZE 0x400
@@ -59,6 +61,7 @@ typedef struct {
     QmiDevice *device;
     QmiClientPdc *client;
     GCancellable *cancellable;
+    gboolean skip_cid_release;
 
     /* local data */
     guint timeout_id;
@@ -76,6 +79,8 @@ typedef struct {
 
     guint set_selected_config_indication_id;
     guint activate_config_indication_id;
+    guint device_removed_indication_id;
+
     guint deactivate_config_indication_id;
 
     guint token;
@@ -90,32 +95,68 @@ static gchar *deactivate_config_str;
 static gchar *load_config_str;
 static gboolean noop_flag;
 
+#if defined HAVE_QMI_MESSAGE_PDC_LIST_CONFIGS && \
+    defined HAVE_QMI_INDICATION_PDC_LIST_CONFIGS && \
+    defined HAVE_QMI_MESSAGE_PDC_GET_SELECTED_CONFIG && \
+    defined HAVE_QMI_INDICATION_PDC_GET_SELECTED_CONFIG && \
+    defined HAVE_QMI_MESSAGE_PDC_GET_CONFIG_INFO && \
+    defined HAVE_QMI_INDICATION_PDC_GET_CONFIG_INFO
+# define HAVE_QMI_ACTION_PDC_LIST_CONFIGS
+#endif
+
+#if defined HAVE_QMI_MESSAGE_PDC_ACTIVATE_CONFIG && \
+    defined HAVE_QMI_INDICATION_PDC_ACTIVATE_CONFIG && \
+    defined HAVE_QMI_MESSAGE_PDC_SET_SELECTED_CONFIG && \
+    defined HAVE_QMI_INDICATION_PDC_SET_SELECTED_CONFIG
+# define HAVE_QMI_ACTION_PDC_ACTIVATE_CONFIG
+#endif
+
+#if defined HAVE_QMI_MESSAGE_PDC_DEACTIVATE_CONFIG && \
+    defined HAVE_QMI_INDICATION_PDC_DEACTIVATE_CONFIG
+# define HAVE_QMI_ACTION_PDC_DEACTIVATE_CONFIG
+#endif
+
+#if defined HAVE_QMI_MESSAGE_PDC_LOAD_CONFIG && \
+    defined HAVE_QMI_INDICATION_PDC_LOAD_CONFIG
+# define HAVE_QMI_ACTION_PDC_LOAD_CONFIG
+#endif
+
 static GOptionEntry entries[] = {
+#if defined HAVE_QMI_ACTION_PDC_LIST_CONFIGS
     {
         "pdc-list-configs", 0, 0, G_OPTION_ARG_STRING, &list_configs_str,
         "List all configs",
         "[(platform|software)]"
     },
+#endif
+#if defined HAVE_QMI_MESSAGE_PDC_DELETE_CONFIG
     {
         "pdc-delete-config", 0, 0, G_OPTION_ARG_STRING, &delete_config_str,
         "Delete config",
         "[(platform|software),ConfigId]"
     },
+#endif
+#if defined HAVE_QMI_ACTION_PDC_ACTIVATE_CONFIG
     {
         "pdc-activate-config", 0, 0, G_OPTION_ARG_STRING, &activate_config_str,
         "Activate config",
         "[(platform|software),ConfigId]"
     },
+#endif
+#if defined HAVE_QMI_ACTION_PDC_DEACTIVATE_CONFIG
     {
         "pdc-deactivate-config", 0, 0, G_OPTION_ARG_STRING, &deactivate_config_str,
         "Deactivate config",
         "[(platform|software),ConfigId]"
     },
+#endif
+#if defined HAVE_QMI_ACTION_PDC_LOAD_CONFIG
     {
         "pdc-load-config", 0, 0, G_OPTION_ARG_STRING, &load_config_str,
         "Load config to device",
         "[Path to config]"
     },
+#endif
     {
         "pdc-noop", 0, 0, G_OPTION_ARG_NONE, &noop_flag,
         "Just allocate or release a PDC client. Use with `--client-no-release-cid' and/or `--client-cid'",
@@ -130,7 +171,7 @@ qmicli_pdc_get_option_group (void)
     GOptionGroup *group;
 
     group = g_option_group_new ("pdc",
-                                "PDC options",
+                                "PDC options:",
                                 "Show platform device configurations options", NULL, NULL);
     g_option_group_add_entries (group, entries);
 
@@ -217,6 +258,9 @@ context_free (Context *context)
     if (context->activate_config_indication_id)
         g_signal_handler_disconnect (context->client, context->activate_config_indication_id);
 
+    if (context->device_removed_indication_id)
+        g_signal_handler_disconnect (context->device, context->device_removed_indication_id);
+
     if (context->deactivate_config_indication_id)
         g_signal_handler_disconnect (context->client, context->deactivate_config_indication_id);
 
@@ -231,13 +275,62 @@ static void
 operation_shutdown (gboolean operation_status)
 {
     /* Cleanup context and finish async operation */
+    qmicli_async_operation_done (operation_status, ctx->skip_cid_release);
     context_free (ctx);
     ctx = NULL;
-    qmicli_async_operation_done (operation_status, FALSE);
 }
 
 /******************************************************************************/
-/* List configs */
+/* Common */
+
+#if defined HAVE_QMI_ACTION_PDC_ACTIVATE_CONFIG || \
+    defined HAVE_QMI_ACTION_PDC_DEACTIVATE_CONFIG || \
+    defined HAVE_QMI_MESSAGE_PDC_DELETE_CONFIG
+
+static QmiConfigTypeAndId *
+parse_type_and_id (const gchar *str)
+{
+    GArray *id = NULL;
+    guint num_parts;
+    gchar **substrings;
+    QmiPdcConfigurationType config_type;
+    QmiConfigTypeAndId *result = NULL;
+
+    substrings = g_strsplit (str, ",", -1);
+    num_parts = g_strv_length (substrings);
+
+    if (num_parts != 2) {
+        g_printerr ("Expected 2 parameters, but found %u\n", num_parts);
+        g_strfreev (substrings);
+        return NULL;
+    }
+
+    if (!qmicli_read_pdc_configuration_type_from_string (substrings[0], &config_type)) {
+        g_printerr ("Incorrect id specified: %s\n", substrings[0]);
+        g_strfreev (substrings);
+        return NULL;
+    }
+
+    if (!qmicli_read_binary_array_from_string (substrings[1], &id)) {
+        g_printerr ("Incorrect config type specified: %s\n", substrings[1]);
+        g_strfreev (substrings);
+        return NULL;
+    }
+
+    result = g_slice_new0 (QmiConfigTypeAndId);
+    result->config_type = config_type;
+    result->id = id;
+    return result;
+}
+
+#endif /* HAVE_QMI_ACTION_PDC_ACTIVATE_CONFIG
+        * HAVE_QMI_ACTION_PDC_DEACTIVATE_CONFIG
+        * HAVE_QMI_MESSAGE_PDC_DELETE_CONFIG */
+
+/******************************************************************************/
+/* List configs and get selected config */
+
+#if defined HAVE_QMI_ACTION_PDC_LIST_CONFIGS
 
 static const char *
 status_string (GArray *id)
@@ -387,32 +480,6 @@ list_configs_timeout (void)
 }
 
 static void
-list_configs_ready (QmiClientPdc *client,
-                    GAsyncResult *res)
-{
-    GError *error = NULL;
-    QmiMessagePdcListConfigsOutput *output;
-
-    output = qmi_client_pdc_list_configs_finish (client, res, &error);
-    if (!output) {
-        g_printerr ("error: operation failed: %s\n", error->message);
-        g_error_free (error);
-        operation_shutdown (FALSE);
-        return;
-    }
-
-    if (!qmi_message_pdc_list_configs_output_get_result (output, &error)) {
-        g_printerr ("error: couldn't list configs: %s\n", error->message);
-        g_error_free (error);
-        qmi_message_pdc_list_configs_output_unref (output);
-        operation_shutdown (FALSE);
-        return;
-    }
-
-    qmi_message_pdc_list_configs_output_unref (output);
-}
-
-static void
 list_configs_ready_indication (QmiClientPdc *client,
                                QmiIndicationPdcListConfigsOutput *output)
 {
@@ -498,22 +565,51 @@ list_configs_ready_indication (QmiClientPdc *client,
 }
 
 static void
-get_selected_config_ready (QmiClientPdc *client,
-                           GAsyncResult *res)
+list_configs_ready (QmiClientPdc *client,
+                    GAsyncResult *res)
 {
     GError *error = NULL;
-    QmiMessagePdcGetSelectedConfigOutput *output;
+    QmiMessagePdcListConfigsOutput *output;
 
-    output = qmi_client_pdc_get_selected_config_finish (client, res, &error);
-    if (!qmi_message_pdc_get_selected_config_output_get_result (output, &error)) {
-        g_printerr ("error: couldn't get selected config: %s\n", error->message);
+    output = qmi_client_pdc_list_configs_finish (client, res, &error);
+    if (!output) {
+        g_printerr ("error: operation failed: %s\n", error->message);
         g_error_free (error);
-        qmi_message_pdc_get_selected_config_output_unref (output);
         operation_shutdown (FALSE);
         return;
     }
 
-    qmi_message_pdc_get_selected_config_output_unref (output);
+    if (!qmi_message_pdc_list_configs_output_get_result (output, &error)) {
+        g_printerr ("error: couldn't list configs: %s\n", error->message);
+        g_error_free (error);
+        qmi_message_pdc_list_configs_output_unref (output);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    qmi_message_pdc_list_configs_output_unref (output);
+}
+
+static QmiMessagePdcListConfigsInput *
+list_configs_input_create (const gchar *str)
+{
+    QmiMessagePdcListConfigsInput *input = NULL;
+    QmiPdcConfigurationType config_type;
+    GError *error = NULL;
+
+    if (!qmicli_read_pdc_configuration_type_from_string (str, &config_type))
+        return NULL;
+
+    input = qmi_message_pdc_list_configs_input_new ();
+    if (!qmi_message_pdc_list_configs_input_set_config_type (input, config_type, &error) ||
+        !qmi_message_pdc_list_configs_input_set_token (input, ctx->token++, &error)) {
+        g_printerr ("error: couldn't create input data bundle: '%s'\n", error->message);
+        g_error_free (error);
+        qmi_message_pdc_list_configs_input_unref (input);
+        return NULL;
+    }
+
+    return input;
 }
 
 static void
@@ -553,112 +649,22 @@ get_selected_config_ready_indication (QmiClientPdc *client,
 }
 
 static void
-activate_config_ready_indication (QmiClientPdc *client,
-                                  QmiIndicationPdcActivateConfigOutput *output)
+get_selected_config_ready (QmiClientPdc *client,
+                           GAsyncResult *res)
 {
     GError *error = NULL;
-    guint16 error_code = 0;
+    QmiMessagePdcGetSelectedConfigOutput *output;
 
-    if (!qmi_indication_pdc_activate_config_output_get_indication_result (output, &error_code, &error)) {
-        g_printerr ("error: couldn't activate config: %s\n", error->message);
+    output = qmi_client_pdc_get_selected_config_finish (client, res, &error);
+    if (!qmi_message_pdc_get_selected_config_output_get_result (output, &error)) {
+        g_printerr ("error: couldn't get selected config: %s\n", error->message);
         g_error_free (error);
+        qmi_message_pdc_get_selected_config_output_unref (output);
         operation_shutdown (FALSE);
         return;
     }
 
-    if (error_code != 0) {
-        g_printerr ("error: couldn't activate config: %s\n",
-                    qmi_protocol_error_get_string ((QmiProtocolError) error_code));
-        operation_shutdown (FALSE);
-        return;
-    }
-
-    operation_shutdown (TRUE);
-}
-
-static void
-deactivate_config_ready_indication (QmiClientPdc *client,
-                                    QmiIndicationPdcDeactivateConfigOutput *output)
-{
-    GError *error = NULL;
-    guint16 error_code = 0;
-
-    if (!qmi_indication_pdc_deactivate_config_output_get_indication_result (output, &error_code, &error)) {
-        g_printerr ("error: couldn't deactivate config: %s\n", error->message);
-        g_error_free (error);
-        operation_shutdown (FALSE);
-        return;
-    }
-
-    if (error_code != 0) {
-        g_printerr ("error: couldn't deactivate config: %s\n",
-                    qmi_protocol_error_get_string ((QmiProtocolError) error_code));
-        operation_shutdown (FALSE);
-        return;
-    }
-
-    operation_shutdown (TRUE);
-}
-
-static QmiMessagePdcListConfigsInput *
-list_configs_input_create (const gchar *str)
-{
-    QmiMessagePdcListConfigsInput *input = NULL;
-    QmiPdcConfigurationType config_type;
-    GError *error = NULL;
-
-    if (!qmicli_read_pdc_configuration_type_from_string (str, &config_type))
-        return NULL;
-
-    input = qmi_message_pdc_list_configs_input_new ();
-    if (!qmi_message_pdc_list_configs_input_set_config_type (input, config_type, &error) ||
-        !qmi_message_pdc_list_configs_input_set_token (input, ctx->token++, &error)) {
-        g_printerr ("error: couldn't create input data bundle: '%s'\n", error->message);
-        g_error_free (error);
-        qmi_message_pdc_list_configs_input_unref (input);
-        return NULL;
-    }
-
-    return input;
-}
-
-/******************************************************************************/
-/* Activate and deactivate configs */
-
-static QmiConfigTypeAndId *
-parse_type_and_id (const gchar *str)
-{
-    GArray *id = NULL;
-    guint num_parts;
-    gchar **substrings;
-    QmiPdcConfigurationType config_type;
-    QmiConfigTypeAndId *result = NULL;
-
-    substrings = g_strsplit (str, ",", -1);
-    num_parts = g_strv_length (substrings);
-
-    if (num_parts != 2) {
-        g_printerr ("Expected 2 parameters, but found %u\n", num_parts);
-        g_strfreev (substrings);
-        return NULL;
-    }
-
-    if (!qmicli_read_pdc_configuration_type_from_string (substrings[0], &config_type)) {
-        g_printerr ("Incorrect id specified: %s\n", substrings[0]);
-        g_strfreev (substrings);
-        return NULL;
-    }
-
-    if (!qmicli_read_binary_array_from_string (substrings[1], &id)) {
-        g_printerr ("Incorrect config type specified: %s\n", substrings[1]);
-        g_strfreev (substrings);
-        return NULL;
-    }
-
-    result = g_slice_new0 (QmiConfigTypeAndId);
-    result->config_type = config_type;
-    result->id = id;
-    return result;
+    qmi_message_pdc_get_selected_config_output_unref (output);
 }
 
 static QmiMessagePdcGetSelectedConfigInput *
@@ -681,6 +687,429 @@ get_selected_config_input_create (const gchar *str)
     }
 
     return input;
+}
+
+static void
+run_list_configs (void)
+{
+    QmiMessagePdcListConfigsInput *input;
+    QmiMessagePdcGetSelectedConfigInput *get_selected_config_input;
+
+    g_debug ("Listing configs asynchronously...");
+
+    /* Results are reported via indications */
+    ctx->list_configs_indication_id =
+        g_signal_connect (ctx->client,
+                          "list-configs",
+                          G_CALLBACK
+                          (list_configs_ready_indication), NULL);
+    ctx->get_selected_config_indication_id =
+        g_signal_connect (ctx->client, "get-selected-config",
+                          G_CALLBACK (get_selected_config_ready_indication), NULL);
+    ctx->get_config_info_indication_id =
+        g_signal_connect (ctx->client, "get-config-info",
+                          G_CALLBACK (get_config_info_ready_indication), NULL);
+
+    input = list_configs_input_create (list_configs_str);
+    if (!input) {
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    get_selected_config_input = get_selected_config_input_create (list_configs_str);
+    if (!get_selected_config_input) {
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    /* We need a timeout, because there will be no indications if no configs
+     * are loaded */
+    ctx->timeout_id = g_timeout_add_seconds (LIST_CONFIGS_TIMEOUT_SECS,
+                                             (GSourceFunc) list_configs_timeout,
+                                             NULL);
+
+    qmi_client_pdc_list_configs (ctx->client,
+                                 input,
+                                 10,
+                                 ctx->cancellable,
+                                 (GAsyncReadyCallback) list_configs_ready,
+                                 NULL);
+    qmi_message_pdc_list_configs_input_unref (input);
+
+    qmi_client_pdc_get_selected_config (ctx->client,
+                                        get_selected_config_input,
+                                        10,
+                                        ctx->cancellable,
+                                        (GAsyncReadyCallback) get_selected_config_ready,
+                                        NULL);
+    qmi_message_pdc_get_selected_config_input_unref (get_selected_config_input);
+}
+
+#endif /* HAVE_QMI_ACTION_PDC_LIST_CONFIGS */
+
+/******************************************************************************/
+/* Activate config */
+
+#if defined HAVE_QMI_ACTION_PDC_ACTIVATE_CONFIG
+
+static void
+device_removed_indication (QmiDevice *device)
+{
+    g_print ("[%s] Successfully requested config activation\n",
+             qmi_device_get_path_display (ctx->device));
+
+    /* Device gone, don't attempt to release CIDs */
+    ctx->skip_cid_release = TRUE;
+
+    /* If device gets removed during an activate config operation,
+     * it means the operation is successful */
+    operation_shutdown (TRUE);
+}
+
+static void
+activate_config_ready_indication (QmiClientPdc *client,
+                                  QmiIndicationPdcActivateConfigOutput *output)
+{
+    GError *error = NULL;
+    guint16 error_code = 0;
+
+    if (!qmi_indication_pdc_activate_config_output_get_indication_result (output, &error_code, &error)) {
+        g_printerr ("error: couldn't activate config: %s\n", error->message);
+        g_error_free (error);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    if (error_code != 0) {
+        g_printerr ("error: couldn't activate config: %s\n",
+                    qmi_protocol_error_get_string ((QmiProtocolError) error_code));
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    /* NOTE: config activation is expected to reboot the device, so we may detect the
+     * actual reboot before receiving this indication */
+
+    g_print ("[%s] Successfully requested config activation\n",
+             qmi_device_get_path_display (ctx->device));
+
+    operation_shutdown (TRUE);
+}
+
+static void
+activate_config_ready (QmiClientPdc *client,
+                       GAsyncResult *res)
+{
+    GError *error = NULL;
+    QmiMessagePdcActivateConfigOutput *output;
+
+    output = qmi_client_pdc_activate_config_finish (client, res, &error);
+    if (!output) {
+        g_printerr ("error: operation failed: %s\n", error->message);
+        g_error_free (error);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    if (!qmi_message_pdc_activate_config_output_get_result (output, &error)) {
+        g_printerr ("error: couldn't activate config: %s\n", error->message);
+        g_error_free (error);
+        qmi_message_pdc_activate_config_output_unref (output);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    qmi_message_pdc_activate_config_output_unref (output);
+}
+
+static QmiMessagePdcActivateConfigInput *
+activate_config_input_create (const gchar *str)
+{
+    QmiMessagePdcActivateConfigInput *input = NULL;
+    QmiConfigTypeAndId *type_and_id;
+    GError *error = NULL;
+
+    type_and_id = parse_type_and_id (str);
+    if (!type_and_id)
+        return NULL;
+
+    input = qmi_message_pdc_activate_config_input_new ();
+    if (!qmi_message_pdc_activate_config_input_set_config_type (input, type_and_id->config_type, &error) ||
+        !qmi_message_pdc_activate_config_input_set_token (input, ctx->token++, &error)) {
+        g_printerr ("error: couldn't create input data bundle: '%s'\n", error->message);
+        g_error_free (error);
+        qmi_message_pdc_activate_config_input_unref (input);
+        input = NULL;
+    }
+
+    g_array_unref (type_and_id->id);
+    g_slice_free (QmiConfigTypeAndId, type_and_id);
+    return input;
+}
+
+static void
+set_selected_config_ready_indication (QmiClientPdc *client,
+                                      QmiIndicationPdcSetSelectedConfigOutput *output)
+{
+    GError *error = NULL;
+    QmiMessagePdcActivateConfigInput *input;
+    guint16 error_code = 0;
+
+    if (!qmi_indication_pdc_set_selected_config_output_get_indication_result (output, &error_code, &error)) {
+        g_printerr ("error: couldn't set selected config: %s\n", error->message);
+        g_error_free (error);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    if (error_code != 0) {
+        g_printerr ("error: couldn't set selected config: %s\n",
+                    qmi_protocol_error_get_string ((QmiProtocolError) error_code));
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    input = activate_config_input_create (activate_config_str);
+    if (!input) {
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    ctx->activate_config_indication_id =
+        g_signal_connect (ctx->client,
+                          "activate-config",
+                          G_CALLBACK (activate_config_ready_indication),
+                          NULL);
+    ctx->device_removed_indication_id =
+        g_signal_connect (ctx->device,
+                          QMI_DEVICE_SIGNAL_REMOVED,
+                          G_CALLBACK (device_removed_indication),
+                          NULL);
+    qmi_client_pdc_activate_config (ctx->client,
+                                    input,
+                                    10,
+                                    ctx->cancellable,
+                                    (GAsyncReadyCallback) activate_config_ready, NULL);
+    qmi_message_pdc_activate_config_input_unref (input);
+}
+
+static void
+set_selected_config_ready (QmiClientPdc *client,
+                           GAsyncResult *res)
+{
+    GError *error = NULL;
+    QmiMessagePdcSetSelectedConfigOutput *output;
+
+    output = qmi_client_pdc_set_selected_config_finish (client, res, &error);
+    if (!output) {
+        g_printerr ("error: operation failed: %s\n", error->message);
+        g_error_free (error);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    qmi_message_pdc_set_selected_config_output_unref (output);
+}
+
+static QmiMessagePdcSetSelectedConfigInput *
+set_selected_config_input_create (const gchar *str)
+{
+    QmiMessagePdcSetSelectedConfigInput *input = NULL;
+    QmiConfigTypeAndId *type_and_id;
+    GError *error = NULL;
+
+    type_and_id = parse_type_and_id (str);
+    if (!type_and_id)
+        return NULL;
+
+    input = qmi_message_pdc_set_selected_config_input_new ();
+    if (!qmi_message_pdc_set_selected_config_input_set_type_with_id (input, type_and_id, &error) ||
+        !qmi_message_pdc_set_selected_config_input_set_token (input, ctx->token++, &error)) {
+        g_printerr ("error: couldn't create input data bundle: '%s'\n", error->message);
+        g_error_free (error);
+        qmi_message_pdc_set_selected_config_input_unref (input);
+        input = NULL;
+    }
+
+    g_array_unref (type_and_id->id);
+    g_slice_free (QmiConfigTypeAndId, type_and_id);
+    return input;
+}
+
+static void
+run_activate_config (void)
+{
+    QmiMessagePdcSetSelectedConfigInput *input;
+
+    g_debug ("Activating config asynchronously...");
+    input = set_selected_config_input_create (activate_config_str);
+    if (!input) {
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    /* Results are reported via indications */
+    ctx->set_selected_config_indication_id =
+        g_signal_connect (ctx->client,
+                          "set-selected-config",
+                          G_CALLBACK (set_selected_config_ready_indication), NULL);
+    qmi_client_pdc_set_selected_config (ctx->client,
+                                        input,
+                                        10,
+                                        ctx->cancellable,
+                                        (GAsyncReadyCallback) set_selected_config_ready,
+                                        NULL);
+    qmi_message_pdc_set_selected_config_input_unref (input);
+}
+
+#endif /* HAVE_QMI_ACTION_PDC_ACTIVATE_CONFIG */
+
+/******************************************************************************/
+/* Deactivate config */
+
+#if defined HAVE_QMI_ACTION_PDC_DEACTIVATE_CONFIG
+
+static void
+deactivate_config_ready_indication (QmiClientPdc *client,
+                                    QmiIndicationPdcDeactivateConfigOutput *output)
+{
+    GError *error = NULL;
+    guint16 error_code = 0;
+
+    if (!qmi_indication_pdc_deactivate_config_output_get_indication_result (output, &error_code, &error)) {
+        g_printerr ("error: couldn't deactivate config: %s\n", error->message);
+        g_error_free (error);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    if (error_code != 0) {
+        g_printerr ("error: couldn't deactivate config: %s\n",
+                    qmi_protocol_error_get_string ((QmiProtocolError) error_code));
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    g_print ("[%s] Successfully requested config deactivation\n",
+             qmi_device_get_path_display (ctx->device));
+
+    operation_shutdown (TRUE);
+}
+
+static void
+deactivate_config_ready (QmiClientPdc *client,
+                         GAsyncResult *res)
+{
+    GError *error = NULL;
+    QmiMessagePdcDeactivateConfigOutput *output;
+
+    output = qmi_client_pdc_deactivate_config_finish (client, res, &error);
+    if (!output) {
+        g_printerr ("error: operation failed: %s\n", error->message);
+        g_error_free (error);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    if (!qmi_message_pdc_deactivate_config_output_get_result (output, &error)) {
+        g_printerr ("error: couldn't deactivate config: %s\n", error->message);
+        g_error_free (error);
+        qmi_message_pdc_deactivate_config_output_unref (output);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    qmi_message_pdc_deactivate_config_output_unref (output);
+}
+
+static QmiMessagePdcDeactivateConfigInput *
+deactivate_config_input_create (const gchar *str)
+{
+    QmiMessagePdcDeactivateConfigInput *input = NULL;
+    QmiConfigTypeAndId *type_and_id;
+    GError *error = NULL;
+
+    type_and_id = parse_type_and_id (str);
+    if (!type_and_id)
+        return NULL;
+
+    input = qmi_message_pdc_deactivate_config_input_new ();
+    if (!qmi_message_pdc_deactivate_config_input_set_config_type (input, type_and_id->config_type, &error) ||
+        !qmi_message_pdc_deactivate_config_input_set_token (input, ctx->token++, &error)) {
+        g_printerr ("error: couldn't create input data bundle: '%s'\n", error->message);
+        g_error_free (error);
+        qmi_message_pdc_deactivate_config_input_unref (input);
+        input = NULL;
+    }
+
+    g_array_unref (type_and_id->id);
+    g_slice_free (QmiConfigTypeAndId, type_and_id);
+    return input;
+}
+
+static void
+run_deactivate_config (void)
+{
+    QmiMessagePdcDeactivateConfigInput *input;
+
+    g_debug ("Deactivating config asynchronously...");
+    input = deactivate_config_input_create (deactivate_config_str);
+    if (!input) {
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    /* Results are reported via indications */
+    ctx->deactivate_config_indication_id =
+        g_signal_connect (ctx->client,
+                          "deactivate-config",
+                          G_CALLBACK
+                          (deactivate_config_ready_indication),
+                          NULL);
+
+    qmi_client_pdc_deactivate_config (ctx->client,
+                                      input,
+                                      10,
+                                      ctx->cancellable,
+                                      (GAsyncReadyCallback) deactivate_config_ready, NULL);
+    qmi_message_pdc_deactivate_config_input_unref (input);
+}
+
+#endif /* HAVE_QMI_ACTION_PDC_DEACTIVATE_CONFIG */
+
+/******************************************************************************/
+/* Delete config */
+
+#if defined HAVE_QMI_MESSAGE_PDC_DELETE_CONFIG
+
+static void
+delete_config_ready (QmiClientPdc *client,
+                     GAsyncResult *res)
+{
+    GError *error = NULL;
+    QmiMessagePdcDeleteConfigOutput *output;
+
+    output = qmi_client_pdc_delete_config_finish (client, res, &error);
+    if (!output) {
+        g_printerr ("error: operation failed: %s\n", error->message);
+        g_error_free (error);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    if (!qmi_message_pdc_delete_config_output_get_result (output, &error)) {
+        g_printerr ("error: couldn't delete config: %s\n", error->message);
+        g_error_free (error);
+        qmi_message_pdc_delete_config_output_unref (output);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    g_print ("[%s] Successfully deleted config\n",
+             qmi_device_get_path_display (ctx->device));
+
+    qmi_message_pdc_delete_config_output_unref (output);
+    operation_shutdown (TRUE);
 }
 
 static QmiMessagePdcDeleteConfigInput *
@@ -710,251 +1139,31 @@ delete_config_input_create (const gchar *str)
 }
 
 static void
-delete_config_ready (QmiClientPdc *client,
-                     GAsyncResult *res)
+run_delete_config (void)
 {
-    GError *error = NULL;
-    QmiMessagePdcDeleteConfigOutput *output;
+    QmiMessagePdcDeleteConfigInput *input;
 
-    output = qmi_client_pdc_delete_config_finish (client, res, &error);
-    if (!output) {
-        g_printerr ("error: operation failed: %s\n", error->message);
-        g_error_free (error);
-        operation_shutdown (FALSE);
-        return;
-    }
-
-    if (!qmi_message_pdc_delete_config_output_get_result (output, &error)) {
-        g_printerr ("error: couldn't delete config: %s\n", error->message);
-        g_error_free (error);
-        qmi_message_pdc_delete_config_output_unref (output);
-        operation_shutdown (FALSE);
-        return;
-    }
-
-    qmi_message_pdc_delete_config_output_unref (output);
-    operation_shutdown (TRUE);
-}
-
-static QmiMessagePdcActivateConfigInput *
-activate_config_input_create (const gchar *str)
-{
-    QmiMessagePdcActivateConfigInput *input = NULL;
-    QmiConfigTypeAndId *type_and_id;
-    GError *error = NULL;
-
-    type_and_id = parse_type_and_id (str);
-    if (!type_and_id)
-        return NULL;
-
-    input = qmi_message_pdc_activate_config_input_new ();
-    if (!qmi_message_pdc_activate_config_input_set_config_type (input, type_and_id->config_type, &error) ||
-        !qmi_message_pdc_activate_config_input_set_token (input, ctx->token++, &error)) {
-        g_printerr ("error: couldn't create input data bundle: '%s'\n", error->message);
-        g_error_free (error);
-        qmi_message_pdc_activate_config_input_unref (input);
-        input = NULL;
-    }
-
-    g_array_unref (type_and_id->id);
-    g_slice_free (QmiConfigTypeAndId, type_and_id);
-    return input;
-}
-
-static void
-activate_config_ready (QmiClientPdc *client,
-                       GAsyncResult *res)
-{
-    GError *error = NULL;
-    QmiMessagePdcActivateConfigOutput *output;
-
-    output = qmi_client_pdc_activate_config_finish (client, res, &error);
-    if (!output) {
-        g_printerr ("error: operation failed: %s\n", error->message);
-        g_error_free (error);
-        operation_shutdown (FALSE);
-        return;
-    }
-
-    if (!qmi_message_pdc_activate_config_output_get_result (output, &error)) {
-        g_printerr ("error: couldn't activate config: %s\n", error->message);
-        g_error_free (error);
-        qmi_message_pdc_activate_config_output_unref (output);
-        operation_shutdown (FALSE);
-        return;
-    }
-
-    qmi_message_pdc_activate_config_output_unref (output);
-}
-
-static void
-deactivate_config_ready (QmiClientPdc *client,
-                         GAsyncResult *res)
-{
-    GError *error = NULL;
-    QmiMessagePdcDeactivateConfigOutput *output;
-
-    output = qmi_client_pdc_deactivate_config_finish (client, res, &error);
-    if (!output) {
-        g_printerr ("error: operation failed: %s\n", error->message);
-        g_error_free (error);
-        operation_shutdown (FALSE);
-        return;
-    }
-
-    if (!qmi_message_pdc_deactivate_config_output_get_result (output, &error)) {
-        g_printerr ("error: couldn't deactivate config: %s\n", error->message);
-        g_error_free (error);
-        qmi_message_pdc_deactivate_config_output_unref (output);
-        operation_shutdown (FALSE);
-        return;
-    }
-
-    qmi_message_pdc_deactivate_config_output_unref (output);
-}
-
-static void
-set_selected_config_ready_indication_activation (QmiClientPdc *client,
-                                                 QmiIndicationPdcSetSelectedConfigOutput *output)
-{
-    GError *error = NULL;
-    QmiMessagePdcActivateConfigInput *input;
-    guint16 error_code = 0;
-
-    if (!qmi_indication_pdc_set_selected_config_output_get_indication_result (output, &error_code, &error)) {
-        g_printerr ("error: couldn't set selected config: %s\n", error->message);
-        g_error_free (error);
-        operation_shutdown (FALSE);
-        return;
-    }
-
-    if (error_code != 0) {
-        g_printerr ("error: couldn't set selected config: %s\n",
-                    qmi_protocol_error_get_string ((QmiProtocolError) error_code));
-        operation_shutdown (FALSE);
-        return;
-    }
-
-    input = activate_config_input_create (activate_config_str);
+    g_debug ("Deleting config asynchronously...");
+    input = delete_config_input_create (delete_config_str);
     if (!input) {
         operation_shutdown (FALSE);
         return;
     }
 
-    qmi_client_pdc_activate_config (ctx->client,
-                                    input,
-                                    10,
-                                    ctx->cancellable,
-                                    (GAsyncReadyCallback) activate_config_ready, NULL);
-    qmi_message_pdc_activate_config_input_unref (input);
+    qmi_client_pdc_delete_config (ctx->client,
+                                  input,
+                                  10,
+                                  ctx->cancellable,
+                                  (GAsyncReadyCallback) delete_config_ready, NULL);
+    qmi_message_pdc_delete_config_input_unref (input);
 }
 
-static void
-set_selected_config_ready (QmiClientPdc *client,
-                           GAsyncResult *res)
-{
-    GError *error = NULL;
-    QmiMessagePdcSetSelectedConfigOutput *output;
-
-    output = qmi_client_pdc_set_selected_config_finish (client, res, &error);
-    if (!output) {
-        g_printerr ("error: operation failed: %s\n", error->message);
-        g_error_free (error);
-        operation_shutdown (FALSE);
-        return;
-    }
-
-    qmi_message_pdc_set_selected_config_output_unref (output);
-}
-
-static QmiMessagePdcDeactivateConfigInput *
-deactivate_config_input_create (const gchar *str)
-{
-    QmiMessagePdcDeactivateConfigInput *input = NULL;
-    QmiConfigTypeAndId *type_and_id;
-    GError *error = NULL;
-
-    type_and_id = parse_type_and_id (str);
-    if (!type_and_id)
-        return NULL;
-
-    input = qmi_message_pdc_deactivate_config_input_new ();
-    if (!qmi_message_pdc_deactivate_config_input_set_config_type (input, type_and_id->config_type, &error) ||
-        !qmi_message_pdc_deactivate_config_input_set_token (input, ctx->token++, &error)) {
-        g_printerr ("error: couldn't create input data bundle: '%s'\n", error->message);
-        g_error_free (error);
-        qmi_message_pdc_deactivate_config_input_unref (input);
-        input = NULL;
-    }
-
-    g_array_unref (type_and_id->id);
-    g_slice_free (QmiConfigTypeAndId, type_and_id);
-    return input;
-}
-
-static void
-set_selected_config_ready_indication_deactivation (QmiClientPdc *client,
-                                                   QmiIndicationPdcSetSelectedConfigOutput *output)
-{
-    GError *error = NULL;
-    QmiMessagePdcDeactivateConfigInput *input;
-    guint16 error_code = 0;
-
-    if (!qmi_indication_pdc_set_selected_config_output_get_indication_result (output, &error_code, &error)) {
-        g_printerr ("error: couldn't set selected config: %s\n", error->message);
-        g_error_free (error);
-        operation_shutdown (FALSE);
-        return;
-    }
-
-    if (error_code != 0) {
-        g_printerr ("error: couldn't set selected config: %s\n",
-                    qmi_protocol_error_get_string ((QmiProtocolError) error_code));
-        operation_shutdown (FALSE);
-        return;
-    }
-
-    input = deactivate_config_input_create (activate_config_str);
-    if (!input) {
-        operation_shutdown (FALSE);
-        return;
-    }
-
-    qmi_client_pdc_deactivate_config (ctx->client,
-                                      input,
-                                      10,
-                                      ctx->cancellable,
-                                      (GAsyncReadyCallback) deactivate_config_ready, NULL);
-    qmi_message_pdc_deactivate_config_input_unref (input);
-}
-
-static QmiMessagePdcSetSelectedConfigInput *
-set_selected_config_input_create (const gchar *str)
-{
-    QmiMessagePdcSetSelectedConfigInput *input = NULL;
-    QmiConfigTypeAndId *type_and_id;
-    GError *error = NULL;
-
-    type_and_id = parse_type_and_id (str);
-    if (!type_and_id)
-        return NULL;
-
-    input = qmi_message_pdc_set_selected_config_input_new ();
-    if (!qmi_message_pdc_set_selected_config_input_set_type_with_id (input, type_and_id, &error) ||
-        !qmi_message_pdc_set_selected_config_input_set_token (input, ctx->token++, &error)) {
-        g_printerr ("error: couldn't create input data bundle: '%s'\n", error->message);
-        g_error_free (error);
-        qmi_message_pdc_set_selected_config_input_unref (input);
-        input = NULL;
-    }
-
-    g_array_unref (type_and_id->id);
-    g_slice_free (QmiConfigTypeAndId, type_and_id);
-    return input;
-}
+#endif /* HAVE_QMI_MESSAGE_PDC_DELETE_CONFIG */
 
 /******************************************************************************/
 /* Load config */
+
+#if defined HAVE_QMI_ACTION_PDC_LOAD_CONFIG
 
 static LoadConfigFileData *
 load_config_file_from_string (const gchar *str)
@@ -1045,49 +1254,8 @@ load_config_input_create_chunk (LoadConfigFileData *config_file)
     return input;
 }
 
-static QmiMessagePdcLoadConfigInput *
-load_config_input_create (const gchar *str)
-{
-    LoadConfigFileData *config_file;
-    QmiMessagePdcLoadConfigInput *input = NULL;
-
-    config_file = load_config_file_from_string (str);
-    if (!config_file)
-        return NULL;
-
-    input = load_config_input_create_chunk (config_file);
-    if (!input)
-        return NULL;
-
-    ctx->load_config_file_data = config_file;
-    return input;
-}
-
-static void
-load_config_ready (QmiClientPdc *client,
-                   GAsyncResult *res)
-{
-    GError *error = NULL;
-    QmiMessagePdcLoadConfigOutput *output;
-
-    output = qmi_client_pdc_load_config_finish (client, res, &error);
-    if (!output) {
-        g_printerr ("error: operation failed: %s\n", error->message);
-        g_error_free (error);
-        operation_shutdown (FALSE);
-        return;
-    }
-
-    if (!qmi_message_pdc_load_config_output_get_result (output, &error)) {
-        g_printerr ("error: couldn't load config: %s\n", error->message);
-        g_error_free (error);
-        qmi_message_pdc_load_config_output_unref (output);
-        operation_shutdown (FALSE);
-        return;
-    }
-
-    qmi_message_pdc_load_config_output_unref (output);
-}
+static void load_config_ready (QmiClientPdc *client,
+                               GAsyncResult *res);
 
 static void
 load_config_ready_indication (QmiClientPdc *client,
@@ -1148,6 +1316,80 @@ load_config_ready_indication (QmiClientPdc *client,
     qmi_message_pdc_load_config_input_unref (input);
 }
 
+static void
+load_config_ready (QmiClientPdc *client,
+                   GAsyncResult *res)
+{
+    GError *error = NULL;
+    QmiMessagePdcLoadConfigOutput *output;
+
+    output = qmi_client_pdc_load_config_finish (client, res, &error);
+    if (!output) {
+        g_printerr ("error: operation failed: %s\n", error->message);
+        g_error_free (error);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    if (!qmi_message_pdc_load_config_output_get_result (output, &error)) {
+        g_printerr ("error: couldn't load config: %s\n", error->message);
+        g_error_free (error);
+        qmi_message_pdc_load_config_output_unref (output);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    qmi_message_pdc_load_config_output_unref (output);
+}
+
+static QmiMessagePdcLoadConfigInput *
+load_config_input_create (const gchar *str)
+{
+    LoadConfigFileData *config_file;
+    QmiMessagePdcLoadConfigInput *input = NULL;
+
+    config_file = load_config_file_from_string (str);
+    if (!config_file)
+        return NULL;
+
+    input = load_config_input_create_chunk (config_file);
+    if (!input)
+        return NULL;
+
+    ctx->load_config_file_data = config_file;
+    return input;
+}
+
+static void
+run_load_config (void)
+{
+    QmiMessagePdcLoadConfigInput *input;
+
+    g_debug ("Loading config asynchronously...");
+    input = load_config_input_create (load_config_str);
+    if (!input) {
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    /* Results are reported via indications */
+    ctx->load_config_indication_id =
+        g_signal_connect (ctx->client,
+                          "load-config",
+                          G_CALLBACK (load_config_ready_indication),
+                          NULL);
+
+    qmi_client_pdc_load_config (ctx->client,
+                                input,
+                                10,
+                                ctx->cancellable,
+                                (GAsyncReadyCallback) load_config_ready,
+                                NULL);
+    qmi_message_pdc_load_config_input_unref (input);
+}
+
+#endif /* HAVE_QMI_ACTION_PDC_LOAD_CONFIG */
+
 /******************************************************************************/
 /* Common */
 
@@ -1166,174 +1408,40 @@ qmicli_pdc_run (QmiDevice *device,
     /* Initialize context */
     ctx = context_new (device, client, cancellable);
 
-    /* Request to get all configs */
+#if defined HAVE_QMI_ACTION_PDC_LIST_CONFIGS
     if (list_configs_str) {
-        QmiMessagePdcListConfigsInput *input;
-        QmiMessagePdcGetSelectedConfigInput *get_selected_config_input;
-
-        g_debug ("Listing configs asynchronously...");
-
-        /* Results are reported via indications */
-        ctx->list_configs_indication_id =
-            g_signal_connect (client,
-                              "list-configs",
-                              G_CALLBACK
-                              (list_configs_ready_indication), NULL);
-        ctx->get_selected_config_indication_id =
-            g_signal_connect (client, "get-selected-config",
-                              G_CALLBACK (get_selected_config_ready_indication), NULL);
-        ctx->get_config_info_indication_id =
-            g_signal_connect (client, "get-config-info",
-                              G_CALLBACK (get_config_info_ready_indication), NULL);
-
-        input = list_configs_input_create (list_configs_str);
-        if (!input) {
-            operation_shutdown (FALSE);
-            return;
-        }
-
-        get_selected_config_input = get_selected_config_input_create (list_configs_str);
-        if (!get_selected_config_input) {
-            operation_shutdown (FALSE);
-            return;
-        }
-
-        /* We need a timeout, because there will be no indications if no configs
-         * are loaded */
-        ctx->timeout_id = g_timeout_add_seconds (LIST_CONFIGS_TIMEOUT_SECS,
-                                                 (GSourceFunc) list_configs_timeout,
-                                                 NULL);
-
-        qmi_client_pdc_list_configs (ctx->client,
-                                     input,
-                                     10,
-                                     ctx->cancellable,
-                                     (GAsyncReadyCallback) list_configs_ready,
-                                     NULL);
-        qmi_message_pdc_list_configs_input_unref (input);
-
-        qmi_client_pdc_get_selected_config (ctx->client,
-                                            get_selected_config_input,
-                                            10,
-                                            ctx->cancellable,
-                                            (GAsyncReadyCallback) get_selected_config_ready,
-                                            NULL);
-        qmi_message_pdc_get_selected_config_input_unref (get_selected_config_input);
+        run_list_configs ();
         return;
     }
+#endif
 
-    /* Request to delete config */
-    if (delete_config_str) {
-        QmiMessagePdcDeleteConfigInput *input;
-
-        g_debug ("Deleting config asynchronously...");
-        input = delete_config_input_create (delete_config_str);
-        if (!input) {
-            operation_shutdown (FALSE);
-            return;
-        }
-
-        qmi_client_pdc_delete_config (ctx->client,
-                                      input,
-                                      10,
-                                      ctx->cancellable,
-                                      (GAsyncReadyCallback) delete_config_ready, NULL);
-        qmi_message_pdc_delete_config_input_unref (input);
-        return;
-    }
-
-    /* Request to activate config */
+#if defined HAVE_QMI_ACTION_PDC_ACTIVATE_CONFIG
     if (activate_config_str) {
-        QmiMessagePdcSetSelectedConfigInput *input;
-
-        g_debug ("Activating config asynchronously...");
-        input = set_selected_config_input_create (activate_config_str);
-        if (!input) {
-            operation_shutdown (FALSE);
-            return;
-        }
-
-        /* Results are reported via indications */
-        ctx->set_selected_config_indication_id =
-            g_signal_connect (client,
-                              "set-selected-config",
-                              G_CALLBACK (set_selected_config_ready_indication_activation), NULL);
-        ctx->activate_config_indication_id =
-            g_signal_connect (client,
-                              "activate-config",
-                              G_CALLBACK
-                              (activate_config_ready_indication),
-                              NULL);
-
-        qmi_client_pdc_set_selected_config (ctx->client,
-                                            input,
-                                            10,
-                                            ctx->cancellable,
-                                            (GAsyncReadyCallback) set_selected_config_ready,
-                                            NULL);
-        qmi_message_pdc_set_selected_config_input_unref (input);
+        run_activate_config ();
         return;
     }
+#endif
 
-    /* Request to deactivate config */
+#if defined HAVE_QMI_ACTION_PDC_DEACTIVATE_CONFIG
     if (deactivate_config_str) {
-        QmiMessagePdcSetSelectedConfigInput *input;
-
-        g_debug ("Deactivating config asynchronously...");
-        input = set_selected_config_input_create (activate_config_str);
-        if (!input) {
-            operation_shutdown (FALSE);
-            return;
-        }
-
-        /* Results are reported via indications */
-        ctx->set_selected_config_indication_id =
-            g_signal_connect (client,
-                              "set-selected-config",
-                              G_CALLBACK (set_selected_config_ready_indication_deactivation), NULL);
-        ctx->deactivate_config_indication_id =
-            g_signal_connect (client,
-                              "deactivate-config",
-                              G_CALLBACK
-                              (deactivate_config_ready_indication),
-                              NULL);
-
-        qmi_client_pdc_set_selected_config (ctx->client,
-                                            input,
-                                            10,
-                                            ctx->cancellable,
-                                            (GAsyncReadyCallback) set_selected_config_ready,
-                                            NULL);
-        qmi_message_pdc_set_selected_config_input_unref (input);
+        run_deactivate_config ();
         return;
     }
+#endif
 
+#if defined HAVE_QMI_MESSAGE_PDC_DELETE_CONFIG
+    if (delete_config_str) {
+        run_delete_config ();
+        return;
+    }
+#endif
+
+#if defined HAVE_QMI_ACTION_PDC_LOAD_CONFIG
     if (load_config_str) {
-        QmiMessagePdcLoadConfigInput *input;
-
-        g_debug ("Loading config asynchronously...");
-        input = load_config_input_create (load_config_str);
-        if (!input) {
-            operation_shutdown (FALSE);
-            return;
-        }
-
-        /* Results are reported via indications */
-        ctx->load_config_indication_id =
-            g_signal_connect (client,
-                              "load-config",
-                              G_CALLBACK (load_config_ready_indication),
-                              NULL);
-
-        qmi_client_pdc_load_config (ctx->client,
-                                    input,
-                                    10,
-                                    ctx->cancellable,
-                                    (GAsyncReadyCallback) load_config_ready,
-                                    NULL);
-        qmi_message_pdc_load_config_input_unref (input);
+        run_load_config ();
         return;
     }
+#endif
 
     /* Just client allocate/release? */
     if (noop_flag) {
@@ -1343,3 +1451,5 @@ qmicli_pdc_run (QmiDevice *device,
 
     g_warn_if_reached ();
 }
+
+#endif /* HAVE_QMI_SERVICE_PDC */

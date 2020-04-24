@@ -1326,7 +1326,7 @@ qmi_message_tlv_read_string (QmiMessage  *self,
      * but hey, the strings read using this method should all really be ASCII-7
      * and we're trying to do our best to overcome modem firmware problems...
      */
-    if (g_utf8_validate ((const gchar *)ptr, valid_string_length, NULL)) {
+    if (__qmi_string_utf8_validate_printable (ptr, valid_string_length)) {
         *out = g_malloc (valid_string_length + 1);
         memcpy (*out, ptr, valid_string_length);
         (*out)[valid_string_length] = '\0';
@@ -1344,10 +1344,6 @@ qmi_message_tlv_read_string (QmiMessage  *self,
         }
     }
 
-    *out = g_malloc (valid_string_length + 1);
-    memcpy (*out, ptr, valid_string_length);
-    (*out)[valid_string_length] = '\0';
-
     *offset = (*offset + string_length);
     return TRUE;
 }
@@ -1360,26 +1356,37 @@ qmi_message_tlv_read_fixed_size_string (QmiMessage  *self,
                                         gchar       *out,
                                         GError     **error)
 {
+    const guint8 *ptr;
+    const gchar  *end = NULL;
+
     g_return_val_if_fail (self != NULL, FALSE);
     g_return_val_if_fail (offset != NULL, FALSE);
     g_return_val_if_fail (out != NULL, FALSE);
 
-    if (string_length > 0) {
-        const guint8 *ptr;
+    if (string_length == 0)
+        return TRUE;
 
-        if (!(ptr = tlv_error_if_read_overflow (self, tlv_offset, *offset, string_length, error)))
-            return FALSE;
+    if (!(ptr = tlv_error_if_read_overflow (self, tlv_offset, *offset, string_length, error)))
+        return FALSE;
 
-        if (!g_utf8_validate ((const gchar *)ptr, string_length, NULL)) {
-            g_set_error (error, QMI_CORE_ERROR, QMI_CORE_ERROR_INVALID_DATA, "invalid string");
-            return FALSE;
-        }
-
+    /* full string valid? */
+    if (g_utf8_validate ((const gchar *)ptr, string_length, &end)) {
         memcpy (out, ptr, string_length);
+        *offset = (*offset + string_length);
+        return TRUE;
     }
 
-    *offset = (*offset + string_length);
-    return TRUE;
+    /* partial string valid? */
+    if (end && end > (const gchar *)ptr) {
+        /* copy only the valid bytes */
+        memcpy (out, ptr, end - (const gchar *)ptr);
+        /* but update offset with the full expected length */
+        *offset = (*offset + string_length);
+        return TRUE;
+    }
+
+    g_set_error (error, QMI_CORE_ERROR, QMI_CORE_ERROR_INVALID_DATA, "invalid string");
+    return FALSE;
 }
 
 guint16
@@ -1621,52 +1628,84 @@ qmi_message_get_printable_full (QmiMessage        *self,
     contents = NULL;
     switch (qmi_message_get_service (self)) {
     case QMI_SERVICE_CTL:
+#if defined HAVE_QMI_SERVICE_CTL
         contents = __qmi_message_ctl_get_printable (self, context, line_prefix);
+#endif
         break;
     case QMI_SERVICE_DMS:
+#if defined HAVE_QMI_SERVICE_DMS
         contents = __qmi_message_dms_get_printable (self, context, line_prefix);
+#endif
         break;
     case QMI_SERVICE_WDS:
+#if defined HAVE_QMI_SERVICE_WDS
         contents = __qmi_message_wds_get_printable (self, context, line_prefix);
+#endif
         break;
     case QMI_SERVICE_NAS:
+#if defined HAVE_QMI_SERVICE_NAS
         contents = __qmi_message_nas_get_printable (self, context, line_prefix);
+#endif
         break;
     case QMI_SERVICE_WMS:
+#if defined HAVE_QMI_SERVICE_WMS
         contents = __qmi_message_wms_get_printable (self, context, line_prefix);
+#endif
         break;
     case QMI_SERVICE_PDC:
+#if defined HAVE_QMI_SERVICE_PDC
         contents = __qmi_message_pdc_get_printable (self, context, line_prefix);
+#endif
         break;
     case QMI_SERVICE_PDS:
+#if defined HAVE_QMI_SERVICE_PDS
         contents = __qmi_message_pds_get_printable (self, context, line_prefix);
+#endif
         break;
     case QMI_SERVICE_PBM:
+#if defined HAVE_QMI_SERVICE_PBM
         contents = __qmi_message_pbm_get_printable (self, context, line_prefix);
+#endif
         break;
     case QMI_SERVICE_UIM:
+#if defined HAVE_QMI_SERVICE_UIM
         contents = __qmi_message_uim_get_printable (self, context, line_prefix);
+#endif
         break;
     case QMI_SERVICE_OMA:
+#if defined HAVE_QMI_SERVICE_OMA
         contents = __qmi_message_oma_get_printable (self, context, line_prefix);
+#endif
         break;
     case QMI_SERVICE_GAS:
+#if defined HAVE_QMI_SERVICE_GAS
         contents = __qmi_message_gas_get_printable (self, context, line_prefix);
+#endif
         break;
     case QMI_SERVICE_WDA:
+#if defined HAVE_QMI_SERVICE_WDA
         contents = __qmi_message_wda_get_printable (self, context, line_prefix);
+#endif
         break;
     case QMI_SERVICE_VOICE:
+#if defined HAVE_QMI_SERVICE_VOICE
         contents = __qmi_message_voice_get_printable (self, context, line_prefix);
+#endif
         break;
     case QMI_SERVICE_LOC:
+#if defined HAVE_QMI_SERVICE_LOC
         contents = __qmi_message_loc_get_printable (self, context, line_prefix);
+#endif
         break;
     case QMI_SERVICE_QOS:
+#if defined HAVE_QMI_SERVICE_QOS
         contents = __qmi_message_qos_get_printable (self, context, line_prefix);
+#endif
         break;
     case QMI_SERVICE_DSD:
+#if defined HAVE_QMI_SERVICE_DSD
         contents = __qmi_message_dsd_get_printable (self, context, line_prefix);
+#endif
         break;
 
     case QMI_SERVICE_UNKNOWN:
@@ -1722,9 +1761,17 @@ __qmi_message_is_abortable (QmiMessage        *self,
 {
     switch (qmi_message_get_service (self)) {
     case QMI_SERVICE_WDS:
+#if defined HAVE_QMI_SERVICE_WDS
         return __qmi_message_wds_is_abortable (self, context);
+#else
+        return FALSE;
+#endif
     case QMI_SERVICE_NAS:
+#if defined HAVE_QMI_SERVICE_NAS
         return __qmi_message_nas_is_abortable (self, context);
+#else
+        return FALSE;
+#endif
 
     case QMI_SERVICE_UNKNOWN:
         g_assert_not_reached ();

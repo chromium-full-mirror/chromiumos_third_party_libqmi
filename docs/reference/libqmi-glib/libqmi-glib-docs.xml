@@ -377,6 +377,9 @@
     <section>
       <title>Voice Indications</title>
       <xi:include href="xml/qmi-indication-voice-all-call-status.xml"/>
+      <xi:include href="xml/qmi-indication-voice-release-ussd.xml"/>
+      <xi:include href="xml/qmi-indication-voice-ussd.xml"/>
+      <xi:include href="xml/qmi-indication-voice-originate-ussd-no-wait.xml"/>
     </section>
     <section>
       <title>Voice Requests</title>
@@ -385,6 +388,10 @@
       <xi:include href="xml/qmi-message-voice-answer-call.xml"/>
       <xi:include href="xml/qmi-message-voice-get-config.xml"/>
       <xi:include href="xml/qmi-message-voice-get-supported-messages.xml"/>
+      <xi:include href="xml/qmi-message-voice-originate-ussd.xml"/>
+      <xi:include href="xml/qmi-message-voice-answer-ussd.xml"/>
+      <xi:include href="xml/qmi-message-voice-cancel-ussd.xml"/>
+      <xi:include href="xml/qmi-message-voice-originate-ussd-no-wait.xml"/>
     </section>
   </chapter>
 
@@ -532,6 +539,10 @@
   <chapter id="api-index-1-24" role="1.24">
     <title>Index of new symbols in 1.24</title>
     <xi:include href="xml/api-index-1.24.xml"></xi:include>
+  </chapter>
+  <chapter id="api-index-1-24-6" role="1.24.6">
+    <title>Index of new core symbols in 1.24.6</title>
+    <xi:include href="xml/api-index-1.24.6.xml"></xi:include>
   </chapter>
   <chapter id="api-index-1-26" role="1.26">
     <title>Index of new symbols in 1.26</title>

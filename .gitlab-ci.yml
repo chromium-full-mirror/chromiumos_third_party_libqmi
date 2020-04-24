@@ -5,48 +5,73 @@ stages:
 
 before_script:
   - apt update && apt -y install autoconf automake libtool libgudev-1.0-dev autoconf-archive
-  - export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
 
-test:
+test-no-mbim-no-qrtr:
   stage: test
   script:
-    - ./autogen.sh --disable-mbim-qmux --disable-qrtr
+    - NOCONFIGURE=1 ./autogen.sh
+    - ./configure --prefix=/usr --disable-mbim-qmux --disable-qrtr
     - make
     - make check
     - make install
 
-test-qrtr:
+test-no-mbim:
   stage: test
   script:
-    - ./autogen.sh --disable-mbim-qmux --enable-qrtr
+    - NOCONFIGURE=1 ./autogen.sh
+    - ./configure --prefix=/usr --disable-mbim-qmux --enable-qrtr
     - make
     - make check
     - make install
 
-test-mbim-qmux:
-  stage: test
-  script:
-    - git clone --depth 1 https://gitlab.freedesktop.org/mobile-broadband/libmbim.git
-    - pushd libmbim
-    - ./autogen.sh
-    - make
-    - make install
-    - popd
-    - ./autogen.sh --enable-mbim-qmux --disable-qrtr
-    - make
-    - make check
-    - make install
-
-test-mbim-qmux-qrtr:
+test-no-qrtr:
   stage: test
   script:
     - git clone --depth 1 https://gitlab.freedesktop.org/mobile-broadband/libmbim.git
     - pushd libmbim
-    - ./autogen.sh
+    - NOCONFIGURE=1 ./autogen.sh
+    - ./configure --prefix=/usr
     - make
     - make install
     - popd
-    - ./autogen.sh --enable-mbim-qmux --enable-qrtr
+    - NOCONFIGURE=1 ./autogen.sh
+    - ./configure --prefix=/usr --enable-mbim-qmux --disable-qrtr
     - make
     - make check
     - make install
+
+test-collection-minimal:
+  stage: test
+  script:
+    - NOCONFIGURE=1 ./autogen.sh
+    - ./configure --prefix=/usr --disable-mbim-qmux --disable-qrtr --disable-firmware-update --enable-collection=minimal
+    - make
+    - make check
+    - make install
+
+test-collection-basic:
+  stage: test
+  script:
+    - NOCONFIGURE=1 ./autogen.sh
+    - ./configure --prefix=/usr --disable-mbim-qmux --disable-qrtr --enable-collection=basic
+    - make
+    - make check
+    - make install
+
+test-default:
+  stage: test
+  script:
+    - apt -y install gtk-doc-tools libglib2.0-doc
+    - git clone --depth 1 https://gitlab.freedesktop.org/mobile-broadband/libmbim.git
+    - pushd libmbim
+    - NOCONFIGURE=1 ./autogen.sh
+    - ./configure --prefix=/usr
+    - make
+    - make install
+    - popd
+    - NOCONFIGURE=1 ./autogen.sh
+    - ./configure --prefix=/usr --enable-gtk-doc --enable-mbim-qmux --enable-qrtr
+    - make
+    - make check
+    - make install
+    - make distcheck
