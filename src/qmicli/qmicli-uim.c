@@ -40,6 +40,10 @@ typedef struct {
     QmiDevice *device;
     QmiClientUim *client;
     GCancellable *cancellable;
+
+    /* For Slot Status indication */
+    guint slot_status_indication_id;
+    gboolean warned_slot_ext_info_unavailable;
 } Context;
 static Context *ctx;
 
@@ -54,10 +58,16 @@ static gchar *get_file_attributes_str;
 static gchar *sim_power_on_str;
 static gchar *sim_power_off_str;
 static gchar *change_provisioning_session_str;
+static gchar *switch_slot_str;
 static gboolean get_card_status_flag;
 static gboolean get_supported_messages_flag;
+static gboolean get_slot_status_flag;
+static gboolean monitor_slot_status_flag;
 static gboolean reset_flag;
 static gboolean noop_flag;
+
+#undef VALIDATE_UNKNOWN
+#define VALIDATE_UNKNOWN(str) (str ? str : "unknown")
 
 static GOptionEntry entries[] = {
 #if defined HAVE_QMI_MESSAGE_UIM_SET_PIN_PROTECTION
@@ -132,6 +142,24 @@ static GOptionEntry entries[] = {
       "[\"key=value,...\"]"
     },
 #endif
+#if defined HAVE_QMI_MESSAGE_UIM_GET_SLOT_STATUS
+    { "uim-get-slot-status", 0, 0, G_OPTION_ARG_NONE, &get_slot_status_flag,
+      "Get slot status",
+      NULL
+    },
+#endif
+#if defined HAVE_QMI_MESSAGE_UIM_SWITCH_SLOT && defined HAVE_QMI_MESSAGE_UIM_GET_SLOT_STATUS
+    { "uim-switch-slot", 0, 0, G_OPTION_ARG_STRING, &switch_slot_str,
+      "Switch active physical slot",
+      "[(slot number)]"
+    },
+#endif
+#if defined HAVE_QMI_INDICATION_UIM_SLOT_STATUS
+    { "uim-monitor-slot-status", 0, 0, G_OPTION_ARG_NONE, &monitor_slot_status_flag,
+      "Watch for slot status indications",
+      NULL
+    },
+#endif
 #if defined HAVE_QMI_MESSAGE_UIM_RESET
     { "uim-reset", 0, 0, G_OPTION_ARG_NONE, &reset_flag,
       "Reset the service state",
@@ -179,8 +207,11 @@ qmicli_uim_options_enabled (void)
                  !!sim_power_on_str +
                  !!sim_power_off_str +
                  !!change_provisioning_session_str +
+                 !!switch_slot_str +
                  get_card_status_flag +
                  get_supported_messages_flag +
+                 get_slot_status_flag +
+                 monitor_slot_status_flag +
                  reset_flag +
                  noop_flag);
 
@@ -188,6 +219,9 @@ qmicli_uim_options_enabled (void)
         g_printerr ("error: too many UIM actions requested\n");
         exit (EXIT_FAILURE);
     }
+
+    if (monitor_slot_status_flag)
+        qmicli_expect_indications ();
 
     checked = TRUE;
     return !!n_actions;
@@ -198,6 +232,10 @@ context_free (Context *context)
 {
     if (!context)
         return;
+
+    if (context->slot_status_indication_id)
+        g_signal_handler_disconnect (context->client,
+                                     context->slot_status_indication_id);
 
     if (context->client)
         g_object_unref (context->client);
@@ -913,6 +951,355 @@ change_provisioning_session_ready (QmiClientUim *client,
 
 #endif /* HAVE_QMI_MESSAGE_UIM_CHANGE_PROVISIONING_SESSION */
 
+#if (defined HAVE_QMI_MESSAGE_UIM_GET_SLOT_STATUS || \
+     defined HAVE_QMI_INDICATION_UIM_SLOT_STATUS)
+
+static const gchar bcd_chars[] = "0123456789\0\0\0\0\0\0";
+
+static gchar *
+decode_iccid (const gchar *bcd, gsize bcd_len)
+{
+    GString *str;
+    gsize i;
+
+    g_return_val_if_fail (bcd != NULL, NULL);
+
+    str = g_string_sized_new (bcd_len * 2 + 1);
+    for (i = 0 ; i < bcd_len; i++) {
+        str = g_string_append_c (str, bcd_chars[bcd[i] & 0xF]);
+        str = g_string_append_c (str, bcd_chars[(bcd[i] >> 4) & 0xF]);
+    }
+    return g_string_free (str, FALSE);
+}
+
+static void
+print_slot_status (GArray *physical_slots,
+                   GArray *ext_information)
+{
+    guint i;
+
+    for (i = 0; i < physical_slots->len; i++) {
+        QmiPhysicalSlotStatusSlot *slot_status;
+        gchar *iccid;
+        QmiPhysicalSlotInformationSlot *slot_info = NULL;
+
+        slot_status = &g_array_index (physical_slots, QmiPhysicalSlotStatusSlot, i);
+
+        g_print ("  Physical slot %u:\n", i + 1);
+        g_print ("     Card status: %s\n",
+            qmi_uim_physical_card_state_get_string (slot_status->physical_card_status));
+        g_print ("     Slot status: %s\n",
+            qmi_uim_slot_state_get_string (slot_status->physical_slot_status));
+
+        if (slot_status->physical_slot_status == QMI_UIM_SLOT_STATE_ACTIVE)
+            g_print ("    Logical slot: %u\n", slot_status->logical_slot);
+
+        if (slot_status->physical_card_status != QMI_UIM_PHYSICAL_CARD_STATE_PRESENT)
+            continue;
+
+        iccid = decode_iccid (slot_status->iccid->data, slot_status->iccid->len);
+        g_print ("           ICCID: %s\n", VALIDATE_UNKNOWN (iccid));
+        g_free (iccid);
+
+        /* Extended information, if available */
+        if (!ext_information)
+            continue;
+
+        slot_info = &g_array_index (ext_information, QmiPhysicalSlotInformationSlot, i);
+        g_print ("        Protocol: %s\n",
+            qmi_uim_card_protocol_get_string (slot_info->card_protocol));
+        g_print ("        Num apps: %u\n", slot_info->valid_applications);
+        g_print ("        Is eUICC: %s\n", slot_info->is_euicc ? "yes" : "no");
+    }
+}
+
+#endif
+
+#if defined HAVE_QMI_MESSAGE_UIM_GET_SLOT_STATUS
+
+static void
+get_slot_status_ready (QmiClientUim *client,
+                       GAsyncResult *res)
+{
+    QmiMessageUimGetSlotStatusOutput *output;
+    GArray *physical_slots;
+    GArray *ext_information = NULL;
+    GError *error = NULL;
+
+    output = qmi_client_uim_get_slot_status_finish (client, res, &error);
+    if (!output) {
+        g_printerr ("error: operation failed: %s\n", error->message);
+        g_error_free (error);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    if (!qmi_message_uim_get_slot_status_output_get_result (output, &error)) {
+        g_printerr ("error: could not get slots status: %s\n", error->message);
+        g_error_free (error);
+        qmi_message_uim_get_slot_status_output_unref (output);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    g_print ("[%s] Successfully got slots status\n",
+             qmi_device_get_path_display (ctx->device));
+
+    if (!qmi_message_uim_get_slot_status_output_get_physical_slot_status (
+          output, &physical_slots, &error)) {
+        g_printerr ("error: could not parse slots status response: %s\n", error->message);
+        g_error_free (error);
+        qmi_message_uim_get_slot_status_output_unref (output);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    if (!qmi_message_uim_get_slot_status_output_get_physical_slot_information (
+          output, &ext_information, &error)) {
+        /* Recoverable, just print less information per slot */
+        g_print ("  Extended slots information is unavailable: %s\n", error->message);
+        g_error_free (error);
+    }
+
+    g_print ("[%s] %u physical slots found:\n",
+             qmi_device_get_path_display (ctx->device), physical_slots->len);
+
+    print_slot_status (physical_slots, ext_information);
+
+    qmi_message_uim_get_slot_status_output_unref (output);
+    operation_shutdown (TRUE);
+}
+
+#endif /* HAVE_QMI_MESSAGE_UIM_GET_SLOT_STATUS */
+
+#if defined HAVE_QMI_MESSAGE_UIM_SWITCH_SLOT && defined HAVE_QMI_MESSAGE_UIM_GET_SLOT_STATUS
+
+static void
+switch_slot_ready (QmiClientUim *client,
+                   GAsyncResult *res)
+{
+    QmiMessageUimSwitchSlotOutput *output;
+    GError *error = NULL;
+
+    output = qmi_client_uim_switch_slot_finish (client, res, &error);
+    if (!output) {
+        g_printerr ("error: operation failed: %s\n", error->message);
+        g_error_free (error);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    if (!qmi_message_uim_switch_slot_output_get_result (output, &error)) {
+        g_printerr ("error: couldn't switch slots: %s\n", error->message);
+        g_error_free (error);
+        qmi_message_uim_switch_slot_output_unref (output);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    g_print ("[%s] Successfully switched slots\n",
+             qmi_device_get_path_display (ctx->device));
+
+    qmi_message_uim_switch_slot_output_unref (output);
+    operation_shutdown (TRUE);
+}
+
+static QmiMessageUimSwitchSlotInput *
+switch_slot_input_create (guint logical_slot,
+                          guint physical_slot)
+{
+    QmiMessageUimSwitchSlotInput *input;
+    GError                       *error = NULL;
+
+    input = qmi_message_uim_switch_slot_input_new ();
+
+    if (!qmi_message_uim_switch_slot_input_set_logical_slot (input, logical_slot, &error) ||
+        !qmi_message_uim_switch_slot_input_set_physical_slot (input, physical_slot, &error)) {
+        g_printerr ("error: could not create switch slot input: %s\n", error->message);
+        g_error_free (error);
+        g_clear_pointer (&input, qmi_message_uim_switch_slot_input_unref);
+    }
+
+    return input;
+}
+
+static void
+get_active_logical_slot_ready (QmiClientUim *client,
+                               GAsyncResult *res,
+                               gpointer user_data)
+{
+    QmiMessageUimGetSlotStatusOutput *output;
+    QmiMessageUimSwitchSlotInput *input;
+    GArray *physical_slots;
+    guint physical_slot_id;
+    guint active_logical_slot_id = 0;
+    guint i;
+    GError *error = NULL;
+
+    physical_slot_id = GPOINTER_TO_UINT (user_data);
+
+    output = qmi_client_uim_get_slot_status_finish (client, res, &error);
+    if (!output) {
+        g_printerr ("error: operation failed: %s\n", error->message);
+        g_error_free (error);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    if (!qmi_message_uim_get_slot_status_output_get_result (output, &error)) {
+        g_printerr ("error: could not get slots status: %s\n", error->message);
+        g_error_free (error);
+        qmi_message_uim_get_slot_status_output_unref (output);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    if (!qmi_message_uim_get_slot_status_output_get_physical_slot_status (
+          output, &physical_slots, &error)) {
+        g_printerr ("error: could not parse slots status response: %s\n", error->message);
+        g_error_free (error);
+        qmi_message_uim_get_slot_status_output_unref (output);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    /* Ensure the physical slot is available. */
+    if (physical_slot_id > physical_slots->len) {
+        g_printerr ("error: physical slot %u is unavailable\n", physical_slot_id);
+        qmi_message_uim_get_slot_status_output_unref (output);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    /* Find active logical slot */
+    for (i = 0; i < physical_slots->len; i++) {
+        QmiPhysicalSlotStatusSlot *slot_status;
+
+        slot_status = &g_array_index (physical_slots, QmiPhysicalSlotStatusSlot, i);
+        if (slot_status->physical_slot_status == QMI_UIM_SLOT_STATE_ACTIVE) {
+            active_logical_slot_id = slot_status->logical_slot;
+            break;
+        }
+    }
+    qmi_message_uim_get_slot_status_output_unref (output);
+
+    if (active_logical_slot_id == 0) {
+        g_printerr ("error: no active logical slot\n");
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    input = switch_slot_input_create (active_logical_slot_id, physical_slot_id);
+    qmi_client_uim_switch_slot (ctx->client,
+                                input,
+                                10,
+                                ctx->cancellable,
+                                (GAsyncReadyCallback)switch_slot_ready,
+                                ctx);
+    qmi_message_uim_switch_slot_input_unref (input);
+}
+
+#endif /* HAVE_QMI_MESSAGE_UIM_SWITCH_SLOT && HAVE_QMI_MESSAGE_UIM_GET_SLOT_STATUS */
+
+#if defined HAVE_QMI_INDICATION_UIM_SLOT_STATUS
+
+static void
+monitoring_cancelled (GCancellable *cancellable)
+{
+    operation_shutdown (TRUE);
+}
+
+static void
+slot_status_received (QmiClientUim *client,
+                      QmiIndicationUimSlotStatusOutput *output)
+{
+    GArray *physical_slots;
+    GArray *ext_information = NULL;
+    GError *error = NULL;
+
+    g_print ("[%s] Received slot status indication:\n",
+             qmi_device_get_path_display (ctx->device));
+
+    if (!qmi_indication_uim_slot_status_output_get_physical_slot_status (
+          output, &physical_slots, &error)) {
+        g_printerr ("error: could not parse slots status: %s\n", error->message);
+        g_error_free (error);
+        qmi_indication_uim_slot_status_output_unref (output);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    if (!qmi_indication_uim_slot_status_output_get_physical_slot_information (
+          output, &ext_information, &error) && !ctx->warned_slot_ext_info_unavailable) {
+        /* Recoverable, just print less information per slot. Only print this
+         * message once rather than every time we get an indication */
+        g_print ("  Extended slots information is unavailable: %s\n", error->message);
+        ctx->warned_slot_ext_info_unavailable = TRUE;
+        g_error_free (error);
+    }
+
+    print_slot_status (physical_slots, ext_information);
+
+    qmi_indication_uim_slot_status_output_unref (output);
+}
+
+static void
+register_physical_slot_status_events_ready (QmiClientUim *client,
+                                            GAsyncResult *res)
+{
+    QmiMessageUimRegisterEventsOutput *output;
+    GError                            *error = NULL;
+
+    output = qmi_client_uim_register_events_finish (client, res, &error);
+    if (!output) {
+        g_printerr ("error: operation failed: %s\n", error->message);
+        g_error_free (error);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    if (!qmi_message_uim_register_events_output_get_result (output, &error)) {
+        g_printerr ("error: could not register slot status change events: %s\n", error->message);
+        qmi_message_uim_register_events_output_unref (output);
+        g_error_free (error);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    g_debug ("Registered physical slot status change events...");
+    ctx->slot_status_indication_id =
+        g_signal_connect (ctx->client,
+                          "slot-status",
+                          G_CALLBACK (slot_status_received),
+                          NULL);
+
+    /* User can use Ctrl+C to cancel the monitoring at any time */
+    g_cancellable_connect (ctx->cancellable,
+                           G_CALLBACK (monitoring_cancelled),
+                           NULL,
+                           NULL);
+}
+
+static void
+register_physical_slot_status_events (void)
+{
+    QmiMessageUimRegisterEventsInput *re_input;
+
+    re_input = qmi_message_uim_register_events_input_new ();
+    qmi_message_uim_register_events_input_set_event_registration_mask (
+        re_input, QMI_UIM_EVENT_REGISTRATION_FLAG_PHYSICAL_SLOT_STATUS, NULL);
+    qmi_client_uim_register_events (
+        ctx->client,
+        re_input,
+        10,
+        ctx->cancellable,
+        (GAsyncReadyCallback) register_physical_slot_status_events_ready,
+        NULL);
+    qmi_message_uim_register_events_input_unref (re_input);
+}
+
+#endif /* HAVE_QMI_INDICATION_UIM_SLOT_STATUS */
+
 #if defined HAVE_QMI_MESSAGE_UIM_RESET
 
 static void
@@ -996,9 +1383,6 @@ get_card_status_ready (QmiClientUim *client,
         &index_1x_secondary,
         &cards,
         NULL);
-
-#undef VALIDATE_UNKNOWN
-#define VALIDATE_UNKNOWN(str) (str ? str : "unknown")
 
     g_print ("Provisioning applications:\n");
     if (index_gw_primary == 0xFFFF)
@@ -1661,7 +2045,7 @@ qmicli_uim_run (QmiDevice *device,
                 GCancellable *cancellable)
 {
     /* Initialize context */
-    ctx = g_slice_new (Context);
+    ctx = g_slice_new0 (Context);
     ctx->device = g_object_ref (device);
     ctx->client = g_object_ref (client);
     ctx->cancellable = g_object_ref (cancellable);
@@ -1911,7 +2295,54 @@ qmicli_uim_run (QmiDevice *device,
     }
 #endif
 
+#if defined HAVE_QMI_MESSAGE_UIM_GET_SLOT_STATUS
+    /* Request to get slot status? */
+    if (get_slot_status_flag) {
+        g_debug ("Asynchronously getting slot status...");
+        qmi_client_uim_get_slot_status (ctx->client,
+                                        NULL,
+                                        10,
+                                        ctx->cancellable,
+                                        (GAsyncReadyCallback)get_slot_status_ready,
+                                        NULL);
+        return;
+    }
+#endif
+
+#if defined HAVE_QMI_MESSAGE_UIM_SWITCH_SLOT && defined HAVE_QMI_MESSAGE_UIM_GET_SLOT_STATUS
+    /* Request to change active slot? */
+    if (switch_slot_str) {
+        guint physical_slot;
+
+        if (!qmicli_read_uint_from_string (switch_slot_str, &physical_slot) ||
+            (physical_slot < 1) || (physical_slot > G_MAXUINT8)) {
+            g_printerr ("error: invalid slot number\n");
+            return;
+        }
+
+        g_debug ("Asynchronously switching active slot");
+
+        qmi_client_uim_get_slot_status (ctx->client,
+                                        NULL,
+                                        10,
+                                        ctx->cancellable,
+                                        (GAsyncReadyCallback)get_active_logical_slot_ready,
+                                        GUINT_TO_POINTER (physical_slot));
+        return;
+    }
+#endif
+
+#if defined HAVE_QMI_INDICATION_UIM_SLOT_STATUS
+    /* Watch for slot status changes? */
+    if (monitor_slot_status_flag) {
+        g_debug ("Listening for slot status changes...");
+        register_physical_slot_status_events ();
+        return;
+    }
+#endif
+
 #if defined HAVE_QMI_MESSAGE_UIM_RESET
+    /* Request to reset UIM service? */
     if (reset_flag) {
         g_debug ("Asynchronously resetting UIM service...");
         qmi_client_uim_reset (ctx->client,

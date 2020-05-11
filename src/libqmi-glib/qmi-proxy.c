@@ -311,8 +311,10 @@ indication_cb (QmiDevice *device,
         QmiClientInfo *info;
 
         info = &g_array_index (client->qmi_client_info_array, QmiClientInfo, i);
+
         /* If service and CID match; or if service and broadcast, forward to
-         * the remote client */
+         * the remote client. This message may therefore be forwarded to multiple
+         * clients, all that match the conditions. */
         if ((qmi_message_get_service (message) == info->service) &&
             (qmi_message_get_client_id (message) == info->cid ||
              qmi_message_get_client_id (message) == QMI_CID_BROADCAST)) {
@@ -322,9 +324,6 @@ indication_cb (QmiDevice *device,
                 g_warning ("couldn't forward indication to client: %s", error->message);
                 g_error_free (error);
             }
-
-            /* Avoid forwarding broadcast messages multiple times */
-            break;
         }
     }
 }
@@ -334,6 +333,20 @@ device_removed_cb (QmiDevice *device,
                    Client *client)
 {
     untrack_client (client->proxy, client);
+}
+
+static void
+register_signal_handlers (Client *client)
+{
+    /* Register for device indications */
+    client->indication_id = g_signal_connect (client->device,
+                                              "indication",
+                                              G_CALLBACK (indication_cb),
+                                              client);
+    client->device_removed_id = g_signal_connect (client->device,
+                                                  "device-removed",
+                                                  G_CALLBACK (device_removed_cb),
+                                                  client);
 }
 
 static void
@@ -365,15 +378,7 @@ device_open_ready (QmiDevice *device,
         self->priv->devices = g_list_append (self->priv->devices, g_object_ref (client->device));
     }
 
-    /* Register for device indications */
-    client->indication_id = g_signal_connect (client->device,
-                                              "indication",
-                                              G_CALLBACK (indication_cb),
-                                              client);
-    client->device_removed_id = g_signal_connect (client->device,
-                                                  "device-removed",
-                                                  G_CALLBACK (device_removed_cb),
-                                                  client);
+    register_signal_handlers (client);
 
     complete_internal_proxy_open (self, client);
 
@@ -503,7 +508,7 @@ process_internal_proxy_open (QmiProxy   *self,
                               client_ref (client)); /* Full ref */
         } else
 #endif
-	{
+        {
             file = g_file_new_for_path (device_file_path);
             qmi_device_new (file,
                             NULL,
@@ -513,7 +518,8 @@ process_internal_proxy_open (QmiProxy   *self,
         }
         g_free (device_file_path);
         return TRUE;
-    }
+    } else
+        register_signal_handlers (client);
 
     g_free (device_file_path);
 

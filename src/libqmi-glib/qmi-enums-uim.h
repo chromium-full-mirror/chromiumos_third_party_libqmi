@@ -44,6 +44,7 @@
  * @QMI_UIM_EVENT_REGISTRATION_FLAG_CARD_STATUS: Card status.
  * @QMI_UIM_EVENT_REGISTRATION_FLAG_SAP_CONNECTION: SAP connection.
  * @QMI_UIM_EVENT_REGISTRATION_FLAG_EXTENDED_CARD_STATUS: Extended card status.
+ * @QMI_UIM_EVENT_REGISTRATION_FLAG_PHYSICAL_SLOT_STATUS: Physical slot status. Since 1.26.
  *
  * Flags to use to register to UIM indications.
  *
@@ -53,6 +54,7 @@ typedef enum {
     QMI_UIM_EVENT_REGISTRATION_FLAG_CARD_STATUS          = 1 << 0,
     QMI_UIM_EVENT_REGISTRATION_FLAG_SAP_CONNECTION       = 1 << 1,
     QMI_UIM_EVENT_REGISTRATION_FLAG_EXTENDED_CARD_STATUS = 1 << 2,
+    QMI_UIM_EVENT_REGISTRATION_FLAG_PHYSICAL_SLOT_STATUS = 1 << 4,
 } QmiUimEventRegistrationFlag;
 
 /**
@@ -419,6 +421,73 @@ typedef enum {
  * qmi_uim_card_application_personalization_feature_get_string:
  *
  * Since: 1.10
+ */
+
+/*****************************************************************************/
+/* Helper enums for the 'QMI UIM Get Slot Status' request/response */
+
+/**
+ * QmiUimPhysicalCardState:
+ * @QMI_UIM_PHYSICAL_CARD_STATE_UNKNOWN: Unknown.
+ * @QMI_UIM_PHYSICAL_CARD_STATE_ABSENT: Absent.
+ * @QMI_UIM_PHYSICAL_CARD_STATE_PRESENT: Present.
+ *
+ * State of the physical card.
+ *
+ * Since: 1.26
+ */
+typedef enum {
+    QMI_UIM_PHYSICAL_CARD_STATE_UNKNOWN = 0,
+    QMI_UIM_PHYSICAL_CARD_STATE_ABSENT  = 1,
+    QMI_UIM_PHYSICAL_CARD_STATE_PRESENT = 2,
+} QmiUimPhysicalCardState;
+
+/**
+ * qmi_uim_physical_card_state_get_string:
+ *
+ * Since: 1.26
+ */
+
+/**
+ * QmiUimSlotState:
+ * @QMI_UIM_SLOT_STATE_INACTIVE: Inactive.
+ * @QMI_UIM_SLOT_STATE_ACTIVE: Active.
+ *
+ * State of the slot.
+ *
+ * Since: 1.26
+ */
+typedef enum {
+    QMI_UIM_SLOT_STATE_INACTIVE = 0,
+    QMI_UIM_SLOT_STATE_ACTIVE   = 1,
+} QmiUimSlotState;
+
+/**
+ * qmi_uim_slot_state_get_string:
+ *
+ * Since: 1.26
+ */
+
+/**
+ * QmiUimCardProtocol:
+ * @QMI_UIM_CARD_PROTOCOL_UNKNOWN: Unknown.
+ * @QMI_UIM_CARD_PROTOCOL_ICC: ICC protocol.
+ * @QMI_UIM_CARD_PROTOCOL_UICC: UICC protocol.
+ *
+ * Protocol for the card.
+ *
+ * Since: 1.26
+ */
+typedef enum {
+    QMI_UIM_CARD_PROTOCOL_UNKNOWN = 0,
+    QMI_UIM_CARD_PROTOCOL_ICC     = 1,
+    QMI_UIM_CARD_PROTOCOL_UICC    = 2,
+} QmiUimCardProtocol;
+
+/**
+ * qmi_uim_card_protocol_get_string:
+ *
+ * Since: 1.26
  */
 
 #endif /* _LIBQMI_GLIB_QMI_ENUMS_UIM_H_ */
