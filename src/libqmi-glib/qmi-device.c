@@ -54,6 +54,7 @@
 #include "qmi-gms.h"
 #include "qmi-dsd.h"
 #include "qmi-utils.h"
+#include "qmi-utils-private.h"
 #include "qmi-error-types.h"
 #include "qmi-enum-types.h"
 #include "qmi-proxy.h"
@@ -2406,7 +2407,7 @@ qmi_device_command_abortable (QmiDevice                                *self,
     tr = transaction_new (self, message, message_context, cancellable, callback, user_data);
 
     /* Device must be open */
-    if (!qmi_endpoint_is_open (self->priv->endpoint)) {
+    if (!qmi_device_is_open (self)) {
         error = g_error_new (QMI_CORE_ERROR,
                              QMI_CORE_ERROR_WRONG_STATE,
                              "Device must be open to send commands");

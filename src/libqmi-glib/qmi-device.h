@@ -165,7 +165,7 @@ void qmi_device_new (GFile               *file,
  *
  * Finishes an operation started with qmi_device_new().
  *
- * Returns: A newly created #QmiDevice, or %NULL if @error is set.
+ * Returns: (transfer full): A newly created #QmiDevice, or %NULL if @error is set.
  *
  * Since: 1.0
  */
@@ -178,7 +178,7 @@ QmiDevice *qmi_device_new_finish (GAsyncResult  *res,
  *
  * Get the #GFile associated with this #QmiDevice.
  *
- * Returns: a #GFile that must be freed with g_object_unref().
+ * Returns: (transfer full): a #GFile that must be freed with g_object_unref().
  *
  * Since: 1.0
  */
@@ -191,7 +191,7 @@ GFile *qmi_device_get_file (QmiDevice *self);
  * Get the #GFile associated with this #QmiDevice, without increasing the reference count
  * on the returned object.
  *
- * Returns: a #GFile. Do not free the returned object, it is owned by @self.
+ * Returns: (transfer none): a #GFile. Do not free the returned object, it is owned by @self.
  *
  * Since: 1.0
  */
@@ -264,7 +264,7 @@ gboolean qmi_device_is_open (QmiDevice *self);
  *
  * Since: 1.0
  */
-typedef enum {
+typedef enum { /*< since=1.0 >*/
     QMI_DEVICE_OPEN_FLAGS_NONE               = 0,
     QMI_DEVICE_OPEN_FLAGS_VERSION_INFO       = 1 << 0,
     QMI_DEVICE_OPEN_FLAGS_SYNC               = 1 << 1,
@@ -277,12 +277,6 @@ typedef enum {
     QMI_DEVICE_OPEN_FLAGS_AUTO               = 1 << 8,
     QMI_DEVICE_OPEN_FLAGS_EXPECT_INDICATIONS = 1 << 9,
 } QmiDeviceOpenFlags;
-
-/**
- * qmi_device_open_flags_build_string_from_mask:
- *
- * Since: 1.0
- */
 
 /**
  * qmi_device_open:
@@ -405,7 +399,7 @@ void qmi_device_allocate_client (QmiDevice           *self,
  *
  * Finishes an operation started with qmi_device_allocate_client().
  *
- * Returns: a newly allocated #QmiClient, or %NULL if @error is set.
+ * Returns: (transfer full): a newly allocated #QmiClient, or %NULL if @error is set.
  *
  * Since: 1.0
  */
@@ -422,16 +416,10 @@ QmiClient *qmi_device_allocate_client_finish (QmiDevice     *self,
  *
  * Since: 1.0
  */
-typedef enum {
+typedef enum { /*< since=1.0 >*/
     QMI_DEVICE_RELEASE_CLIENT_FLAGS_NONE        = 0,
     QMI_DEVICE_RELEASE_CLIENT_FLAGS_RELEASE_CID = 1 << 0
 } QmiDeviceReleaseClientFlags;
-
-/**
- * qmi_device_release_client_flags_build_string_from_mask:
- *
- * Since: 1.0
- */
 
 /**
  * qmi_device_release_client:
@@ -563,7 +551,7 @@ void qmi_device_command (QmiDevice           *self,
  *
  * Finishes an operation started with qmi_device_command().
  *
- * Returns: a #QmiMessage response, or %NULL if @error is set. The returned value should be freed with qmi_message_unref().
+ * Returns: (transfer full): a #QmiMessage response, or %NULL if @error is set. The returned value should be freed with qmi_message_unref().
  *
  * Since: 1.0
  * Deprecated: 1.18. Use qmi_device_command_full_finish() instead.
@@ -617,7 +605,7 @@ void qmi_device_command_full (QmiDevice           *self,
  *
  * Finishes an operation started with qmi_device_command_full().
  *
- * Returns: a #QmiMessage response, or %NULL if @error is set. The returned value should be freed with qmi_message_unref().
+ * Returns: (transfer full): a #QmiMessage response, or %NULL if @error is set. The returned value should be freed with qmi_message_unref().
  *
  * Since: 1.18
  */
@@ -671,10 +659,10 @@ typedef gboolean (* QmiDeviceCommandAbortableParseResponseFn) (QmiDevice   *self
  * @message: the message to send.
  * @message_context: the context of the message.
  * @timeout: maximum time, in seconds, to wait for the response.
- * @abort_build_request_fn: callback to build an abort request.
- * @abort_parse_response_fn: callback to parse an abort response.
- * @abort_user_data: user data to pass to @build_request_fn and @parse_response_fn.
- * @abort_user_data_free: a #GDestroyNotify to free @abort_user_data.
+ * @abort_build_request_fn: (scope async): callback to build an abort request.
+ * @abort_parse_response_fn: (scope async): callback to parse an abort response.
+ * @abort_user_data: (closure): user data to pass to @build_request_fn and @parse_response_fn.
+ * @abort_user_data_free: (destroy abort_user_data): a #GDestroyNotify to free @abort_user_data.
  * @cancellable: a #GCancellable, or %NULL.
  * @callback: a #GAsyncReadyCallback to call when the operation is finished.
  * @user_data: the data to pass to callback function.
@@ -733,7 +721,7 @@ void qmi_device_command_abortable (QmiDevice                                *sel
  *
  * Finishes an operation started with qmi_device_command_abortable().
  *
- * Returns: a #QmiMessage response, or %NULL if @error is set. The returned value should be freed with qmi_message_unref().
+ * Returns: (transfer full): a #QmiMessage response, or %NULL if @error is set. The returned value should be freed with qmi_message_unref().
  *
  * Since: 1.24
  */
@@ -787,7 +775,9 @@ void qmi_device_get_service_version_info (QmiDevice           *self,
  *
  * Finishes an operation started with qmi_device_get_service_version_info().
  *
- * Returns: a #GArray of #QmiDeviceServiceVersionInfo elements, or %NULL if @error is set. The returned value should be freed with g_array_unref().
+ * Returns: (transfer full)(element-type QmiDeviceServiceVersionInfo):
+ *  a #GArray of #QmiDeviceServiceVersionInfo elements, or %NULL if @error
+ *  is set. The returned value should be freed with g_array_unref().
  *
  * Since: 1.6
  */
@@ -804,17 +794,11 @@ GArray *qmi_device_get_service_version_info_finish (QmiDevice     *self,
  *
  * Since: 1.14
  */
-typedef enum {
+typedef enum { /*< since=1.14 >*/
     QMI_DEVICE_EXPECTED_DATA_FORMAT_UNKNOWN,
     QMI_DEVICE_EXPECTED_DATA_FORMAT_802_3,
     QMI_DEVICE_EXPECTED_DATA_FORMAT_RAW_IP,
 } QmiDeviceExpectedDataFormat;
-
-/**
- * qmi_device_expected_data_format_get_string:
- *
- * Since: 1.14
- */
 
 /**
  * qmi_device_get_expected_data_format:
@@ -889,7 +873,7 @@ void qmi_device_new_from_node (QrtrNode            *node,
  *
  * Finishes an operation started with qmi_device_new_from_node().
  *
- * Returns: A newly created #QmiDevice, or %NULL if @error is set.
+ * Returns: (transfer full): A newly created #QmiDevice, or %NULL if @error is set.
  */
 QmiDevice *qmi_device_new_from_node_finish (GAsyncResult  *res,
                                             GError       **error);

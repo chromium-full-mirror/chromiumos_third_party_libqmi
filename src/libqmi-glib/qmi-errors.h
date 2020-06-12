@@ -79,7 +79,7 @@
  *
  * Since: 1.0
  */
-typedef enum { /*< underscore_name=qmi_core_error >*/
+typedef enum { /*< since=1.0 >*/
     QMI_CORE_ERROR_FAILED             = 0, /*< nick=Failed >*/
     QMI_CORE_ERROR_WRONG_STATE        = 1, /*< nick=WrongState >*/
     QMI_CORE_ERROR_TIMEOUT            = 2, /*< nick=Timeout >*/
@@ -92,12 +92,6 @@ typedef enum { /*< underscore_name=qmi_core_error >*/
     QMI_CORE_ERROR_UNEXPECTED_MESSAGE = 9, /*< nick=UnexpectedMessage >*/
     QMI_CORE_ERROR_INVALID_DATA       = 10, /*< nick=InvalidData >*/
 } QmiCoreError;
-
-/**
- * qmi_core_error_get_string:
- *
- * Since: 1.0
- */
 
 /**
  * QmiProtocolError:
@@ -231,7 +225,7 @@ typedef enum { /*< underscore_name=qmi_core_error >*/
   *
   * Since: 1.0
   */
-typedef enum { /*< underscore_name=qmi_protocol_error >*/
+typedef enum { /*< since=1.0 >*/
   QMI_PROTOCOL_ERROR_NONE                             = 0,  /*< nick=None >*/
   QMI_PROTOCOL_ERROR_MALFORMED_MESSAGE                = 1,  /*< nick=MalformedMessage >*/
   QMI_PROTOCOL_ERROR_NO_MEMORY                        = 2,  /*< nick=NoMemory >*/
@@ -269,7 +263,7 @@ typedef enum { /*< underscore_name=qmi_protocol_error >*/
   QMI_PROTOCOL_ERROR_UIM_UNINITIALIZED                = 37, /*< nick=UimUninitialized >*/
   QMI_PROTOCOL_ERROR_MAXIMUM_QOS_REQUESTS_IN_USE      = 38, /*< nick=MaximumQosRequestsInUse >*/
   QMI_PROTOCOL_ERROR_INCORRECT_FLOW_FILTER            = 39, /*< nick=IncorrectFlowFilter >*/
-  QMI_PROTOCOL_ERROR_NETWORK_QOS_UNAWARE              = 40, /*< nick= NetworkQosUnaware >*/
+  QMI_PROTOCOL_ERROR_NETWORK_QOS_UNAWARE              = 40, /*< nick=NetworkQosUnaware >*/
   QMI_PROTOCOL_ERROR_INVALID_QOS_ID                   = 41, /*< nick=InvalidQosId >*/
   QMI_PROTOCOL_ERROR_REQUESTED_NUMBER_UNSUPPORTED     = 42, /*< nick=RequestedNumberUnsupported >*/
   QMI_PROTOCOL_ERROR_INTERFACE_NOT_FOUND              = 43, /*< nick=InterfaceNotFound >*/
@@ -283,11 +277,11 @@ typedef enum { /*< underscore_name=qmi_protocol_error >*/
   QMI_PROTOCOL_ERROR_DEVICE_STORAGE_FULL              = 51, /*< nick=DeviceStorageFull >*/
   QMI_PROTOCOL_ERROR_DEVICE_NOT_READY                 = 52, /*< nick=DeviceNotReady >*/
   QMI_PROTOCOL_ERROR_NETWORK_NOT_READY                = 53, /*< nick=NetworkNotReady >*/
-  QMI_PROTOCOL_ERROR_WMS_CAUSE_CODE                   = 54, /*< nick=Wms.CauseCode >*/
-  QMI_PROTOCOL_ERROR_WMS_MESSAGE_NOT_SENT             = 55, /*< nick=Wms.MessageNotSent >*/
-  QMI_PROTOCOL_ERROR_WMS_MESSAGE_DELIVERY_FAILURE     = 56, /*< nick=Wms.MessageDeliveryFailure >*/
-  QMI_PROTOCOL_ERROR_WMS_INVALID_MESSAGE_ID           = 57, /*< nick=Wms.InvalidMessageId >*/
-  QMI_PROTOCOL_ERROR_WMS_ENCODING                     = 58, /*< nick=Wms.Encoding >*/
+  QMI_PROTOCOL_ERROR_WMS_CAUSE_CODE                   = 54, /*< nick=WmsCauseCode >*/
+  QMI_PROTOCOL_ERROR_WMS_MESSAGE_NOT_SENT             = 55, /*< nick=WmsMessageNotSent >*/
+  QMI_PROTOCOL_ERROR_WMS_MESSAGE_DELIVERY_FAILURE     = 56, /*< nick=WmsMessageDeliveryFailure >*/
+  QMI_PROTOCOL_ERROR_WMS_INVALID_MESSAGE_ID           = 57, /*< nick=WmsInvalidMessageId >*/
+  QMI_PROTOCOL_ERROR_WMS_ENCODING                     = 58, /*< nick=WmsEncoding >*/
   QMI_PROTOCOL_ERROR_AUTHENTICATION_LOCK              = 59, /*< nick=AuthenticationLock >*/
   QMI_PROTOCOL_ERROR_INVALID_TRANSITION               = 60, /*< nick=InvalidTransition >*/
   QMI_PROTOCOL_ERROR_NOT_MCAST_INTERFACE              = 61, /*< nick=NotMcastInterface >*/
@@ -301,8 +295,8 @@ typedef enum { /*< underscore_name=qmi_protocol_error >*/
   QMI_PROTOCOL_ERROR_DISABLED                         = 69, /*< nick=Disabled >*/
   QMI_PROTOCOL_ERROR_INVALID_OPERATION                = 70, /*< nick=InvalidOperation >*/
   QMI_PROTOCOL_ERROR_INVALID_QMI_COMMAND              = 71, /*< nick=InvalidQmiCommand >*/
-  QMI_PROTOCOL_ERROR_WMS_T_PDU_TYPE                   = 72, /*< nick=Wms.TPduType >*/
-  QMI_PROTOCOL_ERROR_WMS_SMSC_ADDRESS                 = 73, /*< nick=Wms.SmscAddress >*/
+  QMI_PROTOCOL_ERROR_WMS_T_PDU_TYPE                   = 72, /*< nick=WmsTPduType >*/
+  QMI_PROTOCOL_ERROR_WMS_SMSC_ADDRESS                 = 73, /*< nick=WmsSmscAddress >*/
   QMI_PROTOCOL_ERROR_INFORMATION_UNAVAILABLE          = 74, /*< nick=InformationUnavailable >*/
   QMI_PROTOCOL_ERROR_SEGMENT_TOO_LONG                 = 75, /*< nick=SegmentTooLong >*/
   QMI_PROTOCOL_ERROR_SEGMENT_ORDER                    = 76, /*< nick=SegmentOrder >*/
@@ -352,17 +346,11 @@ typedef enum { /*< underscore_name=qmi_protocol_error >*/
   QMI_PROTOCOL_ERROR_FW_FILE_OPEN_FAILED              = 400, /*< nick=FwFileOpenFailed >*/
   QMI_PROTOCOL_ERROR_FW_UPDATE_DISCONTINUOUS_FRAME    = 401, /*< nick=FwUpdateDiscontinuousFrame >*/
   QMI_PROTOCOL_ERROR_FW_UPDATE_FAILED                 = 402, /*< nick=FwUpdateFailed >*/
-  QMI_PROTOCOL_ERROR_CAT_EVENT_REGISTRATION_FAILED    = 61441, /*< nick=Cat.EventRegistrationFailed >*/
-  QMI_PROTOCOL_ERROR_CAT_INVALID_TERMINAL_RESPONSE    = 61442, /*< nick=Cat.InvalidTerminalResponse >*/
-  QMI_PROTOCOL_ERROR_CAT_INVALID_ENVELOPE_COMMAND     = 61443, /*< nick=Cat.InvalidEnvelopeCommand >*/
-  QMI_PROTOCOL_ERROR_CAT_ENVELOPE_COMMAND_BUSY        = 61444, /*< nick=Cat.EnvelopCommandBusy >*/
-  QMI_PROTOCOL_ERROR_CAT_ENVELOPE_COMMAND_FAILED      = 61445  /*< nick=Cat.EnvelopeCommandFailed >*/
+  QMI_PROTOCOL_ERROR_CAT_EVENT_REGISTRATION_FAILED    = 61441, /*< nick=CatEventRegistrationFailed >*/
+  QMI_PROTOCOL_ERROR_CAT_INVALID_TERMINAL_RESPONSE    = 61442, /*< nick=CatInvalidTerminalResponse >*/
+  QMI_PROTOCOL_ERROR_CAT_INVALID_ENVELOPE_COMMAND     = 61443, /*< nick=CatInvalidEnvelopeCommand >*/
+  QMI_PROTOCOL_ERROR_CAT_ENVELOPE_COMMAND_BUSY        = 61444, /*< nick=CatEnvelopeCommandBusy >*/
+  QMI_PROTOCOL_ERROR_CAT_ENVELOPE_COMMAND_FAILED      = 61445  /*< nick=CatEnvelopeCommandFailed >*/
 } QmiProtocolError;
-
-/**
- * qmi_protocol_error_get_string:
- *
- * Since: 1.0
- */
 
 #endif /* _LIBQMI_GLIB_QMI_ERRORS_H_ */

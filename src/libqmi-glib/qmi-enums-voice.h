@@ -51,13 +51,13 @@
  * @QMI_VOICE_CALL_STATE_WAITING: Waiting.
  * @QMI_VOICE_CALL_STATE_DISCONNECTING: Disconnecting.
  * @QMI_VOICE_CALL_STATE_END: Call is finished.
- * @QMI_VOICE_CALL_STATE_SETUP: MT call is in setup state (3GPP).
+ * @QMI_VOICE_CALL_STATE_SETUP: 3GPP specific. MT call is in setup state.
  *
  * State of a call.
  *
  * Since: 1.14
  */
-typedef enum {
+typedef enum { /*< since=1.14 >*/
     QMI_VOICE_CALL_STATE_UNKNOWN        = 0x00,
     QMI_VOICE_CALL_STATE_ORIGINATION    = 0x01,
     QMI_VOICE_CALL_STATE_INCOMING       = 0x02,
@@ -72,12 +72,6 @@ typedef enum {
 } QmiVoiceCallState;
 
 /**
- * qmi_voice_call_state_get_string:
- *
- * Since: 1.14
- */
-
-/**
  * QmiVoiceCallType:
  * @QMI_VOICE_CALL_TYPE_VOICE: Voice call.
  * @QMI_VOICE_CALL_TYPE_VOICE_IP: VoIP call.
@@ -90,7 +84,7 @@ typedef enum {
  *
  * Since: 1.14
  */
-typedef enum {
+typedef enum { /*< since=1.14 >*/
     QMI_VOICE_CALL_TYPE_VOICE         = 0x00,
     QMI_VOICE_CALL_TYPE_VOICE_IP      = 0x02,
     QMI_VOICE_CALL_TYPE_OTAPA         = 0x06,
@@ -98,12 +92,6 @@ typedef enum {
     QMI_VOICE_CALL_TYPE_EMERGENCY     = 0x09,
     QMI_VOICE_CALL_TYPE_SUPS          = 0x0A,
 } QmiVoiceCallType;
-
-/**
- * qmi_voice_call_type_get_string:
- *
- * Since: 1.14
- */
 
 /**
  * QmiVoiceCallDirection:
@@ -115,17 +103,11 @@ typedef enum {
  *
  * Since: 1.14
  */
-typedef enum {
+typedef enum { /*< since=1.14 >*/
     QMI_VOICE_CALL_DIRECTION_UNKNOWN = 0x00,
     QMI_VOICE_CALL_DIRECTION_MO      = 0x01,
     QMI_VOICE_CALL_DIRECTION_MT      = 0x02,
 } QmiVoiceCallDirection;
-
-/**
- * qmi_voice_call_direction_get_string:
- *
- * Since: 1.14
- */
 
 /**
  * QmiVoiceCallMode:
@@ -139,7 +121,7 @@ typedef enum {
  *
  * Since: 1.14
  */
-typedef enum {
+typedef enum { /*< since=1.14 >*/
     QMI_VOICE_CALL_MODE_UNKNOWN = 0x00,
     QMI_VOICE_CALL_MODE_CDMA    = 0x01,
     QMI_VOICE_CALL_MODE_GSM     = 0x02,
@@ -148,54 +130,36 @@ typedef enum {
 } QmiVoiceCallMode;
 
 /**
- * qmi_voice_call_mode_get_string:
- *
- * Since: 1.14
- */
-
-/**
  * QmiVoiceAls:
- * @QMI_VOICE_ALS_LINE_1: Line 1 (default).
+ * @QMI_VOICE_ALS_LINE_1: Line 1, default.
  * @QMI_VOICE_ALS_LINE_2: Line 2.
  *
  * ALS line indicator.
  *
  * Since: 1.14
  */
-typedef enum {
+typedef enum { /*< since=1.14 >*/
     QMI_VOICE_ALS_LINE_1 = 0x00,
     QMI_VOICE_ALS_LINE_2 = 0x01,
 } QmiVoiceAls;
-
-/**
- * qmi_voice_als_get_string:
- *
- * Since: 1.14
- */
 
 /**
  * QmiVoicePresentation:
  * @QMI_VOICE_PRESENTATION_ALLOWED: Allowed presentation.
  * @QMI_VOICE_PRESENTATION_RESTRICTED: Restricted presentation.
  * @QMI_VOICE_PRESENTATION_UNAVAILABLE: Unavailable presentation.
- * @QMI_VOICE_PRESENTATION_PAYPHONE: Payphone presentation (3GPP only).
+ * @QMI_VOICE_PRESENTATION_PAYPHONE: 3GPP specific. Payphone presentation.
  *
  * Remote party number presentation indicator.
  *
  * Since: 1.14
  */
-typedef enum {
+typedef enum { /*< since=1.14 >*/
     QMI_VOICE_PRESENTATION_ALLOWED     = 0x00,
     QMI_VOICE_PRESENTATION_RESTRICTED  = 0x01,
     QMI_VOICE_PRESENTATION_UNAVAILABLE = 0x02,
     QMI_VOICE_PRESENTATION_PAYPHONE    = 0x04,
 } QmiVoicePresentation;
-
-/**
- * qmi_voice_presentation_get_string:
- *
- * Since: 1.14
- */
 
 /*****************************************************************************/
 /* Helper enums for the 'QMI Voice Get Config' request/response */
@@ -211,18 +175,12 @@ typedef enum {
  *
  * Since: 1.14
  */
-typedef enum {
+typedef enum { /*< since=1.14 >*/
     QMI_VOICE_TTY_MODE_FULL = 0x00,
     QMI_VOICE_TTY_MODE_VCO  = 0x01,
     QMI_VOICE_TTY_MODE_HCO  = 0x02,
     QMI_VOICE_TTY_MODE_OFF  = 0x03,
 } QmiVoiceTtyMode;
-
-/**
- * qmi_voice_tty_mode_get_string:
- *
- * Since: 1.14
- */
 
 /**
  * QmiVoiceServiceOption:
@@ -241,7 +199,7 @@ typedef enum {
  *
  * Since: 1.14
  */
-typedef enum {
+typedef enum { /*< since=1.14 >*/
     QMI_VOICE_SERVICE_OPTION_WILD                    = 0x0000,
     QMI_VOICE_SERVICE_OPTION_IS_96A                  = 0x0001,
     QMI_VOICE_SERVICE_OPTION_EVRC                    = 0x0003,
@@ -255,12 +213,6 @@ typedef enum {
 } QmiVoiceServiceOption;
 
 /**
- * qmi_voice_service_option_get_string:
- *
- * Since: 1.14
- */
-
-/**
  * QmiVoiceWcdmaAmrStatus:
  * @QMI_VOICE_WCDMA_AMR_STATUS_NOT_SUPPORTED: Not supported.
  * @QMI_VOICE_WCDMA_AMR_STATUS_WCDMA_AMR_WB: WCDMA AMR wideband.
@@ -272,19 +224,13 @@ typedef enum {
  *
  * Since: 1.14
  */
-typedef enum {
+typedef enum { /*< since=1.14 >*/
     QMI_VOICE_WCDMA_AMR_STATUS_NOT_SUPPORTED = 1 << 0,
     QMI_VOICE_WCDMA_AMR_STATUS_WCDMA_AMR_WB  = 1 << 1,
     QMI_VOICE_WCDMA_AMR_STATUS_GSM_HR_AMR    = 1 << 2,
     QMI_VOICE_WCDMA_AMR_STATUS_GSM_AMR_WB    = 1 << 3,
     QMI_VOICE_WCDMA_AMR_STATUS_GSM_AMR_NB    = 1 << 4,
 } QmiVoiceWcdmaAmrStatus;
-
-/**
- * qmi_voice_wcdma_amr_status_build_string_from_mask:
- *
- * Since: 1.14
- */
 
 /**
  * QmiVoicePrivacy:
@@ -295,16 +241,10 @@ typedef enum {
  *
  * Since: 1.14
  */
-typedef enum {
+typedef enum { /*< since=1.14 >*/
     QMI_VOICE_PRIVACY_STANDARD = 0x00,
     QMI_VOICE_PRIVACY_ENHANCED = 0x01,
 } QmiVoicePrivacy;
-
-/**
- * qmi_voice_privacy_get_string:
- *
- * Since: 1.14
- */
 
 /**
  * QmiVoiceDomain:
@@ -317,18 +257,12 @@ typedef enum {
  *
  * Since: 1.14
  */
-typedef enum {
+typedef enum { /*< since=1.14 >*/
     QMI_VOICE_DOMAIN_CS_ONLY      = 0x00,
     QMI_VOICE_DOMAIN_PS_ONLY      = 0x01,
     QMI_VOICE_DOMAIN_CS_PREFERRED = 0x02,
     QMI_VOICE_DOMAIN_PS_PREFERRED = 0x03,
 } QmiVoiceDomain;
-
-/**
- * qmi_voice_domain_get_string:
- *
- * Since: 1.14
- */
 
 /**
  * QmiVoiceUserAction:
@@ -337,18 +271,14 @@ typedef enum {
  * @QMI_VOICE_USER_ACTION_REQUIRED: User is required to respond to the USSD code.
  *
  * User action type.
+ *
+ * Since: 1.26
  */
-typedef enum {
+typedef enum { /*< since=1.26 >*/
     QMI_VOICE_USER_ACTION_UNKNOWN      = 0x00,
     QMI_VOICE_USER_ACTION_NOT_REQUIRED = 0x01,
     QMI_VOICE_USER_ACTION_REQUIRED     = 0x02,
 } QmiVoiceUserAction;
-
-/**
- * qmi_voice_user_action_get_string:
- *
- * Since: 1.26
- */
 
 /**
  * QmiVoiceUssDataCodingScheme:
@@ -361,18 +291,12 @@ typedef enum {
  *
  * Since: 1.26
  */
-typedef enum {
+typedef enum { /*< since=1.26 >*/
     QMI_VOICE_USS_DATA_CODING_SCHEME_UNKNOWN = 0x00,
     QMI_VOICE_USS_DATA_CODING_SCHEME_ASCII   = 0x01,
     QMI_VOICE_USS_DATA_CODING_SCHEME_8BIT    = 0x02,
     QMI_VOICE_USS_DATA_CODING_SCHEME_UCS2    = 0x03,
 } QmiVoiceUssDataCodingScheme;
-
-/**
- * qmi_voice_uss_data_coding_scheme_get_string:
- *
- * Since: 1.26
- */
 
 /**
  * QmiVoiceAlphaDataCodingScheme:
@@ -383,45 +307,39 @@ typedef enum {
  *
  * Since: 1.26
  */
-typedef enum {
+typedef enum { /*< since=1.26 >*/
     QMI_VOICE_ALPHA_DATA_CODING_SCHEME_GSM  = 0x01,
     QMI_VOICE_ALPHA_DATA_CODING_SCHEME_UCS2 = 0x02,
 } QmiVoiceAlphaDataCodingScheme;
 
 /**
- * qmi_voice_alpha_data_coding_scheme_get_string:
- *
- * Since: 1.26
- */
-
-/**
  * QmiVoiceCallEndReason:
  * @QMI_VOICE_CALL_END_REASON_OFFLINE: Device is offline.
- * @QMI_VOICE_CALL_END_REASON_CDMA_LOCK: (CDMA) Phone is CDMA locked.
+ * @QMI_VOICE_CALL_END_REASON_CDMA_LOCK: CDMA specific. Phone is CDMA locked.
  * @QMI_VOICE_CALL_END_REASON_NO_SERVICE: Device has no service.
  * @QMI_VOICE_CALL_END_REASON_FADE: Fade.
- * @QMI_VOICE_CALL_END_REASON_INTERCEPT: (CDMA) Received intercept from the BS.
- * @QMI_VOICE_CALL_END_REASON_REORDER: (CDMA) Received reorder from the BS.
+ * @QMI_VOICE_CALL_END_REASON_INTERCEPT: CDMA specific. Received intercept from the BS.
+ * @QMI_VOICE_CALL_END_REASON_REORDER: CDMA specific. Received reorder from the BS.
  * @QMI_VOICE_CALL_END_REASON_RELEASE_NORMAL: Received release from the BS.
- * @QMI_VOICE_CALL_END_REASON_RELEASE_SO_REJECT: (CDMA) Received release from the BS.
- * @QMI_VOICE_CALL_END_REASON_INCOMING_CALL: (CDMA) Received incoming call from the BS.
- * @QMI_VOICE_CALL_END_REASON_ALERT_STOP: (CDMA) Received alert stop from the BS.
+ * @QMI_VOICE_CALL_END_REASON_RELEASE_SO_REJECT: CDMA specific. Received release from the BS.
+ * @QMI_VOICE_CALL_END_REASON_INCOMING_CALL: CDMA specific. Received incoming call from the BS.
+ * @QMI_VOICE_CALL_END_REASON_ALERT_STOP: CDMA specific. Received alert stop from the BS.
  * @QMI_VOICE_CALL_END_REASON_CLIENT_END: Client ended the call.
- * @QMI_VOICE_CALL_END_REASON_ACTIVATION: (CDMA) Received end activation.
- * @QMI_VOICE_CALL_END_REASON_MC_ABORT: (CDMA) MC aborted the origination/conversation.
- * @QMI_VOICE_CALL_END_REASON_MAX_ACCESS_PROBE: (CDMA) Maximum access probes transmitted.
- * @QMI_VOICE_CALL_END_REASON_PSIST_N: (CDMA) Persistence test failure.
+ * @QMI_VOICE_CALL_END_REASON_ACTIVATION: CDMA specific. Received end activation.
+ * @QMI_VOICE_CALL_END_REASON_MC_ABORT: CDMA specific. MC aborted the origination/conversation.
+ * @QMI_VOICE_CALL_END_REASON_MAX_ACCESS_PROBE: CDMA specific. Maximum access probes transmitted.
+ * @QMI_VOICE_CALL_END_REASON_PSIST_N: CDMA specific. Persistence test failure.
  * @QMI_VOICE_CALL_END_REASON_UIM_NOT_PRESENT: R-UIM not present.
  * @QMI_VOICE_CALL_END_REASON_ACCESS_ATTEMPT_IN_PROGRESS: Access attempt in progress.
  * @QMI_VOICE_CALL_END_REASON_ACCESS_FAILURE: Access failure.
- * @QMI_VOICE_CALL_END_REASON_ACCESS_RETRY_ORDER: (CDMA) Retry order.
- * @QMI_VOICE_CALL_END_REASON_CCS_NOT_SUPPORTED_BY_BS: (CDMA) Concurrent service not supported by the BS.
- * @QMI_VOICE_CALL_END_REASON_NO_RESPONSE_FROM_BS: (CDMA) No response received from the BS.
- * @QMI_VOICE_CALL_END_REASON_REJECTED_BY_BS: (CDMA) Rejected by the BS.
- * @QMI_VOICE_CALL_END_REASON_INCOMPATIBLE: (CDMA) Concurrent services requested are incompatible.
- * @QMI_VOICE_CALL_END_REASON_ACCESS_BLOCK: (CDMA) Access blocked by the BS.
+ * @QMI_VOICE_CALL_END_REASON_ACCESS_RETRY_ORDER: CDMA specific. Retry order.
+ * @QMI_VOICE_CALL_END_REASON_CCS_NOT_SUPPORTED_BY_BS: CDMA specific. Concurrent service not supported by the BS.
+ * @QMI_VOICE_CALL_END_REASON_NO_RESPONSE_FROM_BS: CDMA specific. No response received from the BS.
+ * @QMI_VOICE_CALL_END_REASON_REJECTED_BY_BS: CDMA specific. Rejected by the BS.
+ * @QMI_VOICE_CALL_END_REASON_INCOMPATIBLE: CDMA specific. Concurrent services requested are incompatible.
+ * @QMI_VOICE_CALL_END_REASON_ACCESS_BLOCK: CDMA specific. Access blocked by the BS.
  * @QMI_VOICE_CALL_END_REASON_ALREADY_IN_TC: Already in TC.
- * @QMI_VOICE_CALL_END_REASON_EMERGENCY_FLASHED: (CDMA) Emergency call is flashed over this call.
+ * @QMI_VOICE_CALL_END_REASON_EMERGENCY_FLASHED: CDMA specific. Emergency call is flashed over this call.
  * @QMI_VOICE_CALL_END_REASON_USER_CALL_ORIGINATED_DURING_GPS: Call originated during GPS.
  * @QMI_VOICE_CALL_END_REASON_USER_CALL_ORIGINATED_DURING_SMS: Call originated during SMS.
  * @QMI_VOICE_CALL_END_REASON_USER_CALL_ORIGINATED_DURING_DATA: Call originated during data.
@@ -440,12 +358,12 @@ typedef enum {
  * @QMI_VOICE_CALL_END_REASON_BAD_FORWARD_LINK: Bad forward link or timer T5M expired.
  * @QMI_VOICE_CALL_END_REASON_TRM_REQUEST_FAILED: Transceiver Resource Manager request failed.
  * @QMI_VOICE_CALL_END_REASON_TIMEOUT_T41: Timer T41 expired.
- * @QMI_VOICE_CALL_END_REASON_INCOMING_REJECTED: (GSM/WCDMA) Client rejected incoming call.
- * @QMI_VOICE_CALL_END_REASON_SETUP_REJECTED: (GSM/WCDMA) Client rejected a setup indication.
- * @QMI_VOICE_CALL_END_REASON_NETWORK_END: (GSM/WCDMA) Network ended the call.
- * @QMI_VOICE_CALL_END_REASON_NO_FUNDS: (GSM/WCDMA) No funds.
- * @QMI_VOICE_CALL_END_REASON_NO_GW_SERVICE: (GSM/WCDMA) Device has no service.
- * @QMI_VOICE_CALL_END_REASON_NO_CDMA_SERVICE: (CDMA) Device has no service.
+ * @QMI_VOICE_CALL_END_REASON_INCOMING_REJECTED: GSM/WCDMA specific. Client rejected incoming call.
+ * @QMI_VOICE_CALL_END_REASON_SETUP_REJECTED: GSM/WCDMA specific. Client rejected a setup indication.
+ * @QMI_VOICE_CALL_END_REASON_NETWORK_END: GSM/WCDMA specific. Network ended the call.
+ * @QMI_VOICE_CALL_END_REASON_NO_FUNDS: GSM/WCDMA specific. No funds.
+ * @QMI_VOICE_CALL_END_REASON_NO_GW_SERVICE: GSM/WCDMA specific. Device has no service.
+ * @QMI_VOICE_CALL_END_REASON_NO_CDMA_SERVICE: CDMA specific. Device has no service.
  * @QMI_VOICE_CALL_END_REASON_NO_FULL_SERVICE: Full service is unavailable.
  * @QMI_VOICE_CALL_END_REASON_MAX_PS_CALLS: No resources available to handle a new MO/MT PS call.
  * @QMI_VOICE_CALL_END_REASON_UNKNOWN_SUBSCRIBER: Unknown subscriber.
@@ -599,7 +517,7 @@ typedef enum {
  *
  * Since: 1.26
  */
-typedef enum {
+typedef enum { /*< since=1.26 >*/
     QMI_VOICE_CALL_END_REASON_OFFLINE                            = 0,
     QMI_VOICE_CALL_END_REASON_CDMA_LOCK                          = 20,
     QMI_VOICE_CALL_END_REASON_NO_SERVICE                         = 21,
@@ -800,12 +718,6 @@ typedef enum {
 } QmiVoiceCallEndReason;
 
 /**
- * qmi_voice_call_end_reason_get_string:
- *
- * Since: 1.26
- */
-
-/**
  * QmiVoiceCallControlResultType:
  * @QMI_VOICE_CALL_CONTROL_RESULT_TYPE_VOICE: Voice.
  * @QMI_VOICE_CALL_CONTROL_RESULT_TYPE_SUPS: Supplementary service.
@@ -815,17 +727,11 @@ typedef enum {
  *
  * Since: 1.26
  */
-typedef enum {
+typedef enum { /*< since=1.26 >*/
     QMI_VOICE_CALL_CONTROL_RESULT_TYPE_VOICE = 0x00,
     QMI_VOICE_CALL_CONTROL_RESULT_TYPE_SUPS  = 0x01,
     QMI_VOICE_CALL_CONTROL_RESULT_TYPE_USSD  = 0x02,
 } QmiVoiceCallControlResultType;
-
-/**
- * qmi_voice_call_control_result_type_get_string:
- *
- * Since: 1.26
- */
 
 /**
  * QmiVoiceCallControlSupplementaryServiceType:
@@ -841,7 +747,7 @@ typedef enum {
  *
  * Since: 1.26
  */
-typedef enum {
+typedef enum { /*< since=1.26 >*/
     QMI_VOICE_CALL_CONTROL_SUPPLEMENTARY_SERVICE_TYPE_ACTIVATE          = 0x01,
     QMI_VOICE_CALL_CONTROL_SUPPLEMENTARY_SERVICE_TYPE_DEACTIVATE        = 0x02,
     QMI_VOICE_CALL_CONTROL_SUPPLEMENTARY_SERVICE_TYPE_REGISTER          = 0x03,
@@ -850,11 +756,5 @@ typedef enum {
     QMI_VOICE_CALL_CONTROL_SUPPLEMENTARY_SERVICE_TYPE_REGISTER_PASSWORD = 0x06,
     QMI_VOICE_CALL_CONTROL_SUPPLEMENTARY_SERVICE_TYPE_USSD              = 0x07,
 } QmiVoiceCallControlSupplementaryServiceType;
-
-/**
- * qmi_voice_call_control_supplementary_service_type_get_string:
- *
- * Since: 1.26
- */
 
 #endif /* _LIBQMI_GLIB_QMI_ENUMS_VOICE_H_ */

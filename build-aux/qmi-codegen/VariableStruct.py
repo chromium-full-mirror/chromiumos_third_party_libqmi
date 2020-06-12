@@ -40,6 +40,7 @@ class VariableStruct(Variable):
         # struct type name
         self.public_format = utils.build_camelcase_name(struct_type_name)
         self.private_format = self.public_format
+        self.element_type = self.public_format
         self.container_type = container_type
 
         # Load members of this struct
@@ -61,27 +62,33 @@ class VariableStruct(Variable):
     """
     Emit all types for the members of the struct plus the new struct type itself
     """
-    def emit_types(self, f, since):
+    def emit_types(self, f, since, static):
         # Emit types for each member
         for member in self.members:
-            member['object'].emit_types(f, since)
+            member['object'].emit_types(f, since, static)
 
         translations = { 'format' : self.public_format,
                          'since'  : since }
-        template = (
-            '\n'
-            '/**\n'
-            ' * ${format}:\n')
+        template = '\n'
         f.write(string.Template(template).substitute(translations))
-        for member in self.members:
-            f.write(member['object'].build_struct_field_documentation(' * ', member['name']))
+
+        if static == False:
+            template = (
+                '\n'
+                '/**\n'
+                ' * ${format}:\n')
+            f.write(string.Template(template).substitute(translations))
+            for member in self.members:
+                f.write(member['object'].build_struct_field_documentation(' * ', member['name']))
+            template = (
+                ' *\n'
+                ' * A ${format} struct.\n'
+                ' *\n'
+                ' * Since: ${since}\n'
+                ' */\n')
+            f.write(string.Template(template).substitute(translations))
 
         template = (
-            ' *\n'
-            ' * A ${format} struct.\n'
-            ' *\n'
-            ' * Since: ${since}\n'
-            ' */\n'
             'typedef struct _${format} {\n')
         f.write(string.Template(template).substitute(translations))
 
@@ -189,7 +196,7 @@ class VariableStruct(Variable):
                          'name'   : variable_name }
 
         template = (
-            '${lp}@${name}: a placeholder for the output constant #${format}, or %NULL if not required.\n')
+            '${lp}@${name}: (out): a placeholder for the output constant #${format}, or %NULL if not required.\n')
         return string.Template(template).substitute(translations)
 
 

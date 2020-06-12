@@ -53,6 +53,8 @@ class VariableInteger(Variable):
             self.private_format = self.format
             self.public_format = dictionary['public-format'] if 'public-format' in dictionary else self.private_format
 
+        self.element_type = self.public_format
+
     """
     Read a single integer from the raw byte buffer
     """
@@ -296,7 +298,7 @@ class VariableInteger(Variable):
                          'name'          : variable_name }
 
         template = (
-            '${lp}@${name}: a placeholder for the output #${public_format}, or %NULL if not required.\n')
+            '${lp}@${name}: (out): a placeholder for the output #${public_format}, or %NULL if not required.\n')
         return string.Template(template).substitute(translations)
 
     """

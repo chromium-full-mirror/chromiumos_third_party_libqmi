@@ -69,7 +69,7 @@ libqmi_glib_la_SOURCES = \
 	qmi-enums-gas.h \
 	qmi-enums-dsd.h qmi-flags64-dsd.h\
 	qmi-enums.h qmi-enums-private.h \
-	qmi-utils.h qmi-utils.c \
+	qmi-utils.h qmi-utils-private.h qmi-utils.c \
 	qmi-message.h qmi-message.c \
 	qmi-message-context.h qmi-message-context.c \
 	qmi-device.h qmi-device.c \
@@ -145,3 +145,54 @@ include_HEADERS = \
 
 EXTRA_DIST = \
 	qmi-version.h.in
+
+CLEANFILES =
+
+# Introspection
+
+if HAVE_INTROSPECTION
+
+INTROSPECTION_GIRS = Qmi-1.0.gir
+INTROSPECTION_SCANNER_ARGS = --warn-all
+INTROSPECTION_COMPILER_ARGS =
+
+Qmi-1.0.gir: libqmi-glib.la
+Qmi_1_0_gir_INCLUDES = GLib-2.0 GObject-2.0 Gio-2.0
+Qmi_1_0_gir_CFLAGS = $(libqmi_glib_la_CPPFLAGS)
+Qmi_1_0_gir_LIBS = libqmi-glib.la
+Qmi_1_0_gir_EXPORT_PACKAGES = libqmi-glib
+Qmi_1_0_gir_SCANNERFLAGS = \
+	$(WARN_SCANNERFLAGS) \
+	--c-include "libqmi-glib.h" \
+	--identifier-prefix=QMI \
+	--identifier-prefix=Qmi \
+	--symbol-prefix=qmi_ \
+	$(NULL)
+Qmi_1_0_gir_FILES = \
+	$(include_HEADERS) \
+	$(filter-out %.h,$(libqmi_glib_la_SOURCES)) \
+	$(filter %.c,$(libqmi_glib_la_SOURCES)) \
+	$(wildcard generated/*.h) \
+	$(wildcard generated/*.c) \
+	$(NULL)
+
+if QMI_QRTR_SUPPORTED
+INTROSPECTION_COMPILER_ARGS += \
+	--includedir="$(top_srcdir)/src/libqrtr-glib" \
+	$(NULL)
+Qmi_1_0_gir_SCANNERFLAGS += \
+	--include-uninstalled="$(top_builddir)/src/libqrtr-glib/Qrtr-1.0.gir" \
+	$(NULL)
+endif
+
+girdir = $(datadir)/gir-1.0
+nodist_gir_DATA = $(INTROSPECTION_GIRS)
+
+typelibdir = $(libdir)/girepository-1.0
+nodist_typelib_DATA = $(INTROSPECTION_GIRS:.gir=.typelib)
+
+CLEANFILES += $(nodist_gir_DATA) $(nodist_typelib_DATA)
+
+endif # HAVE_INTROSPECTION
+
+-include $(INTROSPECTION_MAKEFILE)

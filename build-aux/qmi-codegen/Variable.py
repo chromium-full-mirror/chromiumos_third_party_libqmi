@@ -40,6 +40,11 @@ class Variable:
         self.private_format = None
 
         """
+        Element type to be used in introspection annotations.
+        """
+        self.element_type = None
+
+        """
         Whether the variable is visible in public API or is reserved
         """
         self.visible = False if ('visible' in dictionary and dictionary['visible'] == 'no') else True
@@ -67,7 +72,7 @@ class Variable:
     """
     Emits the code to declare specific new types required by the variable.
     """
-    def emit_types(self, f, since):
+    def emit_types(self, f, since, static):
         pass
 
 

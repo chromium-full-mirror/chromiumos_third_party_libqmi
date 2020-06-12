@@ -4,7 +4,7 @@ AC_PREREQ([2.68])
 dnl The QMI version number
 m4_define([qmi_major_version], [1])
 m4_define([qmi_minor_version], [25])
-m4_define([qmi_micro_version], [5])
+m4_define([qmi_micro_version], [900])
 m4_define([qmi_version],
           [qmi_major_version.qmi_minor_version.qmi_micro_version])
 
@@ -104,10 +104,10 @@ GLIB_CFLAGS="$GLIB_CFLAGS $GLIB_BUILD_SYMBOLS"
 AC_SUBST(GLIB_CFLAGS)
 AC_SUBST(GLIB_LIBS)
 
-GLIB_MKENUMS=`$PKG_CONFIG --variable=glib_mkenums glib-2.0`
-AC_SUBST(GLIB_MKENUMS)
-
 AM_PATH_PYTHON([], [], [PYTHON=python])
+
+dnl GObject Introspection
+GOBJECT_INTROSPECTION_CHECK([0.9.6])
 
 dnl message collection (existing file in data/qmi-collection-${COLLECTION}.json)
 dnl custom collections may be added as files in data/
@@ -227,7 +227,7 @@ AM_CONDITIONAL([QMI_MBIM_QMUX_SUPPORTED], [test "x$QMI_MBIM_QMUX_SUPPORTED" = "x
 # QRTR support
 AC_CHECK_HEADER(linux/qrtr.h, [have_qrtr=yes], [have_qrtr=no], [])
 AC_ARG_ENABLE(qrtr,
-              AS_HELP_STRING([--enable-qrtr], [Enable support for QRTR protocol [default=auto]]),
+              AS_HELP_STRING([--enable-qrtr], [Enable support for QRTR protocol [default=no]]),
               [enable_qrtr=$enableval],
               [enable_qrtr=no])
 
@@ -279,6 +279,8 @@ AC_CONFIG_FILES([Makefile
                  src/qmi-firmware-update/Makefile
                  src/qmi-firmware-update/test/Makefile
                  utils/Makefile
+                 examples/Makefile
+                 examples/simple-tester-python/Makefile
                  docs/Makefile
                  docs/reference/Makefile
                  docs/reference/libqmi-glib/Makefile
@@ -296,27 +298,28 @@ echo "
     ==============================================
 
     Build:
-      compiler:            ${CC}
-      cflags:              ${CFLAGS}
-      ldflags:             ${LDFLAGS}
-      warn cflags:         ${WARN_CFLAGS}
-      warn ldflags:        ${WARN_LDFLAGS}
-      Maintainer mode:     ${USE_MAINTAINER_MODE}
-      Documentation:       ${enable_gtk_doc}
+      compiler:                 ${CC}
+      cflags:                   ${CFLAGS}
+      ldflags:                  ${LDFLAGS}
+      warn cflags:              ${WARN_CFLAGS}
+      warn ldflags:             ${WARN_LDFLAGS}
+      Maintainer mode:          ${USE_MAINTAINER_MODE}
+      Documentation:            ${enable_gtk_doc}
+      gobject introspection:    ${found_introspection}
 
     System paths:
-      prefix:              ${prefix}
-      udev base directory: ${UDEV_BASE_DIR}
+      prefix:                   ${prefix}
+      udev base directory:      ${UDEV_BASE_DIR}
 
     Features:
-      QMUX over MBIM:      ${enable_mbim_qmux}
-      QMI username:        ${QMI_USERNAME_ENABLED} (${QMI_USERNAME})
+      QMUX over MBIM:           ${enable_mbim_qmux}
+      QMI username:             ${QMI_USERNAME_ENABLED} (${QMI_USERNAME})
 
     Built items:
-      libqrtr-glib:        ${enable_qrtr}
-      libqmi-glib:         yes (${QMI_COLLECTION_NAME})
-      qmicli:              yes
-      qmi-firmware-update: ${build_firmware_update}
-          with udev:             ${with_udev}
-          with MM runtime check: ${enable_mm_runtime_check}
+      libqrtr-glib:             ${enable_qrtr}
+      libqmi-glib:              yes (${QMI_COLLECTION_NAME})
+      qmicli:                   yes
+      qmi-firmware-update:      ${build_firmware_update}
+          with udev:                    ${with_udev}
+          with MM runtime check:        ${enable_mm_runtime_check}
 "
