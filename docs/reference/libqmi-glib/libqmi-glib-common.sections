@@ -78,8 +78,6 @@ qmi_device_release_client
 qmi_device_release_client_finish
 qmi_device_set_instance_id
 qmi_device_set_instance_id_finish
-qmi_device_command
-qmi_device_command_finish
 qmi_device_command_full
 qmi_device_command_full_finish
 qmi_device_command_abortable
@@ -133,6 +131,7 @@ qmi_proxy_get_type
 
 <SECTION>
 <FILE>qmi-enums</FILE>
+<TITLE>Common enumerations and flags</TITLE>
 QmiService
 QmiDataEndpointType
 <SUBSECTION Methods>
@@ -150,6 +149,7 @@ qmi_data_endpoint_type_get_type
 
 <SECTION>
 <FILE>qmi-enums-dms</FILE>
+<TITLE>DMS enumerations and flags</TITLE>
 QmiDmsDataServiceCapability
 QmiDmsSimCapability
 QmiDmsBandCapability
@@ -267,6 +267,7 @@ qmi_dms_foxconn_firmware_version_type_get_type
 
 <SECTION>
 <FILE>qmi-enums-nas</FILE>
+<TITLE>NAS enumerations and flags</TITLE>
 QmiNasRadioInterface
 QmiNasActiveBand
 QmiNasNetworkServiceDomain
@@ -565,6 +566,7 @@ qmi_nas_swi_system_mode_get_type
 
 <SECTION>
 <FILE>qmi-enums-wds</FILE>
+<TITLE>WDS enumerations and flags</TITLE>
 QmiWdsIpFamily
 QmiWdsProfileFamily
 QmiWdsTechnologyPreference
@@ -824,6 +826,7 @@ qmi_wds_client_type_get_type
 
 <SECTION>
 <FILE>qmi-enums-wms</FILE>
+<TITLE>WMS enumerations and flags</TITLE>
 QmiWmsStorageType
 QmiWmsAckIndicator
 QmiWmsMessageFormat
@@ -916,6 +919,7 @@ qmi_wms_transfer_indication_get_type
 
 <SECTION>
 <FILE>qmi-enums-pdc</FILE>
+<TITLE>PDC enumerations and flags</TITLE>
 QmiPdcConfigurationType
 <SUBSECTION Methods>
 qmi_pdc_configuration_type_get_string
@@ -928,6 +932,7 @@ qmi_pdc_configuration_type_get_type
 
 <SECTION>
 <FILE>qmi-enums-pds</FILE>
+<TITLE>PDS enumerations and flags</TITLE>
 QmiPdsOperationMode
 QmiPdsPositionSessionStatus
 QmiPdsDataValid
@@ -965,6 +970,7 @@ qmi_pds_network_mode_get_type
 
 <SECTION>
 <FILE>qmi-enums-pbm</FILE>
+<TITLE>PBM enumerations and flags</TITLE>
 QmiPbmEventRegistrationFlag
 QmiPbmPhonebookType
 QmiPbmSessionType
@@ -987,6 +993,7 @@ qmi_pbm_session_type_get_type
 
 <SECTION>
 <FILE>qmi-enums-uim</FILE>
+<TITLE>UIM enumerations and flags</TITLE>
 QmiUimEventRegistrationFlag
 QmiUimSessionType
 QmiUimFileType
@@ -1074,6 +1081,7 @@ qmi_uim_slot_state_get_type
 
 <SECTION>
 <FILE>qmi-enums-oma</FILE>
+<TITLE>OMA enumerations and flags</TITLE>
 QmiOmaSessionType
 QmiOmaSessionState
 QmiOmaSessionFailedReason
@@ -1101,6 +1109,7 @@ qmi_oma_hfa_feature_done_state_get_type
 
 <SECTION>
 <FILE>qmi-enums-wda</FILE>
+<TITLE>WDA enumerations and flags</TITLE>
 QmiWdaLinkLayerProtocol
 QmiWdaDataAggregationProtocol
 <SUBSECTION Methods>
@@ -1118,6 +1127,7 @@ qmi_wda_data_aggregation_protocol_get_type
 
 <SECTION>
 <FILE>qmi-enums-voice</FILE>
+<TITLE>Voice enumerations and flags</TITLE>
 QmiVoiceCallState
 QmiVoiceCallType
 QmiVoiceCallDirection
@@ -1210,6 +1220,7 @@ qmi_voice_call_control_supplementary_service_type_get_type
 
 <SECTION>
 <FILE>qmi-enums-loc</FILE>
+<TITLE>LOC enumerations and flags</TITLE>
 QmiLocIntermediateReportState
 QmiLocEventRegistrationFlag
 QmiLocFixRecurrenceType
@@ -1328,6 +1339,7 @@ qmi_loc_nmea_type_get_type
 
 <SECTION>
 <FILE>qmi-enums-qos</FILE>
+<TITLE>QOS enumerations and flags</TITLE>
 QmiQosStatus
 QmiQosEvent
 <SUBSECTION Methods>
@@ -1345,6 +1357,7 @@ qmi_qos_event_get_type
 
 <SECTION>
 <FILE>qmi-enums-gas</FILE>
+<TITLE>GAS enumerations and flags</TITLE>
 QmiGasFirmwareListingMode
 <SUBSECTION Methods>
 qmi_gas_firmware_listing_mode_get_string
@@ -1357,6 +1370,7 @@ qmi_gas_firmware_listing_mode_get_type
 
 <SECTION>
 <FILE>qmi-enums-dsd</FILE>
+<TITLE>DSD enumerations and flags</TITLE>
 QmiDsdApnType
 QmiDsdApnTypePreference
 <SUBSECTION Methods>
@@ -1374,6 +1388,7 @@ qmi_dsd_apn_type_preference_get_type
 
 <SECTION>
 <FILE>qmi-errors</FILE>
+<TITLE>Errors</TITLE>
 QmiCoreError
 QmiProtocolError
 <SUBSECTION Methods>
@@ -1396,6 +1411,7 @@ qmi_protocol_error_get_type
 
 <SECTION>
 <FILE>qmi-message</FILE>
+<TITLE>QmiMessage</TITLE>
 QMI_MESSAGE_QMUX_MARKER
 QmiMessage
 qmi_message_new
@@ -1458,6 +1474,7 @@ qmi_message_get_tlv_printable
 
 <SECTION>
 <FILE>qmi-message-context</FILE>
+<TITLE>QmiMessageContext</TITLE>
 QMI_MESSAGE_VENDOR_GENERIC
 QmiMessageContext
 qmi_message_context_new
@@ -1472,6 +1489,7 @@ qmi_message_context_get_type
 
 <SECTION>
 <FILE>qmi-utils</FILE>
+<TITLE>Common utilities</TITLE>
 QmiEndian
 <SUBSECTION Traces>
 qmi_utils_get_traces_enabled
@@ -1482,8 +1500,11 @@ __QmiTransportType
 
 <SECTION>
 <FILE>qmi-compat</FILE>
+<TITLE>Deprecated Interface</TITLE>
 <SUBSECTION Device>
 qmi_device_close
+qmi_device_command
+qmi_device_command_finish
 <SUBSECTION Utils>
 qmi_utils_read_guint8_from_buffer
 qmi_utils_read_gint8_from_buffer
@@ -1618,6 +1639,7 @@ qmi_message_dms_dell_change_device_mode_output_get_type
 </SECTION>
 
 <SECTION>
+<FILE>ignored</FILE>
 <SUBSECTION Private>
 QMI_DEVICE_NODE
 QMI_ENDPOINT_QRTR
@@ -1634,4 +1656,22 @@ qmi_device_new_from_node
 qmi_device_new_from_node_finish
 qmi_endpoint_qrtr_get_type
 qmi_endpoint_qrtr_new
+HAVE_QMI_MESSAGE_NAS_ABORT
+HAVE_QMI_MESSAGE_WDS_ABORT
+HAVE_QMI_SERVICE_DMS
+HAVE_QMI_SERVICE_DSD
+HAVE_QMI_SERVICE_GAS
+HAVE_QMI_SERVICE_GMS
+HAVE_QMI_SERVICE_LOC
+HAVE_QMI_SERVICE_NAS
+HAVE_QMI_SERVICE_OMA
+HAVE_QMI_SERVICE_PBM
+HAVE_QMI_SERVICE_PDC
+HAVE_QMI_SERVICE_PDS
+HAVE_QMI_SERVICE_QOS
+HAVE_QMI_SERVICE_UIM
+HAVE_QMI_SERVICE_VOICE
+HAVE_QMI_SERVICE_WDA
+HAVE_QMI_SERVICE_WDS
+HAVE_QMI_SERVICE_WMS
 </SECTION>

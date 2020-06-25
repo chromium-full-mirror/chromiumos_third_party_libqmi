@@ -38,7 +38,7 @@
 
 /**
  * SECTION:qmi-compat
- * @title: Deprecated interface
+ * @short_description: Deprecated types and methods.
  *
  * These types and methods are flagged as deprecated and therefore
  * shouldn't be used in newly written code. They are provided to avoid
@@ -714,6 +714,57 @@ gboolean qmi_message_get_version_introduced_full (QmiMessage        *self,
 G_DEPRECATED_FOR (qmi_device_close_async)
 gboolean qmi_device_close (QmiDevice  *self,
                            GError    **error);
+
+/**
+ * qmi_device_command:
+ * @self: a #QmiDevice.
+ * @message: the message to send.
+ * @timeout: maximum time, in seconds, to wait for the response.
+ * @cancellable: a #GCancellable, or %NULL.
+ * @callback: a #GAsyncReadyCallback to call when the operation is finished.
+ * @user_data: the data to pass to callback function.
+ *
+ * Asynchronously sends a generic #QmiMessage to the device with no context.
+ *
+ * If the operation is cancelled via @cancellable, a %QMI_PROTOCOL_ERROR_ABORTED
+ * error will be returned always. If the QMI method may be aborted, there is
+ * no guarantee that the operation is truly aborted before the error is returned
+ * so it may really happen that the operation really succeeded and the method
+ * would still return %QMI_PROTOCOL_ERROR_ABORTED. In order to use abortable
+ * methods and make sure the response is the correct one, use
+ * qmi_device_command_abortable().
+ *
+ * When the operation is finished @callback will be called. You can then call
+ * qmi_device_command_finish() to get the result of the operation.
+ *
+ * Since: 1.0
+ * Deprecated: 1.18: Use qmi_device_command_full() instead.
+ */
+G_DEPRECATED_FOR (qmi_device_command_full)
+void qmi_device_command (QmiDevice           *self,
+                         QmiMessage          *message,
+                         guint                timeout,
+                         GCancellable        *cancellable,
+                         GAsyncReadyCallback  callback,
+                         gpointer             user_data);
+
+/**
+ * qmi_device_command_finish:
+ * @self: a #QmiDevice.
+ * @res: a #GAsyncResult.
+ * @error: Return location for error or %NULL.
+ *
+ * Finishes an operation started with qmi_device_command().
+ *
+ * Returns: (transfer full): a #QmiMessage response, or %NULL if @error is set. The returned value should be freed with qmi_message_unref().
+ *
+ * Since: 1.0
+ * Deprecated: 1.18. Use qmi_device_command_full_finish() instead.
+ */
+G_DEPRECATED_FOR (qmi_device_command_full_finish)
+QmiMessage  *qmi_device_command_finish (QmiDevice     *self,
+                                        GAsyncResult  *res,
+                                        GError       **error);
 
 /* The following type exists just so that we can get deprecation warnings */
 G_DEPRECATED

@@ -127,6 +127,7 @@ struct _QmiDevicePrivate {
 
 #if QMI_QRTR_SUPPORTED
 #define DEFAULT_RMNET_DATA_IFACE_NAME "rmnet_data0"
+#define QMI_CLIENT_VERSION_UNKNOWN 99
 #endif
 
 /*****************************************************************************/
@@ -995,6 +996,18 @@ build_client_object (GTask *task)
                       QMI_CLIENT_VERSION_MAJOR, version_info->major_version,
                       QMI_CLIENT_VERSION_MINOR, version_info->minor_version,
                       NULL);
+#if QMI_QRTR_SUPPORTED
+    else if (self->priv->node) {
+        /* QRTR does not have any way of fetching version information. Assume
+         * all services can handle all message types and TLVs. */
+        g_debug ("[%s] Client version cannot be retrieved when using QRTR",
+                 qmi_file_get_path_display (self->priv->file));
+        g_object_set (client,
+                      QMI_CLIENT_VERSION_MAJOR, QMI_CLIENT_VERSION_UNKNOWN,
+                      QMI_CLIENT_VERSION_MINOR, QMI_CLIENT_VERSION_UNKNOWN,
+                      NULL);
+    }
+#endif
 
     /* Register the client to get indications */
     if (!register_client (self, client, &error)) {
@@ -2492,28 +2505,6 @@ qmi_device_command_full (QmiDevice           *self,
                                   cancellable,
                                   callback,
                                   user_data);
-}
-
-/*****************************************************************************/
-/* Generic command */
-
-QmiMessage *
-qmi_device_command_finish (QmiDevice     *self,
-                           GAsyncResult  *res,
-                           GError       **error)
-{
-    return qmi_device_command_full_finish (self, res, error);
-}
-
-void
-qmi_device_command (QmiDevice           *self,
-                    QmiMessage          *message,
-                    guint                timeout,
-                    GCancellable        *cancellable,
-                    GAsyncReadyCallback  callback,
-                    gpointer             user_data)
-{
-    qmi_device_command_full (self, message, NULL, timeout, cancellable, callback, user_data);
 }
 
 /*****************************************************************************/
