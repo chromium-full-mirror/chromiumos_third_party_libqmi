@@ -223,7 +223,7 @@ static GOptionEntry entries[] = {
 #endif
 #if defined HAVE_QMI_MESSAGE_WDS_BIND_MUX_DATA_PORT
     { "wds-bind-mux-data-port", 0, 0, G_OPTION_ARG_STRING, &bind_mux_str,
-      "Bind qmux data port to controller device (allowed keys: mux-id, ep-iface-number) to be used with `--client-no-release-cid'",
+      "Bind qmux data port to controller device (allowed keys: mux-id, ep-type (undefined|hsusb|pcie|embedded), ep-iface-number) to be used with `--client-no-release-cid'",
       "[\"key=value,...\"]"
     },
 #endif
@@ -2551,7 +2551,7 @@ noop_cb (gpointer unused)
 
 typedef struct {
     guint8 mux_id;
-    guint8 ep_type;
+    QmiDataEndpointType ep_type;
     gint ep_iface_number;
     QmiWdsClientType client_type;
 } BindMuxDataPortProperties;
@@ -2565,11 +2565,8 @@ bind_mux_data_port_properties_handle (const gchar *key,
     BindMuxDataPortProperties *props = user_data;
 
     if (!value || !value[0]) {
-        g_set_error (error,
-                     QMI_CORE_ERROR,
-                     QMI_CORE_ERROR_FAILED,
-                     "key '%s' requires a value",
-                     key);
+        g_set_error (error, QMI_CORE_ERROR, QMI_CORE_ERROR_FAILED,
+                     "key '%s' requires a value", key);
         return FALSE;
     }
 
@@ -2579,10 +2576,19 @@ bind_mux_data_port_properties_handle (const gchar *key,
         /* QMI_WDS_MUX_ID_UNDEFINED is G_MAXUINT8 (0xff) */
         if (!qmicli_read_uint_from_string (value, &aux) || (aux >= G_MAXUINT8)) {
             g_set_error (error, QMI_CORE_ERROR, QMI_CORE_ERROR_FAILED,
-                         "failed reading key 'mux-id' value in range [0,254]");
+                         "failed reading key 'mux-id' value in range [0,254]: '%s'", value);
             return FALSE;
         }
         props->mux_id = (guint8) aux;
+        return TRUE;
+    }
+
+    if (g_ascii_strcasecmp (key, "ep-type") == 0) {
+        if (!qmicli_read_data_endpoint_type_from_string (value, &(props->ep_type))) {
+            g_set_error (error, QMI_CORE_ERROR, QMI_CORE_ERROR_FAILED,
+                         "failed reading key 'ep-type' value: '%s'", value);
+            return FALSE;
+        }
         return TRUE;
     }
 
@@ -2591,7 +2597,7 @@ bind_mux_data_port_properties_handle (const gchar *key,
 
         if (!qmicli_read_uint_from_string (value, &aux)) {
             g_set_error (error, QMI_CORE_ERROR, QMI_CORE_ERROR_FAILED,
-                         "failed reading key 'ep-iface-number' value");
+                         "failed reading key 'ep-iface-number' value: '%s'", value);
             return FALSE;
         }
 
@@ -2599,12 +2605,8 @@ bind_mux_data_port_properties_handle (const gchar *key,
         return TRUE;
     }
 
-    g_set_error (error,
-                 QMI_CORE_ERROR,
-                 QMI_CORE_ERROR_FAILED,
-                 "Unrecognized option '%s'",
-                 key);
-
+    g_set_error (error, QMI_CORE_ERROR, QMI_CORE_ERROR_FAILED,
+                 "unrecognized key: '%s'", key);
     return FALSE;
 }
 

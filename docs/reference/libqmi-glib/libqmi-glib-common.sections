@@ -1010,6 +1010,8 @@ QmiUimPinId
 QmiUimCardProtocol
 QmiUimPhysicalCardState
 QmiUimSlotState
+QmiUimRefreshMode
+QmiUimRefreshStage
 <SUBSECTION Methods>
 qmi_uim_event_registration_flag_get_string
 qmi_uim_session_type_get_string
@@ -1027,6 +1029,8 @@ qmi_uim_pin_id_get_string
 qmi_uim_card_protocol_get_string
 qmi_uim_physical_card_state_get_string
 qmi_uim_slot_state_get_string
+qmi_uim_refresh_mode_get_string
+qmi_uim_refresh_stage_get_string
 <SUBSECTION Private>
 qmi_uim_event_registration_flag_build_string_from_mask
 qmi_uim_session_type_build_string_from_mask
@@ -1044,6 +1048,8 @@ qmi_uim_pin_id_build_string_from_mask
 qmi_uim_card_protocol_build_string_from_mask
 qmi_uim_physical_card_state_build_string_from_mask
 qmi_uim_slot_state_build_string_from_mask
+qmi_uim_refresh_mode_build_string_from_mask
+qmi_uim_refresh_stage_build_string_from_mask
 <SUBSECTION Standard>
 QMI_TYPE_UIM_EVENT_REGISTRATION_FLAG
 QMI_TYPE_UIM_SESSION_TYPE
@@ -1061,6 +1067,8 @@ QMI_TYPE_UIM_PIN_ID
 QMI_TYPE_UIM_CARD_PROTOCOL
 QMI_TYPE_UIM_PHYSICAL_CARD_STATE
 QMI_TYPE_UIM_SLOT_STATE
+QMI_TYPE_UIM_REFRESH_MODE
+QMI_TYPE_UIM_REFRESH_STAGE
 qmi_uim_event_registration_flag_get_type
 qmi_uim_session_type_get_type
 qmi_uim_file_type_get_type
@@ -1077,6 +1085,8 @@ qmi_uim_pin_id_get_type
 qmi_uim_card_protocol_get_type
 qmi_uim_physical_card_state_get_type
 qmi_uim_slot_state_get_type
+qmi_uim_refresh_mode_get_type
+qmi_uim_refresh_stage_get_type
 </SECTION>
 
 <SECTION>
@@ -1387,6 +1397,19 @@ qmi_dsd_apn_type_preference_get_type
 </SECTION>
 
 <SECTION>
+<FILE>qmi-enums-sar</FILE>
+<TITLE>SAR enumerations and flags</TITLE>
+QmiSarRfState
+<SUBSECTION Methods>
+qmi_sar_rf_state_get_string
+<SUBSECTION Private>
+qmi_sar_rf_state_build_string_from_mask
+<SUBSECTION Standard>
+QMI_TYPE_SAR_RF_STATE
+qmi_sar_rf_state_get_type
+</SECTION>
+
+<SECTION>
 <FILE>qmi-errors</FILE>
 <TITLE>Errors</TITLE>
 QmiCoreError
@@ -1556,6 +1579,13 @@ qmi_message_wda_get_data_format_output_get_uplink_data_aggregation_max_size
 qmi_message_nas_get_operator_name_output_get_operator_nitz_information
 qmi_indication_nas_operator_name_output_get_operator_nitz_information
 qmi_message_nas_get_home_network_output_get_home_network_3gpp2
+QmiMessageNasGetCellLocationInfoOutputGeranInfoCellElement
+qmi_message_nas_get_cell_location_info_output_get_geran_info
+QmiMessageNasGetCellLocationInfoOutputUmtsInfoCellElement
+QmiMessageNasGetCellLocationInfoOutputUmtsInfoNeighboringGeranElement
+qmi_message_nas_get_cell_location_info_output_get_umts_info
+QmiMessageNasGetCellLocationInfoOutputIntrafrequencyLteInfoCellElement
+qmi_message_nas_get_cell_location_info_output_get_intrafrequency_lte_info
 <SUBSECTION Symbols>
 QMI_NAS_SIM_REJECT_STATE_SIM_VAILABLE
 QMI_WDS_CDMA_CAUSE_CODE_NETWORK_ADDRESS_VACANT
@@ -1654,12 +1684,15 @@ QmiEndpointQrtrClass
 QmiEndpointQrtrPrivate
 qmi_device_new_from_node
 qmi_device_new_from_node_finish
+qmi_device_get_node
+qmi_device_peek_node
 qmi_endpoint_qrtr_get_type
 qmi_endpoint_qrtr_new
 HAVE_QMI_MESSAGE_NAS_ABORT
 HAVE_QMI_MESSAGE_WDS_ABORT
 HAVE_QMI_SERVICE_DMS
 HAVE_QMI_SERVICE_DSD
+HAVE_QMI_SERVICE_SAR
 HAVE_QMI_SERVICE_GAS
 HAVE_QMI_SERVICE_GMS
 HAVE_QMI_SERVICE_LOC

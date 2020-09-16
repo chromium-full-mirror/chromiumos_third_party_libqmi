@@ -71,22 +71,52 @@ typedef enum { /*< since=1.22.4 >*/
  * @QMI_UIM_SESSION_TYPE_CARD_SLOT_2: Card on slot 2.
  * @QMI_UIM_SESSION_TYPE_LOGICAL_CHANNEL_SLOT_1: Logical channel on slot 1.
  * @QMI_UIM_SESSION_TYPE_LOGICAL_CHANNEL_SLOT_2: Logical channel on slot 2.
+ * @QMI_UIM_SESSION_TYPE_TERTIARY_GW_PROVISIONING: Tertiary GSM/WCDMA provisioning. Since 1.28.
+ * @QMI_UIM_SESSION_TYPE_TERTIARY_1X_PROVISIONING: Tertiary CDMA1x provisioning. Since 1.28.
+ * @QMI_UIM_SESSION_TYPE_QUATERNARY_GW_PROVISIONING: Quaternary GSM/WCDMA provisioning. Since 1.28.
+ * @QMI_UIM_SESSION_TYPE_QUATERNARY_1X_PROVISIONING: Quaternary CDMA1x provisioning. Since 1.28.
+ * @QMI_UIM_SESSION_TYPE_QUINARY_GW_PROVISIONING: Quinary GSM/WCDMA provisioning. Since 1.28.
+ * @QMI_UIM_SESSION_TYPE_QUINARY_1X_PROVISIONING: Quinary CDMA1x provisioning. Since 1.28.
+ * @QMI_UIM_SESSION_TYPE_NONPROVISIONING_SLOT_3: Nonprovisioning on slot 3. Since 1.28.
+ * @QMI_UIM_SESSION_TYPE_NONPROVISIONING_SLOT_4: Nonprovisioning on slot 4. Since 1.28.
+ * @QMI_UIM_SESSION_TYPE_NONPROVISIONING_SLOT_5: Nonprovisioning on slot 5. Since 1.28.
+ * @QMI_UIM_SESSION_TYPE_CARD_SLOT_3: Card on slot 3. Since 1.28.
+ * @QMI_UIM_SESSION_TYPE_CARD_SLOT_4: Card on slot 4. Since 1.28.
+ * @QMI_UIM_SESSION_TYPE_CARD_SLOT_5: Card on slot 5. Since 1.28.
+ * @QMI_UIM_SESSION_TYPE_LOGICAL_CHANNEL_SLOT_3: Logical channel on slot 3. Since 1.28.
+ * @QMI_UIM_SESSION_TYPE_LOGICAL_CHANNEL_SLOT_4: Logical channel on slot 4. Since 1.28.
+ * @QMI_UIM_SESSION_TYPE_LOGICAL_CHANNEL_SLOT_5: Logical channel on slot 5. Since 1.28.
  *
  * Type of UIM session.
  *
  * Since: 1.6
  */
 typedef enum { /*< since=1.6 >*/
-    QMI_UIM_SESSION_TYPE_PRIMARY_GW_PROVISIONING   = 0,
-    QMI_UIM_SESSION_TYPE_PRIMARY_1X_PROVISIONING   = 1,
-    QMI_UIM_SESSION_TYPE_SECONDARY_GW_PROVISIONING = 2,
-    QMI_UIM_SESSION_TYPE_SECONDARY_1X_PROVISIONING = 3,
-    QMI_UIM_SESSION_TYPE_NONPROVISIONING_SLOT_1    = 4,
-    QMI_UIM_SESSION_TYPE_NONPROVISIONING_SLOT_2    = 5,
-    QMI_UIM_SESSION_TYPE_CARD_SLOT_1               = 6,
-    QMI_UIM_SESSION_TYPE_CARD_SLOT_2               = 7,
-    QMI_UIM_SESSION_TYPE_LOGICAL_CHANNEL_SLOT_1    = 8,
-    QMI_UIM_SESSION_TYPE_LOGICAL_CHANNEL_SLOT_2    = 9
+    QMI_UIM_SESSION_TYPE_PRIMARY_GW_PROVISIONING    = 0,
+    QMI_UIM_SESSION_TYPE_PRIMARY_1X_PROVISIONING    = 1,
+    QMI_UIM_SESSION_TYPE_SECONDARY_GW_PROVISIONING  = 2,
+    QMI_UIM_SESSION_TYPE_SECONDARY_1X_PROVISIONING  = 3,
+    QMI_UIM_SESSION_TYPE_NONPROVISIONING_SLOT_1     = 4,
+    QMI_UIM_SESSION_TYPE_NONPROVISIONING_SLOT_2     = 5,
+    QMI_UIM_SESSION_TYPE_CARD_SLOT_1                = 6,
+    QMI_UIM_SESSION_TYPE_CARD_SLOT_2                = 7,
+    QMI_UIM_SESSION_TYPE_LOGICAL_CHANNEL_SLOT_1     = 8,
+    QMI_UIM_SESSION_TYPE_LOGICAL_CHANNEL_SLOT_2     = 9,
+    QMI_UIM_SESSION_TYPE_TERTIARY_GW_PROVISIONING   = 10,
+    QMI_UIM_SESSION_TYPE_TERTIARY_1X_PROVISIONING   = 11,
+    QMI_UIM_SESSION_TYPE_QUATERNARY_GW_PROVISIONING = 12,
+    QMI_UIM_SESSION_TYPE_QUATERNARY_1X_PROVISIONING = 13,
+    QMI_UIM_SESSION_TYPE_QUINARY_GW_PROVISIONING    = 14,
+    QMI_UIM_SESSION_TYPE_QUINARY_1X_PROVISIONING    = 15,
+    QMI_UIM_SESSION_TYPE_NONPROVISIONING_SLOT_3     = 16,
+    QMI_UIM_SESSION_TYPE_NONPROVISIONING_SLOT_4     = 17,
+    QMI_UIM_SESSION_TYPE_NONPROVISIONING_SLOT_5     = 18,
+    QMI_UIM_SESSION_TYPE_CARD_SLOT_3                = 19,
+    QMI_UIM_SESSION_TYPE_CARD_SLOT_4                = 20,
+    QMI_UIM_SESSION_TYPE_CARD_SLOT_5                = 21,
+    QMI_UIM_SESSION_TYPE_LOGICAL_CHANNEL_SLOT_3     = 22,
+    QMI_UIM_SESSION_TYPE_LOGICAL_CHANNEL_SLOT_4     = 23,
+    QMI_UIM_SESSION_TYPE_LOGICAL_CHANNEL_SLOT_5     = 24,
 } QmiUimSessionType;
 
 /*****************************************************************************/
@@ -343,6 +373,51 @@ typedef enum { /*< since=1.10 >*/
     QMI_UIM_CARD_APPLICATION_PERSONALIZATION_FEATURE_1X_RUIM             = 10,
     QMI_UIM_CARD_APPLICATION_PERSONALIZATION_FEATURE_UNKNOWN             = 11
 } QmiUimCardApplicationPersonalizationFeature;
+
+/*****************************************************************************/
+/* Helper enums for the 'QMI UIM Refresh' indication */
+
+/**
+ * QmiUimRefreshStage:
+ * @QMI_UIM_REFRESH_STAGE_WAIT_FOR_OK: Waiting for REFRESH OK message.
+ * @QMI_UIM_REFRESH_STAGE_START: Refresh started.
+ * @QMI_UIM_REFRESH_STAGE_END_WITH_SUCCESS: Refresh completed successfully.
+ * @QMI_UIM_REFRESH_STAGE_END_WITH_FAILURE: Refresh has failed.
+ *
+ * Current stage of the refresh procedure.
+ *
+ * Since: 1.28
+ */
+typedef enum { /*< since=1.28 >*/
+    QMI_UIM_REFRESH_STAGE_WAIT_FOR_OK      = 0,
+    QMI_UIM_REFRESH_STAGE_START            = 1,
+    QMI_UIM_REFRESH_STAGE_END_WITH_SUCCESS = 2,
+    QMI_UIM_REFRESH_STAGE_END_WITH_FAILURE = 3
+} QmiUimRefreshStage;
+
+/**
+ * QmiUimRefreshMode:
+ * @QMI_UIM_REFRESH_MODE_RESET: Reset.
+ * @QMI_UIM_REFRESH_MODE_INIT: Init.
+ * @QMI_UIM_REFRESH_MODE_INIT_FCN: Init & FCN.
+ * @QMI_UIM_REFRESH_MODE_FCN: FCN.
+ * @QMI_UIM_REFRESH_MODE_INIT_FULL_FCN: Init & full FCN.
+ * @QMI_UIM_REFRESH_MODE_APP_RESET: Application reset.
+ * @QMI_UIM_REFRESH_MODE_3G_RESET: 3G session reset.
+ *
+ * Refresh mode
+ *
+ * Since: 1.28
+ */
+typedef enum { /*< since=1.28 >*/
+    QMI_UIM_REFRESH_MODE_RESET         = 0,
+    QMI_UIM_REFRESH_MODE_INIT          = 1,
+    QMI_UIM_REFRESH_MODE_INIT_FCN      = 2,
+    QMI_UIM_REFRESH_MODE_FCN           = 3,
+    QMI_UIM_REFRESH_MODE_INIT_FULL_FCN = 4,
+    QMI_UIM_REFRESH_MODE_APP_RESET     = 5,
+    QMI_UIM_REFRESH_MODE_3G_RESET      = 6
+} QmiUimRefreshMode;
 
 /*****************************************************************************/
 /* Helper enums for the 'QMI UIM Get Slot Status' request/response */

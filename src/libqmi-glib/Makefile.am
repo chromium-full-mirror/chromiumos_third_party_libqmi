@@ -51,7 +51,6 @@ libqmi_glib_la_CPPFLAGS = \
 
 libqmi_glib_la_SOURCES = \
 	libqmi-glib.h \
-	qmi-version.h \
 	qmi-errors.h \
 	qmi-enums-wds.h qmi-enums-wds.c \
 	qmi-enums-dms.h qmi-flags64-dms.h qmi-enums-dms.c \
@@ -61,6 +60,7 @@ libqmi_glib_la_SOURCES = \
 	qmi-enums-pdc.h \
 	qmi-enums-pbm.h \
 	qmi-enums-uim.h \
+	qmi-enums-sar.h \
 	qmi-enums-oma.h \
 	qmi-enums-wda.h \
 	qmi-enums-voice.h \
@@ -78,6 +78,10 @@ libqmi_glib_la_SOURCES = \
 	qmi-file.h qmi-file.c \
 	qmi-endpoint.h qmi-endpoint.c \
 	qmi-endpoint-qmux.h qmi-endpoint-qmux.c
+
+nodist_libqmi_glib_la_SOURCES = \
+	qmi-version.h \
+	$(NULL)
 
 libqmi_glib_la_LIBADD = \
 	${top_builddir}/src/libqmi-glib/generated/libqmi-glib-generated.la \
@@ -116,7 +120,6 @@ libqmi_glib_la_LDFLAGS = \
 includedir = @includedir@/libqmi-glib
 include_HEADERS = \
 	libqmi-glib.h \
-	qmi-version.h \
 	qmi-errors.h \
 	qmi-enums.h \
 	qmi-enums-private.h \
@@ -136,6 +139,7 @@ include_HEADERS = \
 	qmi-enums-qos.h \
 	qmi-enums-gas.h \
 	qmi-enums-dsd.h qmi-flags64-dsd.h \
+	qmi-enums-sar.h \
 	qmi-utils.h \
 	qmi-message.h \
 	qmi-message-context.h \
@@ -143,8 +147,17 @@ include_HEADERS = \
 	qmi-client.h \
 	qmi-proxy.h
 
+nodist_include_HEADERS = \
+	qmi-version.h \
+	$(NULL)
+
 EXTRA_DIST = \
-	qmi-version.h.in
+	qmi-version.h.in \
+	$(NULL)
+
+DISTCLEANFILES = \
+	qmi-version.h \
+	$(NULL)
 
 CLEANFILES =
 

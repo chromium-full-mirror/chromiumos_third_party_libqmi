@@ -459,6 +459,13 @@ allocate_client_ready (QmiDevice *dev,
 #else
         break;
 #endif
+    case QMI_SERVICE_SAR:
+#if defined HAVE_QMI_SERVICE_SAR
+        qmicli_sar_run (dev, QMI_CLIENT_SAR (client), cancellable);
+        return;
+#else
+        break;
+#endif
     case QMI_SERVICE_UNKNOWN:
     case QMI_SERVICE_CTL:
     case QMI_SERVICE_AUTH:
@@ -467,7 +474,6 @@ allocate_client_ready (QmiDevice *dev,
     case QMI_SERVICE_QCHAT:
     case QMI_SERVICE_RMTFS:
     case QMI_SERVICE_TEST:
-    case QMI_SERVICE_SAR:
     case QMI_SERVICE_IMS:
     case QMI_SERVICE_ADC:
     case QMI_SERVICE_CSD:
@@ -793,10 +799,29 @@ device_new_ready (GObject *unused,
 
 #if QMI_QRTR_SUPPORTED
 static void
+wait_for_services_ready (QrtrNode *node,
+                         GAsyncResult *res,
+                         gpointer user_data)
+{
+    GError *error = NULL;
+
+    if (!qrtr_node_wait_for_services_finish (node, res, &error)) {
+        g_printerr ("error: failed to wait for QRTR services: %s\n", error->message);
+        exit (EXIT_FAILURE);
+    }
+
+    qmi_device_new_from_node (node,
+                              cancellable,
+                              (GAsyncReadyCallback)device_new_ready,
+                              NULL);
+}
+
+static void
 qrtr_node_ready (GObject *unused,
                  GAsyncResult *res)
 {
     QrtrNode *node;
+    GArray *services;
     GError *error = NULL;
 
     node = qrtr_node_for_id_finish (res, &error);
@@ -805,12 +830,17 @@ qrtr_node_ready (GObject *unused,
         exit (EXIT_FAILURE);
     }
 
-    qmi_device_new_from_node (node,
-                              cancellable,
-                              (GAsyncReadyCallback)device_new_ready,
-                              NULL);
+    services = g_array_sized_new (FALSE, FALSE, sizeof (QmiService), 1);
+    g_array_append_val (services, service);
 
-    /* QmiDevice takes a reference, so we don't need this anymore. */
+    qrtr_node_wait_for_services (node,
+                                 services,
+                                 5,
+                                 NULL,
+                                 (GAsyncReadyCallback) wait_for_services_ready,
+                                 NULL);
+
+    g_array_unref (services);
     g_object_unref (node);
 }
 #endif
@@ -907,6 +937,13 @@ parse_actions (void)
         service = QMI_SERVICE_UIM;
         actions_enabled++;
     }
+#endif
+
+#if defined HAVE_QMI_SERVICE_SAR
+  if (qmicli_sar_options_enabled ()) {
+    service = QMI_SERVICE_SAR;
+    actions_enabled++;
+  }
 #endif
 
 #if defined HAVE_QMI_SERVICE_WMS
@@ -1007,6 +1044,9 @@ int main (int argc, char **argv)
 #endif
 #if defined HAVE_QMI_SERVICE_UIM
     g_option_context_add_group (context, qmicli_uim_get_option_group ());
+#endif
+#if defined HAVE_QMI_SERVICE_SAR
+    g_option_context_add_group (context, qmicli_sar_get_option_group ());
 #endif
 #if defined HAVE_QMI_SERVICE_WMS
     g_option_context_add_group (context, qmicli_wms_get_option_group ());

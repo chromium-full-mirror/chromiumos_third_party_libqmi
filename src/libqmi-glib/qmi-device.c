@@ -45,6 +45,7 @@
 #include "qmi-pds.h"
 #include "qmi-pbm.h"
 #include "qmi-uim.h"
+#include "qmi-sar.h"
 #include "qmi-oma.h"
 #include "qmi-wda.h"
 #include "qmi-voice.h"
@@ -500,6 +501,26 @@ device_match_transaction (QmiDevice *self,
 }
 
 /*****************************************************************************/
+
+static void
+device_hangup_transactions (QmiDevice *self)
+{
+    GHashTableIter    iter;
+    gpointer          key, value;
+    g_autoptr(GError) common_error = NULL;
+
+    common_error = g_error_new (QMI_CORE_ERROR, QMI_CORE_ERROR_FAILED, "endpoint hangup");
+
+    g_hash_table_iter_init (&iter, self->priv->transactions);
+    while (g_hash_table_iter_next (&iter, &key, &value)) {
+        Transaction *tr = value;
+
+        transaction_complete_and_free (tr, NULL, common_error);
+        g_hash_table_iter_remove (&iter);
+    }
+}
+
+/*****************************************************************************/
 /* Version info request */
 
 GArray *
@@ -664,14 +685,13 @@ qmi_device_is_open (QmiDevice *self)
 static void
 reload_wwan_iface_name (QmiDevice *self)
 {
-    gchar *cdc_wdm_device_name;
+    g_autofree gchar *cdc_wdm_device_name = NULL;
     static const gchar *driver_names[] = { "usbmisc", "usb" };
     GError *error = NULL;
     guint i;
 
     /* Early cleanup */
-    g_free (self->priv->wwan_iface);
-    self->priv->wwan_iface = NULL;
+    g_clear_pointer (&self->priv->wwan_iface, g_free);
 
 #if QMI_QRTR_SUPPORTED
     if (self->priv->node) {
@@ -690,9 +710,10 @@ reload_wwan_iface_name (QmiDevice *self)
     }
 
     for (i = 0; i < G_N_ELEMENTS (driver_names) && !self->priv->wwan_iface; i++) {
-        gchar *sysfs_path;
-        GFile *sysfs_file;
-        GFileEnumerator *enumerator;
+        g_autofree gchar           *sysfs_path = NULL;
+        g_autoptr(GFile)            sysfs_file = NULL;
+        g_autoptr(GFileEnumerator)  enumerator = NULL;
+        GFileInfo                  *file_info  = NULL;
 
         sysfs_path = g_strdup_printf ("/sys/class/%s/%s/device/net/", driver_names[i], cdc_wdm_device_name);
         sysfs_file = g_file_new_for_path (sysfs_path);
@@ -706,34 +727,28 @@ reload_wwan_iface_name (QmiDevice *self)
                      qmi_file_get_path_display (self->priv->file),
                      sysfs_path,
                      error->message);
-            g_error_free (error);
-        } else {
-            GFileInfo *file_info;
-
-            /* Ignore errors when enumerating */
-            while ((file_info = g_file_enumerator_next_file (enumerator, NULL, NULL)) != NULL) {
-                const gchar *name;
-
-                name = g_file_info_get_name (file_info);
-                if (name) {
-                    /* We only expect ONE file in the sysfs directory corresponding
-                     * to this control port, if more found for any reason, warn about it */
-                    if (self->priv->wwan_iface)
-                        g_warning ("[%s] invalid additional wwan iface found: %s",
-                               qmi_file_get_path_display (self->priv->file), name);
-                    else
-                        self->priv->wwan_iface = g_strdup (name);
-                }
-                g_object_unref (file_info);
-            }
-
-            g_object_unref (enumerator);
+            g_clear_error (&error);
+            continue;
         }
 
-        g_free (sysfs_path);
-        g_object_unref (sysfs_file);
+        /* Ignore errors when enumerating */
+        while ((file_info = g_file_enumerator_next_file (enumerator, NULL, NULL)) != NULL) {
+            const gchar *name;
+
+            name = g_file_info_get_name (file_info);
+            if (name) {
+                /* We only expect ONE file in the sysfs directory corresponding
+                 * to this control port, if more found for any reason, warn about it */
+                if (self->priv->wwan_iface)
+                    g_warning ("[%s] invalid additional wwan iface found: %s",
+                               qmi_file_get_path_display (self->priv->file), name);
+                else
+                    self->priv->wwan_iface = g_strdup (name);
+            }
+            g_object_unref (file_info);
+        }
     }
-    g_free (cdc_wdm_device_name);
+
     if (!self->priv->wwan_iface)
         g_warning ("[%s] wwan iface not found", qmi_file_get_path_display (self->priv->file));
 }
@@ -1218,6 +1233,11 @@ qmi_device_allocate_client (QmiDevice *self,
         ctx->client_type = QMI_TYPE_CLIENT_DSD;
 #endif
         break;
+    case QMI_SERVICE_SAR:
+#if defined HAVE_QMI_SERVICE_SAR
+        ctx->client_type = QMI_TYPE_CLIENT_SAR;
+#endif
+        break;
 
     case QMI_SERVICE_UNKNOWN:
         g_assert_not_reached ();
@@ -1228,7 +1248,6 @@ qmi_device_allocate_client (QmiDevice *self,
     case QMI_SERVICE_QCHAT:
     case QMI_SERVICE_RMTFS:
     case QMI_SERVICE_TEST:
-    case QMI_SERVICE_SAR:
     case QMI_SERVICE_IMS:
     case QMI_SERVICE_ADC:
     case QMI_SERVICE_CSD:
@@ -1523,6 +1542,12 @@ static void
 endpoint_hangup_cb (QmiEndpoint *endpoint,
                     QmiDevice   *self)
 {
+    g_debug ("[%s] QMI endpoint hangup: removed",
+             qmi_file_get_path_display (self->priv->file));
+
+    /* cancel all ongoing transactions as the endpoing hangup happened */
+    device_hangup_transactions (self);
+
     g_signal_emit (self, signals[SIGNAL_REMOVED], 0);
 }
 
@@ -2514,31 +2539,29 @@ static QmiDevice *
 common_device_new_finish (GAsyncResult  *res,
                           GError      **error)
 {
-    GObject *ret;
-    GObject *source_object;
+    g_autoptr(GObject) source_object = NULL;
 
     source_object = g_async_result_get_source_object (res);
-    ret = g_async_initable_new_finish (G_ASYNC_INITABLE (source_object), res, error);
-    g_object_unref (source_object);
-
-    return (ret ? QMI_DEVICE (ret) : NULL);
+    return QMI_DEVICE (g_async_initable_new_finish (G_ASYNC_INITABLE (source_object), res, error));
 }
 
 #if QMI_QRTR_SUPPORTED
 
 QmiDevice *
-qmi_device_new_from_node_finish (GAsyncResult *res,
-                                 GError **error)
+qmi_device_new_from_node_finish (GAsyncResult  *res,
+                                 GError       **error)
 {
     return common_device_new_finish (res, error);
 }
 
 void
-qmi_device_new_from_node (QrtrNode *node,
-                          GCancellable *cancellable,
-                          GAsyncReadyCallback callback,
-                          gpointer user_data)
+qmi_device_new_from_node (QrtrNode            *node,
+                          GCancellable        *cancellable,
+                          GAsyncReadyCallback  callback,
+                          gpointer             user_data)
 {
+    g_return_if_fail (QRTR_IS_NODE (node));
+
     g_async_initable_new_async (QMI_TYPE_DEVICE,
                                 G_PRIORITY_DEFAULT,
                                 cancellable,
@@ -2547,21 +2570,39 @@ qmi_device_new_from_node (QrtrNode *node,
                                 QMI_DEVICE_NODE, node,
                                 NULL);
 }
+
+QrtrNode *
+qmi_device_get_node (QmiDevice *self)
+{
+    g_return_val_if_fail (QMI_IS_DEVICE (self), NULL);
+
+    return self->priv->node ? g_object_ref (self->priv->node) : NULL;
+}
+
+QrtrNode *
+qmi_device_peek_node (QmiDevice *self)
+{
+    g_return_val_if_fail (QMI_IS_DEVICE (self), NULL);
+
+    return self->priv->node;
+}
 #endif
 
 QmiDevice *
-qmi_device_new_finish (GAsyncResult *res,
-                       GError **error)
+qmi_device_new_finish (GAsyncResult  *res,
+                       GError       **error)
 {
     return common_device_new_finish (res, error);
 }
 
 void
-qmi_device_new (GFile *file,
-                GCancellable *cancellable,
-                GAsyncReadyCallback callback,
-                gpointer user_data)
+qmi_device_new (GFile               *file,
+                GCancellable        *cancellable,
+                GAsyncReadyCallback  callback,
+                gpointer             user_data)
 {
+    g_return_if_fail (G_IS_FILE (file));
+
     g_async_initable_new_async (QMI_TYPE_DEVICE,
                                 G_PRIORITY_DEFAULT,
                                 cancellable,
@@ -2654,6 +2695,9 @@ initable_init_async (GAsyncInitable *initable,
     self = QMI_DEVICE (initable);
     task = g_task_new (self, cancellable, callback, user_data);
 
+    /* We need a proper file to initialize */
+    g_assert (QMI_IS_FILE (self->priv->file));
+
 #if QMI_QRTR_SUPPORTED
     /* If we have a node, just skip to setting up the control client */
     if (self->priv->node) {
@@ -2661,16 +2705,6 @@ initable_init_async (GAsyncInitable *initable,
         return;
     }
 #endif
-
-    /* We need a proper file to initialize */
-    if (!self->priv->file) {
-        g_task_return_new_error (task,
-                                 QMI_CORE_ERROR,
-                                 QMI_CORE_ERROR_INVALID_ARGS,
-                                 "Cannot initialize QMI device: No file given");
-        g_object_unref (task);
-        return;
-    }
 
     /* If no file check requested, don't do it */
     if (self->priv->no_file_check) {
@@ -2693,35 +2727,30 @@ initable_init_async (GAsyncInitable *initable,
 static QmiFile *
 get_file_for_node (QrtrNode *node)
 {
-    gchar *uri;
-    QmiFile *file;
+    g_autofree gchar *uri = NULL;
 
     uri = qrtr_get_uri_for_node (qrtr_node_id (node));
-    file = qmi_file_new (g_file_new_for_uri (uri));
-    g_free (uri);
-    return file;
+    return qmi_file_new (g_file_new_for_uri (uri));
 }
 #endif
 
 static void
-set_property (GObject *object,
-              guint prop_id,
+set_property (GObject      *object,
+              guint         prop_id,
               const GValue *value,
-              GParamSpec *pspec)
+              GParamSpec   *pspec)
 {
     QmiDevice *self = QMI_DEVICE (object);
 
     switch (prop_id) {
-    case PROP_FILE:
-#if QMI_QRTR_SUPPORTED
-        /* Ensure that we only set one of FILE or NODE. */
-        if (!g_value_get_object (value))
-            break;
-        g_assert (self->priv->node == NULL);
-#endif
-        g_assert (self->priv->file == NULL);
-        self->priv->file = qmi_file_new (g_value_get_object (value));
+    case PROP_FILE: {
+        GFile *file;
+
+        file = g_value_get_object (value);
+        g_assert (!self->priv->file);
+        self->priv->file = file ? qmi_file_new (file) : NULL;
         break;
+    }
     case PROP_NO_FILE_CHECK:
         self->priv->no_file_check = g_value_get_boolean (value);
         break;
@@ -2731,13 +2760,12 @@ set_property (GObject *object,
         break;
 #if QMI_QRTR_SUPPORTED
     case PROP_NODE:
-        /* Ensure that we only set one of FILE or NODE. */
-        if (!g_value_get_object (value))
-            break;
-        g_assert (self->priv->file == NULL);
-        g_assert (self->priv->node == NULL);
+        g_assert (!self->priv->node);
         self->priv->node = g_value_dup_object (value);
-        self->priv->file = get_file_for_node (self->priv->node);
+        if (self->priv->node) {
+            g_assert (!self->priv->file);
+            self->priv->file = get_file_for_node (self->priv->node);
+        }
         break;
 #endif
     default:
@@ -2747,15 +2775,16 @@ set_property (GObject *object,
 }
 
 static void
-get_property (GObject *object,
-              guint prop_id,
-              GValue *value,
+get_property (GObject    *object,
+              guint       prop_id,
+              GValue     *value,
               GParamSpec *pspec)
 {
     QmiDevice *self = QMI_DEVICE (object);
 
     switch (prop_id) {
     case PROP_FILE:
+        g_assert (QMI_IS_FILE (self->priv->file));
         g_value_set_object (value, qmi_file_get_file (self->priv->file));
         break;
     case PROP_WWAN_IFACE:
@@ -2764,7 +2793,7 @@ get_property (GObject *object,
         break;
 #if QMI_QRTR_SUPPORTED
     case PROP_NODE:
-        g_value_set_object (value, g_object_ref (self->priv->node));
+        g_value_set_object (value, self->priv->node);
         break;
 #endif
     default:
