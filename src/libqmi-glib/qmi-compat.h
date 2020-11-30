@@ -16,7 +16,7 @@
  * Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
  * Boston, MA 02110-1301 USA.
  *
- * Copyright (C) 2016-2019 Aleksander Morgado <aleksander@aleksander.es>
+ * Copyright (C) 2016-2020 Aleksander Morgado <aleksander@aleksander.es>
  */
 
 #ifndef _LIBQMI_GLIB_QMI_COMPAT_H_
@@ -33,6 +33,7 @@
 #include "qmi-nas.h"
 #include "qmi-uim.h"
 #include "qmi-wda.h"
+#include "qmi-wds.h"
 #include "qmi-enums-nas.h"
 #include "qmi-enums-wms.h"
 
@@ -1128,7 +1129,6 @@ typedef enum {
 
 G_DEPRECATED_FOR (qmi_dms_foxconn_firmware_version_type_get_type)
 GType qmi_dms_dell_firmware_version_type_get_type (void) G_GNUC_CONST;
-G_DEPRECATED_FOR (QMI_TYPE_DMS_FOXCONN_FIRMWARE_VERSION_TYPE)
 #define QMI_TYPE_DMS_DELL_FIRMWARE_VERSION_TYPE QMI_TYPE_DMS_FOXCONN_FIRMWARE_VERSION_TYPE
 
 /**
@@ -1163,7 +1163,6 @@ typedef enum {
 
 G_DEPRECATED_FOR (qmi_dms_foxconn_device_mode_get_type)
 GType qmi_dms_dell_device_mode_get_type (void) G_GNUC_CONST;
-G_DEPRECATED_FOR (QMI_TYPE_DMS_FOXCONN_DEVICE_MODE)
 #define QMI_TYPE_DMS_DELL_DEVICE_MODE QMI_TYPE_DMS_FOXCONN_DEVICE_MODE
 
 /**
@@ -1180,8 +1179,33 @@ G_DEPRECATED_FOR (QMI_TYPE_DMS_FOXCONN_DEVICE_MODE)
 G_DEPRECATED_FOR (qmi_dms_foxconn_device_mode_get_string)
 const gchar *qmi_dms_dell_device_mode_get_string (QmiDmsDellDeviceMode val);
 
+/******************************************************************************/
 /* Note: these defines are on purpose out of the #ifdefs, so that gtkdoc-scan
  * doesn't complain */
+
+/**
+ * QmiMessageDmsDellGetFirmwareVersionInput:
+ *
+ * The #QmiMessageDmsDellGetFirmwareVersionInput structure contains private data and should only be accessed
+ * using the provided API.
+ *
+ * Since: 1.22.4
+ * Deprecated: 1.26: Use #QmiMessageDmsFoxconnGetFirmwareVersionInput instead.
+ */
+#define QmiMessageDmsDellGetFirmwareVersionInput QmiMessageDmsFoxconnGetFirmwareVersionInput
+#define QMI_TYPE_MESSAGE_DMS_DELL_GET_FIRMWARE_VERSION_INPUT QMI_TYPE_MESSAGE_DMS_FOXCONN_GET_FIRMWARE_VERSION_INPUT
+
+/**
+ * QmiMessageDmsDellGetFirmwareVersionOutput:
+ *
+ * The #QmiMessageDmsDellGetFirmwareVersionOutput structure contains private data and should only be accessed
+ * using the provided API.
+ *
+ * Since: 1.22.4
+ * Deprecated: 1.26: Use #QmiMessageDmsFoxconnGetFirmwareVersionOutput instead.
+ */
+#define QmiMessageDmsDellGetFirmwareVersionOutput QmiMessageDmsFoxconnGetFirmwareVersionOutput
+#define QMI_TYPE_MESSAGE_DMS_DELL_GET_FIRMWARE_VERSION_OUTPUT QMI_TYPE_MESSAGE_DMS_FOXCONN_GET_FIRMWARE_VERSION_OUTPUT
 
 /**
  * QmiMessageDmsDellChangeDeviceModeInput:
@@ -1193,7 +1217,6 @@ const gchar *qmi_dms_dell_device_mode_get_string (QmiDmsDellDeviceMode val);
  * Deprecated: 1.26: Use #QmiMessageDmsFoxconnChangeDeviceModeInput instead.
  */
 #define QmiMessageDmsDellChangeDeviceModeInput QmiMessageDmsFoxconnChangeDeviceModeInput
-G_DEPRECATED_FOR (QMI_TYPE_MESSAGE_DMS_FOXCONN_CHANGE_DEVICE_MODE_INPUT)
 #define QMI_TYPE_MESSAGE_DMS_DELL_CHANGE_DEVICE_MODE_INPUT QMI_TYPE_MESSAGE_DMS_FOXCONN_CHANGE_DEVICE_MODE_INPUT
 
 /**
@@ -1203,11 +1226,61 @@ G_DEPRECATED_FOR (QMI_TYPE_MESSAGE_DMS_FOXCONN_CHANGE_DEVICE_MODE_INPUT)
  * using the provided API.
  *
  * Since: 1.22.4
- * Deprecated: 1.26: Use  instead.
+ * Deprecated: 1.26: Use #QmiMessageDmsFoxconnChangeDeviceModeOutput instead.
  */
 #define QmiMessageDmsDellChangeDeviceModeOutput QmiMessageDmsFoxconnChangeDeviceModeOutput
-G_DEPRECATED_FOR (QMI_TYPE_MESSAGE_DMS_FOXCONN_CHANGE_DEVICE_MODE_OUTPUT)
 #define QMI_TYPE_MESSAGE_DMS_DELL_CHANGE_DEVICE_MODE_OUTPUT QMI_TYPE_MESSAGE_DMS_FOXCONN_CHANGE_DEVICE_MODE_OUTPUT
+
+/**
+ * QmiMessageWdsGetDefaultProfileNumInput:
+ *
+ * The #QmiMessageWdsGetDefaultProfileNumInput structure contains private data and should only be accessed
+ * using the provided API.
+ *
+ * Since: 1.22
+ * Deprecated: 1.28: Use #QmiMessageWdsGetDefaultProfileNumberInput instead.
+ */
+#define QmiMessageWdsGetDefaultProfileNumInput QmiMessageWdsGetDefaultProfileNumberInput
+#define QMI_TYPE_MESSAGE_WDS_GET_DEFAULT_PROFILE_NUM_INPUT QMI_TYPE_MESSAGE_WDS_GET_DEFAULT_PROFILE_NUMBER_INPUT
+
+/**
+ * QmiMessageWdsGetDefaultProfileNumOutput:
+ *
+ * The #QmiMessageWdsGetDefaultProfileNumOutput structure contains private data and should only be accessed
+ * using the provided API.
+ *
+ * Since: 1.22
+ * Deprecated: 1.28. Use #QmiMessageWdsGetDefaultProfileNumberOutput instead.
+ */
+#define QmiMessageWdsGetDefaultProfileNumOutput QmiMessageWdsGetDefaultProfileNumberOutput
+#define QMI_TYPE_MESSAGE_WDS_GET_DEFAULT_PROFILE_NUM_OUTPUT QMI_TYPE_MESSAGE_WDS_GET_DEFAULT_PROFILE_NUMBER_OUTPUT
+
+/**
+ * QmiMessageWdsSetDefaultProfileNumInput:
+ *
+ * The #QmiMessageWdsSetDefaultProfileNumInput structure contains private data and should only be accessed
+ * using the provided API.
+ *
+ * Since: 1.22
+ * Deprecated: 1.28. Use #QmiMessageWdsSetDefaultProfileNumberInput instead.
+ */
+#define QmiMessageWdsSetDefaultProfileNumInput QmiMessageWdsSetDefaultProfileNumberInput
+#define QMI_TYPE_MESSAGE_WDS_SET_DEFAULT_PROFILE_NUM_INPUT QMI_TYPE_MESSAGE_WDS_SET_DEFAULT_PROFILE_NUMBER_INPUT
+
+/**
+ * QmiMessageWdsSetDefaultProfileNumOutput:
+ *
+ * The #QmiMessageWdsSetDefaultProfileNumOutput structure contains private data and should only be accessed
+ * using the provided API.
+ *
+ * Since: 1.22
+ * Deprecated: 1.28. Use #QmiMessageWdsSetDefaultProfileNumberOutput instead.
+ */
+#define QmiMessageWdsSetDefaultProfileNumOutput QmiMessageWdsSetDefaultProfileNumberOutput
+#define QMI_TYPE_MESSAGE_WDS_SET_DEFAULT_PROFILE_NUM_OUTPUT QMI_TYPE_MESSAGE_WDS_SET_DEFAULT_PROFILE_NUMBER_OUTPUT
+
+/******************************************************************************/
+/* Conditional method definitions */
 
 #if defined HAVE_QMI_MESSAGE_DMS_SET_SERVICE_PROGRAMMING_CODE
 
@@ -1636,21 +1709,8 @@ gboolean qmi_message_wda_get_data_format_output_get_uplink_data_aggregation_max_
 
 #if defined HAVE_QMI_MESSAGE_DMS_FOXCONN_GET_FIRMWARE_VERSION
 
-/**
- * QmiMessageDmsDellGetFirmwareVersionInput:
- *
- * The #QmiMessageDmsDellGetFirmwareVersionInput structure contains private data and should only be accessed
- * using the provided API.
- *
- * Since: 1.22.4
- * Deprecated: 1.26: Use #QmiMessageDmsFoxconnGetFirmwareVersionInput instead.
- */
-G_DEPRECATED_FOR (QmiMessageDmsFoxconnGetFirmwareVersionInput)
-#define QmiMessageDmsDellGetFirmwareVersionInput QmiMessageDmsFoxconnGetFirmwareVersionInput
 G_DEPRECATED_FOR (qmi_message_dms_foxconn_get_firmware_version_input_get_type)
 GType qmi_message_dms_dell_get_firmware_version_input_get_type (void) G_GNUC_CONST;
-G_DEPRECATED_FOR (QMI_TYPE_MESSAGE_DMS_FOXCONN_GET_FIRMWARE_VERSION_INPUT)
-#define QMI_TYPE_MESSAGE_DMS_DELL_GET_FIRMWARE_VERSION_INPUT QMI_TYPE_MESSAGE_DMS_FOXCONN_GET_FIRMWARE_VERSION_INPUT
 
 /**
  * qmi_message_dms_dell_get_firmware_version_input_get_version_type:
@@ -1730,23 +1790,8 @@ void qmi_message_dms_dell_get_firmware_version_input_unref (QmiMessageDmsDellGet
 G_DEPRECATED_FOR (qmi_message_dms_foxconn_get_firmware_version_input_new)
 QmiMessageDmsDellGetFirmwareVersionInput *qmi_message_dms_dell_get_firmware_version_input_new (void);
 
-/* --- Output -- */
-
-/**
- * QmiMessageDmsDellGetFirmwareVersionOutput:
- *
- * The #QmiMessageDmsDellGetFirmwareVersionOutput structure contains private data and should only be accessed
- * using the provided API.
- *
- * Since: 1.22.4
- * Deprecated: 1.26: Use #QmiMessageDmsFoxconnGetFirmwareVersionOutput instead.
- */
-G_DEPRECATED_FOR (QmiMessageDmsFoxconnGetFirmwareVersionOutput)
-#define QmiMessageDmsDellGetFirmwareVersionOutput QmiMessageDmsFoxconnGetFirmwareVersionOutput
 G_DEPRECATED_FOR (qmi_message_dms_foxconn_get_firmware_version_output_get_type)
 GType qmi_message_dms_dell_get_firmware_version_output_get_type (void) G_GNUC_CONST;
-G_DEPRECATED_FOR (QMI_TYPE_MESSAGE_DMS_FOXCONN_GET_FIRMWARE_VERSION_OUTPUT)
-#define QMI_TYPE_MESSAGE_DMS_DELL_GET_FIRMWARE_VERSION_OUTPUT QMI_TYPE_MESSAGE_DMS_FOXCONN_GET_FIRMWARE_VERSION_OUTPUT
 
 /**
  * qmi_message_dms_dell_get_firmware_version_output_get_result:
@@ -1863,8 +1908,6 @@ QmiMessageDmsDellGetFirmwareVersionOutput *qmi_client_dms_dell_get_firmware_vers
 
 G_DEPRECATED_FOR (qmi_message_dms_foxconn_change_device_mode_input_get_type)
 GType qmi_message_dms_dell_change_device_mode_input_get_type (void) G_GNUC_CONST;
-G_DEPRECATED_FOR (qmi_message_dms_foxconn_change_device_mode_output_get_type)
-GType qmi_message_dms_dell_change_device_mode_output_get_type (void) G_GNUC_CONST;
 
 /**
  * qmi_message_dms_dell_change_device_mode_input_get_mode:
@@ -1943,6 +1986,9 @@ void qmi_message_dms_dell_change_device_mode_input_unref (QmiMessageDmsDellChang
  */
 G_DEPRECATED_FOR (qmi_message_dms_foxconn_change_device_mode_input_new)
 QmiMessageDmsDellChangeDeviceModeInput *qmi_message_dms_dell_change_device_mode_input_new (void);
+
+G_DEPRECATED_FOR (qmi_message_dms_foxconn_change_device_mode_output_get_type)
+GType qmi_message_dms_dell_change_device_mode_output_get_type (void) G_GNUC_CONST;
 
 /**
  * qmi_message_dms_dell_change_device_mode_output_get_result:
@@ -2281,6 +2327,431 @@ gboolean qmi_message_nas_get_cell_location_info_output_get_geran_info (
     GError **error);
 
 #endif /* HAVE_QMI_MESSAGE_NAS_GET_CELL_LOCATION_INFO */
+
+#if defined HAVE_QMI_MESSAGE_WDS_GET_DEFAULT_PROFILE_NUMBER
+
+G_DEPRECATED_FOR (qmi_message_wds_get_default_profile_number_input_get_type)
+GType qmi_message_wds_get_default_profile_num_input_get_type (void) G_GNUC_CONST;
+
+/**
+ * qmi_message_wds_get_default_profile_num_input_get_profile_type:
+ * @self: a #QmiMessageWdsGetDefaultProfileNumInput.
+ * @value_profile_type_profile_type: (out): a placeholder for the output #QmiWdsProfileType, or %NULL if not required.
+ * @value_profile_type_profile_family: (out): a placeholder for the output #QmiWdsProfileFamily, or %NULL if not required.
+ * @error: Return location for error or %NULL.
+ *
+ * Get the 'Profile Type' field from @self.
+ *
+ * Returns: (skip): %TRUE if the field is found, %FALSE otherwise.
+ *
+ * Since: 1.22
+ * Deprecated: 1.28. Use qmi_message_wds_get_default_profile_number_input_get_profile_type() instead.
+ */
+G_DEPRECATED_FOR (qmi_message_wds_get_default_profile_number_input_get_profile_type)
+gboolean qmi_message_wds_get_default_profile_num_input_get_profile_type (
+    QmiMessageWdsGetDefaultProfileNumInput *self,
+    QmiWdsProfileType *value_profile_type_profile_type,
+    QmiWdsProfileFamily *value_profile_type_profile_family,
+    GError **error);
+
+/**
+ * qmi_message_wds_get_default_profile_num_input_set_profile_type:
+ * @self: a #QmiMessageWdsGetDefaultProfileNumInput.
+ * @value_profile_type_profile_type: a #QmiWdsProfileType.
+ * @value_profile_type_profile_family: a #QmiWdsProfileFamily.
+ * @error: Return location for error or %NULL.
+ *
+ * Set the 'Profile Type' field in the message.
+ *
+ * Returns: (skip): %TRUE if @value was successfully set, %FALSE otherwise.
+ *
+ * Since: 1.22
+ * Deprecated: 1.28. Use qmi_message_wds_get_default_profile_number_input_set_profile_type() instead.
+ */
+G_DEPRECATED_FOR (Use qmi_message_wds_get_default_profile_number_input_set_profile_type)
+gboolean qmi_message_wds_get_default_profile_num_input_set_profile_type (
+    QmiMessageWdsGetDefaultProfileNumInput *self,
+    QmiWdsProfileType value_profile_type_profile_type,
+    QmiWdsProfileFamily value_profile_type_profile_family,
+    GError **error);
+
+/**
+ * qmi_message_wds_get_default_profile_num_input_ref:
+ * @self: a #QmiMessageWdsGetDefaultProfileNumInput.
+ *
+ * Atomically increments the reference count of @self by one.
+ *
+ * Returns: the new reference to @self.
+ *
+ * Since: 1.22
+ * Deprecated: 1.28. Use qmi_message_wds_get_default_profile_number_input_ref() instead.
+ */
+G_DEPRECATED_FOR (qmi_message_wds_get_default_profile_number_input_ref)
+QmiMessageWdsGetDefaultProfileNumInput *qmi_message_wds_get_default_profile_num_input_ref (QmiMessageWdsGetDefaultProfileNumInput *self);
+
+/**
+ * qmi_message_wds_get_default_profile_num_input_unref:
+ * @self: a #QmiMessageWdsGetDefaultProfileNumInput.
+ *
+ * Atomically decrements the reference count of @self by one.
+ * If the reference count drops to 0, @self is completely disposed.
+ *
+ * Since: 1.22
+ * Deprecated: 1.28. Use qmi_message_wds_get_default_profile_number_input_unref() instead.
+ */
+G_DEPRECATED_FOR (qmi_message_wds_get_default_profile_number_input_unref)
+void qmi_message_wds_get_default_profile_num_input_unref (QmiMessageWdsGetDefaultProfileNumInput *self);
+
+/**
+ * qmi_message_wds_get_default_profile_num_input_new:
+ *
+ * Allocates a new #QmiMessageWdsGetDefaultProfileNumInput.
+ *
+ * Returns: the newly created #QmiMessageWdsGetDefaultProfileNumInput. The returned value should be freed with qmi_message_wds_get_default_profile_num_input_unref().
+ *
+ * Since: 1.22
+ * Deprecated: 1.28. Use qmi_message_wds_get_default_profile_number_input_new() instead.
+ */
+G_DEPRECATED_FOR (qmi_message_wds_get_default_profile_number_input_new)
+QmiMessageWdsGetDefaultProfileNumInput *qmi_message_wds_get_default_profile_num_input_new (void);
+
+G_DEPRECATED_FOR (qmi_message_wds_get_default_profile_number_output_get_type)
+GType qmi_message_wds_get_default_profile_num_output_get_type (void) G_GNUC_CONST;
+
+/**
+ * qmi_message_wds_get_default_profile_num_output_get_result:
+ * @self: a QmiMessageWdsGetDefaultProfileNumOutput.
+ * @error: Return location for error or %NULL.
+ *
+ * Get the result of the QMI operation.
+ *
+ * Returns: (skip): %TRUE if the QMI operation succeeded, %FALSE if @error is set.
+ *
+ * Since: 1.22
+ * Deprecated: 1.28. Use qmi_message_wds_get_default_profile_number_output_get_result() instead.
+ */
+G_DEPRECATED_FOR (qmi_message_wds_get_default_profile_number_output_get_result)
+gboolean qmi_message_wds_get_default_profile_num_output_get_result (
+    QmiMessageWdsGetDefaultProfileNumOutput *self,
+    GError **error);
+
+/**
+ * qmi_message_wds_get_default_profile_num_output_get_default_profile_number:
+ * @self: a #QmiMessageWdsGetDefaultProfileNumOutput.
+ * @value_default_profile_number: (out): a placeholder for the output #guint8, or %NULL if not required.
+ * @error: Return location for error or %NULL.
+ *
+ * Get the 'Default Profile Number' field from @self.
+ *
+ * Returns: (skip): %TRUE if the field is found, %FALSE otherwise.
+ *
+ * Since: 1.22
+ * Deprecated: 1.28. Use qmi_message_wds_get_default_profile_number_output_get_index() instead.
+ */
+G_DEPRECATED_FOR (qmi_message_wds_get_default_profile_number_output_get_index)
+gboolean qmi_message_wds_get_default_profile_num_output_get_default_profile_number (
+    QmiMessageWdsGetDefaultProfileNumOutput *self,
+    guint8 *value_default_profile_number,
+    GError **error);
+
+/**
+ * qmi_message_wds_get_default_profile_num_output_get_extended_error_code:
+ * @self: a #QmiMessageWdsGetDefaultProfileNumOutput.
+ * @value_extended_error_code: (out): a placeholder for the output #QmiWdsDsProfileError, or %NULL if not required.
+ * @error: Return location for error or %NULL.
+ *
+ * Get the 'Extended Error Code' field from @self.
+ *
+ * Returns: (skip): %TRUE if the field is found, %FALSE otherwise.
+ *
+ * Since: 1.22
+ * Deprecated: 1.28. Use qmi_message_wds_get_default_profile_number_output_get_extended_error_code() instead.
+ */
+G_DEPRECATED_FOR (qmi_message_wds_get_default_profile_number_output_get_extended_error_code)
+gboolean qmi_message_wds_get_default_profile_num_output_get_extended_error_code (
+    QmiMessageWdsGetDefaultProfileNumOutput *self,
+    QmiWdsDsProfileError *value_extended_error_code,
+    GError **error);
+
+/**
+ * qmi_message_wds_get_default_profile_num_output_ref:
+ * @self: a #QmiMessageWdsGetDefaultProfileNumOutput.
+ *
+ * Atomically increments the reference count of @self by one.
+ *
+ * Returns: the new reference to @self.
+ *
+ * Since: 1.22
+ * Deprecated: 1.28. Use qmi_message_wds_get_default_profile_number_output_ref() instead.
+ */
+G_DEPRECATED_FOR (qmi_message_wds_get_default_profile_number_output_ref)
+QmiMessageWdsGetDefaultProfileNumOutput *qmi_message_wds_get_default_profile_num_output_ref (QmiMessageWdsGetDefaultProfileNumOutput *self);
+
+/**
+ * qmi_message_wds_get_default_profile_num_output_unref:
+ * @self: a #QmiMessageWdsGetDefaultProfileNumOutput.
+ *
+ * Atomically decrements the reference count of @self by one.
+ * If the reference count drops to 0, @self is completely disposed.
+ *
+ * Since: 1.22
+ * Deprecated: 1.28. Use qmi_message_wds_get_default_profile_number_output_unref() instead.
+ */
+G_DEPRECATED_FOR (qmi_message_wds_get_default_profile_number_output_unref)
+void qmi_message_wds_get_default_profile_num_output_unref (QmiMessageWdsGetDefaultProfileNumOutput *self);
+
+/**
+ * qmi_client_wds_get_default_profile_num:
+ * @self: a #QmiClientWds.
+ * @input: a #QmiMessageWdsGetDefaultProfileNumberInput.
+ * @timeout: maximum time to wait for the method to complete, in seconds.
+ * @cancellable: a #GCancellable or %NULL.
+ * @callback: a #GAsyncReadyCallback to call when the request is satisfied.
+ * @user_data: user data to pass to @callback.
+ *
+ * Asynchronously sends a Get Default Profile Number request to the device.
+ *
+ * When the operation is finished, @callback will be invoked in the thread-default main loop of the thread you are calling this method from.
+ *
+ * You can then call qmi_client_wds_get_default_profile_number_finish() to get the result of the operation.
+ *
+ * Since: 1.22
+ * Deprecated: 1.28. Use qmi_client_wds_get_default_profile_number() instead.
+ */
+G_DEPRECATED_FOR (qmi_message_wds_get_default_profile_number)
+void qmi_client_wds_get_default_profile_num (
+    QmiClientWds *self,
+    QmiMessageWdsGetDefaultProfileNumberInput *input,
+    guint timeout,
+    GCancellable *cancellable,
+    GAsyncReadyCallback callback,
+    gpointer user_data);
+
+/**
+ * qmi_client_wds_get_default_profile_num_finish:
+ * @self: a #QmiClientWds.
+ * @res: the #GAsyncResult obtained from the #GAsyncReadyCallback passed to qmi_client_wds_get_default_profile_number().
+ * @error: Return location for error or %NULL.
+ *
+ * Finishes an async operation started with qmi_client_wds_get_default_profile_number().
+ *
+ * Returns: a #QmiMessageWdsGetDefaultProfileNumberOutput, or %NULL if @error is set. The returned value should be freed with qmi_message_wds_get_default_profile_number_output_unref().
+ *
+ * Since: 1.22
+ * Deprecated: 1.28. Use qmi_client_wds_get_default_profile_number_finish() instead.
+ */
+G_DEPRECATED_FOR (qmi_message_wds_get_default_profile_number_finish)
+QmiMessageWdsGetDefaultProfileNumberOutput *qmi_client_wds_get_default_profile_num_finish (
+    QmiClientWds *self,
+    GAsyncResult *res,
+    GError **error);
+
+#endif /* HAVE_QMI_MESSAGE_WDS_GET_DEFAULT_PROFILE_NUMBER */
+
+#if defined HAVE_QMI_MESSAGE_WDS_SET_DEFAULT_PROFILE_NUMBER
+
+G_DEPRECATED_FOR (qmi_message_wds_set_default_profile_number_input_get_type)
+GType qmi_message_wds_set_default_profile_num_input_get_type (void) G_GNUC_CONST;
+
+/**
+ * qmi_message_wds_set_default_profile_num_input_get_profile_identifier:
+ * @self: a #QmiMessageWdsSetDefaultProfileNumInput.
+ * @value_profile_identifier_profile_type: (out): a placeholder for the output #QmiWdsProfileType, or %NULL if not required.
+ * @value_profile_identifier_profile_family: (out): a placeholder for the output #QmiWdsProfileFamily, or %NULL if not required.
+ * @value_profile_identifier_profile_index: (out): a placeholder for the output #guint8, or %NULL if not required.
+ * @error: Return location for error or %NULL.
+ *
+ * Get the 'Profile Identifier' field from @self.
+ *
+ * Returns: (skip): %TRUE if the field is found, %FALSE otherwise.
+ *
+ * Since: 1.22
+ * Deprecated: 1.28. Use qmi_message_wds_set_default_profile_number_input_get_profile_identifier() instead.
+ */
+G_DEPRECATED_FOR (qmi_message_wds_set_default_profile_number_input_get_profile_identifier)
+gboolean qmi_message_wds_set_default_profile_num_input_get_profile_identifier (
+    QmiMessageWdsSetDefaultProfileNumInput *self,
+    QmiWdsProfileType *value_profile_identifier_profile_type,
+    QmiWdsProfileFamily *value_profile_identifier_profile_family,
+    guint8 *value_profile_identifier_profile_index,
+    GError **error);
+
+/**
+ * qmi_message_wds_set_default_profile_num_input_set_profile_identifier:
+ * @self: a #QmiMessageWdsSetDefaultProfileNumInput.
+ * @value_profile_identifier_profile_type: a #QmiWdsProfileType.
+ * @value_profile_identifier_profile_family: a #QmiWdsProfileFamily.
+ * @value_profile_identifier_profile_index: a #guint8.
+ * @error: Return location for error or %NULL.
+ *
+ * Set the 'Profile Identifier' field in the message.
+ *
+ * Returns: (skip): %TRUE if @value was successfully set, %FALSE otherwise.
+ *
+ * Since: 1.22
+ * Deprecated: 1.28. Use qmi_message_wds_set_default_profile_number_input_set_profile_identifier() instead.
+ */
+G_DEPRECATED_FOR (qmi_message_wds_set_default_profile_number_input_set_profile_identifier)
+gboolean qmi_message_wds_set_default_profile_num_input_set_profile_identifier (
+    QmiMessageWdsSetDefaultProfileNumInput *self,
+    QmiWdsProfileType value_profile_identifier_profile_type,
+    QmiWdsProfileFamily value_profile_identifier_profile_family,
+    guint8 value_profile_identifier_profile_index,
+    GError **error);
+
+/**
+ * qmi_message_wds_set_default_profile_num_input_ref:
+ * @self: a #QmiMessageWdsSetDefaultProfileNumInput.
+ *
+ * Atomically increments the reference count of @self by one.
+ *
+ * Returns: the new reference to @self.
+ *
+ * Since: 1.22
+ * Deprecated: 1.28. Use qmi_message_wds_set_default_profile_number_input_ref() instead.
+ */
+G_DEPRECATED_FOR (qmi_message_wds_set_default_profile_number_input_ref)
+QmiMessageWdsSetDefaultProfileNumInput *qmi_message_wds_set_default_profile_num_input_ref (QmiMessageWdsSetDefaultProfileNumInput *self);
+
+/**
+ * qmi_message_wds_set_default_profile_num_input_unref:
+ * @self: a #QmiMessageWdsSetDefaultProfileNumInput.
+ *
+ * Atomically decrements the reference count of @self by one.
+ * If the reference count drops to 0, @self is completely disposed.
+ *
+ * Since: 1.22
+ * Deprecated: 1.28. Use qmi_message_wds_set_default_profile_number_input_unref() instead.
+ */
+G_DEPRECATED_FOR (Use qmi_message_wds_set_default_profile_number_input_unref)
+void qmi_message_wds_set_default_profile_num_input_unref (QmiMessageWdsSetDefaultProfileNumInput *self);
+
+/**
+ * qmi_message_wds_set_default_profile_num_input_new:
+ *
+ * Allocates a new #QmiMessageWdsSetDefaultProfileNumInput.
+ *
+ * Returns: the newly created #QmiMessageWdsSetDefaultProfileNumInput. The returned value should be freed with qmi_message_wds_set_default_profile_num_input_unref().
+ *
+ * Since: 1.22
+ * Deprecated: 1.28. Use qmi_message_wds_set_default_profile_number_input_new() instead.
+ */
+G_DEPRECATED_FOR (qmi_message_wds_set_default_profile_number_input_new)
+QmiMessageWdsSetDefaultProfileNumInput *qmi_message_wds_set_default_profile_num_input_new (void);
+
+G_DEPRECATED_FOR (qmi_message_wds_set_default_profile_number_output_get_type)
+GType qmi_message_wds_set_default_profile_num_output_get_type (void) G_GNUC_CONST;
+
+/**
+ * qmi_message_wds_set_default_profile_num_output_get_result:
+ * @self: a QmiMessageWdsSetDefaultProfileNumOutput.
+ * @error: Return location for error or %NULL.
+ *
+ * Get the result of the QMI operation.
+ *
+ * Returns: (skip): %TRUE if the QMI operation succeeded, %FALSE if @error is set.
+ *
+ * Since: 1.22
+ * Deprecated: 1.28. Use qmi_message_wds_set_default_profile_number_output_get_result() instead.
+ */
+G_DEPRECATED_FOR (qmi_message_wds_set_default_profile_number_output_get_result)
+gboolean qmi_message_wds_set_default_profile_num_output_get_result (
+    QmiMessageWdsSetDefaultProfileNumOutput *self,
+    GError **error);
+
+/**
+ * qmi_message_wds_set_default_profile_num_output_get_extended_error_code:
+ * @self: a #QmiMessageWdsSetDefaultProfileNumOutput.
+ * @value_extended_error_code: (out): a placeholder for the output #QmiWdsDsProfileError, or %NULL if not required.
+ * @error: Return location for error or %NULL.
+ *
+ * Get the 'Extended Error Code' field from @self.
+ *
+ * Returns: (skip): %TRUE if the field is found, %FALSE otherwise.
+ *
+ * Since: 1.22
+ * Deprecated: 1.28. Use qmi_message_wds_set_default_profile_number_output_get_extended_error_code() instead.
+ */
+G_DEPRECATED_FOR (qmi_message_wds_set_default_profile_number_output_get_extended_error_code)
+gboolean qmi_message_wds_set_default_profile_num_output_get_extended_error_code (
+    QmiMessageWdsSetDefaultProfileNumOutput *self,
+    QmiWdsDsProfileError *value_extended_error_code,
+    GError **error);
+
+/**
+ * qmi_message_wds_set_default_profile_num_output_ref:
+ * @self: a #QmiMessageWdsSetDefaultProfileNumOutput.
+ *
+ * Atomically increments the reference count of @self by one.
+ *
+ * Returns: the new reference to @self.
+ *
+ * Since: 1.22
+ * Deprecated: 1.28. Use qmi_message_wds_set_default_profile_number_output_ref() instead.
+ */
+G_DEPRECATED_FOR (qmi_message_wds_set_default_profile_number_output_ref)
+QmiMessageWdsSetDefaultProfileNumOutput *qmi_message_wds_set_default_profile_num_output_ref (QmiMessageWdsSetDefaultProfileNumOutput *self);
+
+/**
+ * qmi_message_wds_set_default_profile_num_output_unref:
+ * @self: a #QmiMessageWdsSetDefaultProfileNumOutput.
+ *
+ * Atomically decrements the reference count of @self by one.
+ * If the reference count drops to 0, @self is completely disposed.
+ *
+ * Since: 1.22
+ * Deprecated: 1.28. Use qmi_message_wds_set_default_profile_number_output_unref() instead.
+ */
+G_DEPRECATED_FOR (qmi_message_wds_set_default_profile_number_output_unref)
+void qmi_message_wds_set_default_profile_num_output_unref (QmiMessageWdsSetDefaultProfileNumOutput *self);
+
+/**
+ * qmi_client_wds_set_default_profile_num:
+ * @self: a #QmiClientWds.
+ * @input: a #QmiMessageWdsSetDefaultProfileNumberInput.
+ * @timeout: maximum time to wait for the method to complete, in seconds.
+ * @cancellable: a #GCancellable or %NULL.
+ * @callback: a #GAsyncReadyCallback to call when the request is satisfied.
+ * @user_data: user data to pass to @callback.
+ *
+ * Asynchronously sends a Set Default Profile Number request to the device.
+ *
+ * When the operation is finished, @callback will be invoked in the thread-default main loop of the thread you are calling this method from.
+ *
+ * You can then call qmi_client_wds_set_default_profile_number_finish() to get the result of the operation.
+ *
+ * Since: 1.22
+ * Deprecated: 1.28. Use qmi_client_wds_set_default_profile_number() instead.
+ */
+G_DEPRECATED_FOR (qmi_message_wds_set_default_profile_number)
+void qmi_client_wds_set_default_profile_num (
+    QmiClientWds *self,
+    QmiMessageWdsSetDefaultProfileNumberInput *input,
+    guint timeout,
+    GCancellable *cancellable,
+    GAsyncReadyCallback callback,
+    gpointer user_data);
+
+/**
+ * qmi_client_wds_set_default_profile_num_finish:
+ * @self: a #QmiClientWds.
+ * @res: the #GAsyncResult obtained from the #GAsyncReadyCallback passed to qmi_client_wds_set_default_profile_number().
+ * @error: Return location for error or %NULL.
+ *
+ * Finishes an async operation started with qmi_client_wds_set_default_profile_number().
+ *
+ * Returns: a #QmiMessageWdsSetDefaultProfileNumberOutput, or %NULL if @error is set. The returned value should be freed with qmi_message_wds_set_default_profile_number_output_unref().
+ *
+ * Since: 1.22
+ * Deprecated: 1.28. Use qmi_client_wds_set_default_profile_number_finish() instead.
+ */
+G_DEPRECATED_FOR (qmi_message_wds_set_default_profile_number_finish)
+QmiMessageWdsSetDefaultProfileNumberOutput *qmi_client_wds_set_default_profile_num_finish (
+    QmiClientWds *self,
+    GAsyncResult *res,
+    GError **error);
+
+#endif /* HAVE_QMI_MESSAGE_WDS_SET_DEFAULT_PROFILE_NUMBER */
 
 #endif /* QMI_DISABLE_DEPRECATED */
 

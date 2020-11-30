@@ -1840,6 +1840,20 @@ typedef enum { /*< since=1.18 >*/
 } QmiWdsQosClassIdentifier;
 
 /**
+ * QmiWdsAttachPdnListAction:
+ * @QMI_WDS_ATTACH_PDN_LIST_ACTION_NONE: No action (default)
+ * @QMI_WDS_ATTACH_PDN_LIST_ACTION_DETACH_OR_PDN_DISCONNECT: PS detach or PDN disconnect based on the modem configuration
+ *
+ * Action when setting the attach PDN list.
+ *
+ * Since: 1.28
+ */
+typedef enum { /*< since=1.28 >*/
+    QMI_WDS_ATTACH_PDN_LIST_ACTION_NONE                     = 0x01,
+    QMI_WDS_ATTACH_PDN_LIST_ACTION_DETACH_OR_PDN_DISCONNECT = 0x02,
+} QmiWdsAttachPdnListAction;
+
+/**
  * QmiWdsClientType:
  * @QMI_WDS_CLIENT_TYPE_TETHERED: client type tethered
  * @QMI_WDS_CLIENT_TYPE_UNDEFINED: no client type defined
@@ -1861,5 +1875,21 @@ typedef enum { /*< since=1.18 >*/
  * Since: 1.22.4
  */
 #define QMI_WDS_RATE_UNAVAILABLE 0xFFFFFFFF
+
+/**
+ * QmiWdsIpSupportType:
+ * @QMI_WDS_IP_SUPPORT_TYPE_IPV4: IPv4 type.
+ * @QMI_WDS_IP_SUPPORT_TYPE_IPV6: IPv6 type.
+ * @QMI_WDS_IP_SUPPORT_TYPE_IPV4V6: IPv4v6 type.
+ *
+ * IP support type.
+ *
+ * Since: 1.28
+ */
+typedef enum {  /*< since=1.28 >*/
+    QMI_WDS_IP_SUPPORT_TYPE_IPV4   = 0,
+    QMI_WDS_IP_SUPPORT_TYPE_IPV6   = 1,
+    QMI_WDS_IP_SUPPORT_TYPE_IPV4V6 = 2,
+} QmiWdsIpSupportType;
 
 #endif /* _LIBQMI_GLIB_QMI_ENUMS_WDS_H_ */
