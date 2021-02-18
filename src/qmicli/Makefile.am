@@ -7,19 +7,13 @@ libhelpers_la_CPPFLAGS = \
 	$(WARN_CFLAGS) \
 	$(GLIB_CFLAGS) \
 	$(MBIM_CFLAGS) \
+	$(QRTR_CFLAGS) \
 	-I$(top_srcdir) \
 	-I$(top_srcdir)/src/libqmi-glib \
 	-I$(top_srcdir)/src/libqmi-glib/generated \
 	-I$(top_builddir)/src/libqmi-glib \
 	-I$(top_builddir)/src/libqmi-glib/generated \
 	$(NULL)
-
-if QMI_QRTR_SUPPORTED
-libhelpers_la_CPPFLAGS += \
-	-I$(top_srcdir)/src/libqrtr-glib \
-	-I$(top_builddir)/src/libqrtr-glib \
-	$(NULL)
-endif
 
 libhelpers_la_SOURCES = \
 	qmicli-helpers.c \
@@ -28,7 +22,7 @@ libhelpers_la_SOURCES = \
 
 libhelpers_la_LDFLAGS = \
 	$(WARN_LDFLAGS) \
-        $(GLIB_LIBS) \
+	$(GLIB_LIBS) \
 	$(NULL)
 
 bin_PROGRAMS = qmicli
@@ -37,6 +31,7 @@ qmicli_CPPFLAGS = \
 	$(WARN_CFLAGS) \
 	$(GLIB_CFLAGS) \
 	$(MBIM_CFLAGS) \
+	$(QRTR_CFLAGS) \
 	-I$(top_srcdir) \
 	-I$(top_srcdir)/src/libqmi-glib \
 	-I$(top_srcdir)/src/libqmi-glib/generated \
@@ -44,16 +39,11 @@ qmicli_CPPFLAGS = \
 	-I$(top_builddir)/src/libqmi-glib/generated \
 	$(NULL)
 
-if QMI_QRTR_SUPPORTED
-qmicli_CPPFLAGS += \
-	-I$(top_srcdir)/src/libqrtr-glib \
-	-I$(top_builddir)/src/libqrtr-glib \
-	$(NULL)
-endif
-
 qmicli_SOURCES = \
 	qmicli.c \
 	qmicli.h \
+	qmicli-qmiwwan.c \
+	qmicli-link-management.c \
 	qmicli-dms.c \
 	qmicli-wds.c \
 	qmicli-nas.c \
@@ -77,6 +67,7 @@ qmicli_LDADD = \
 
 qmicli_LDFLAGS = \
 	$(WARN_LDFLAGS) \
+	$(QRTR_LIBS) \
 	$(MBIM_LIBS) \
 	$(GLIB_LIBS) \
 	$(NULL)

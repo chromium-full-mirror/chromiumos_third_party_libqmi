@@ -32,7 +32,7 @@
 
 #include <libqmi-glib.h>
 
-#if defined MBIM_QMUX_ENABLED
+#if QMI_MBIM_QMUX_SUPPORTED
 #include <libmbim-glib.h>
 #endif
 
@@ -50,13 +50,13 @@ static QmiClient *client;
 static QmiService service;
 static gboolean operation_status;
 static gboolean expect_indications;
+#if QMI_QRTR_SUPPORTED
+static QrtrBus *qrtr_bus;
+#endif
 
 /* Main options */
 static gchar *device_str;
 static gboolean get_service_version_info_flag;
-static gboolean get_wwan_iface_flag;
-static gboolean get_expected_data_format_flag;
-static gchar *set_expected_data_format_str;
 static gchar *device_set_instance_id_str;
 static gboolean device_open_version_info_flag;
 static gboolean device_open_sync_flag;
@@ -73,20 +73,13 @@ static gboolean version_flag;
 
 static GOptionEntry main_entries[] = {
     { "device", 'd', 0, G_OPTION_ARG_STRING, &device_str,
+#if QMI_QRTR_SUPPORTED
+      "Specify device path or QRTR URI (e.g. qrtr://0)",
+      "[PATH|URI]"
+#else
       "Specify device path",
       "[PATH]"
-    },
-    { "get-wwan-iface", 'w', 0, G_OPTION_ARG_NONE, &get_wwan_iface_flag,
-      "(qmi_wwan specific) Get the associated WWAN iface name",
-      NULL
-    },
-    { "get-expected-data-format", 'e', 0, G_OPTION_ARG_NONE, &get_expected_data_format_flag,
-      "(qmi_wwan specific) Get the expected data format in the WWAN iface",
-      NULL
-    },
-    { "set-expected-data-format", 'E', 0, G_OPTION_ARG_STRING, &set_expected_data_format_str,
-      "(qmi_wwan specific) Set the expected data format in the WWAN iface",
-      "[802-3|raw-ip]"
+#endif
     },
     { "get-service-version-info", 0, 0, G_OPTION_ARG_NONE, &get_service_version_info_flag,
       "Get service version info",
@@ -232,7 +225,7 @@ static void
 print_version_and_exit (void)
 {
     g_print (PROGRAM_NAME " " PROGRAM_VERSION "\n"
-             "Copyright (C) 2012-2020 Aleksander Morgado\n"
+             "Copyright (C) 2012-2021 Aleksander Morgado\n"
              "License GPLv2+: GNU GPL version 2 or later <http://gnu.org/licenses/gpl-2.0.html>\n"
              "This is free software: you are free to change and redistribute it.\n"
              "There is NO WARRANTY, to the extent permitted by law.\n"
@@ -250,10 +243,7 @@ generic_options_enabled (void)
         return !!n_actions;
 
     n_actions = (!!device_set_instance_id_str +
-                 get_service_version_info_flag +
-                 get_wwan_iface_flag +
-                 get_expected_data_format_flag +
-                 !!set_expected_data_format_str);
+                 get_service_version_info_flag);
 
     if (n_actions > 1) {
         g_printerr ("error: too many generic actions requested\n");
@@ -638,89 +628,6 @@ device_get_service_version_info (QmiDevice *dev)
                                          NULL);
 }
 
-static gboolean
-device_set_expected_data_format_cb (QmiDevice *dev)
-{
-    QmiDeviceExpectedDataFormat expected;
-    GError *error = NULL;
-
-    if (!qmicli_read_device_expected_data_format_from_string (set_expected_data_format_str, &expected) ||
-        expected == QMI_DEVICE_EXPECTED_DATA_FORMAT_UNKNOWN)
-        g_printerr ("error: invalid requested data format: %s", set_expected_data_format_str);
-    else if (!qmi_device_set_expected_data_format (dev, expected, &error)) {
-        g_printerr ("error: cannot set expected data format: %s\n", error->message);
-        g_error_free (error);
-    } else
-        g_print ("[%s] expected data format set to: %s\n",
-                 qmi_device_get_path_display (dev),
-                 qmi_device_expected_data_format_get_string (expected));
-
-    /* We're done now */
-    qmicli_async_operation_done (!error, FALSE);
-
-    g_object_unref (dev);
-    return FALSE;
-}
-
-static void
-device_set_expected_data_format (QmiDevice *dev)
-{
-    g_debug ("Setting expected WWAN data format this control port...");
-    g_idle_add ((GSourceFunc) device_set_expected_data_format_cb, g_object_ref (dev));
-}
-
-static gboolean
-device_get_expected_data_format_cb (QmiDevice *dev)
-{
-    QmiDeviceExpectedDataFormat expected;
-    GError *error = NULL;
-
-    expected = qmi_device_get_expected_data_format (dev, &error);
-    if (expected == QMI_DEVICE_EXPECTED_DATA_FORMAT_UNKNOWN) {
-        g_printerr ("error: cannot get expected data format: %s\n", error->message);
-        g_error_free (error);
-    } else
-        g_print ("%s\n", qmi_device_expected_data_format_get_string (expected));
-
-    /* We're done now */
-    qmicli_async_operation_done (!error, FALSE);
-
-    g_object_unref (dev);
-    return FALSE;
-}
-
-static void
-device_get_expected_data_format (QmiDevice *dev)
-{
-    g_debug ("Getting expected WWAN data format this control port...");
-    g_idle_add ((GSourceFunc) device_get_expected_data_format_cb, g_object_ref (dev));
-}
-
-static gboolean
-device_get_wwan_iface_cb (QmiDevice *dev)
-{
-    const gchar *wwan_iface;
-
-    wwan_iface = qmi_device_get_wwan_iface (dev);
-    if (!wwan_iface)
-        g_printerr ("error: cannot get WWAN interface name\n");
-    else
-        g_print ("%s\n", wwan_iface);
-
-    /* We're done now */
-    qmicli_async_operation_done (!!wwan_iface, FALSE);
-
-    g_object_unref (dev);
-    return FALSE;
-}
-
-static void
-device_get_wwan_iface (QmiDevice *dev)
-{
-    g_debug ("Getting WWAN iface for this control port...");
-    g_idle_add ((GSourceFunc) device_get_wwan_iface_cb, g_object_ref (dev));
-}
-
 static void
 device_open_ready (QmiDevice *dev,
                    GAsyncResult *res)
@@ -740,12 +647,10 @@ device_open_ready (QmiDevice *dev,
         device_set_instance_id (dev);
     else if (get_service_version_info_flag)
         device_get_service_version_info (dev);
-    else if (get_wwan_iface_flag)
-        device_get_wwan_iface (dev);
-    else if (get_expected_data_format_flag)
-        device_get_expected_data_format (dev);
-    else if (set_expected_data_format_str)
-        device_set_expected_data_format (dev);
+    else if (qmicli_link_management_options_enabled ())
+        qmicli_link_management_run (dev, cancellable);
+    else if (qmicli_qmiwwan_options_enabled ())
+        qmicli_qmiwwan_run (dev, cancellable);
     else
         device_allocate_client (dev);
 }
@@ -798,15 +703,27 @@ device_new_ready (GObject *unused,
 }
 
 #if QMI_QRTR_SUPPORTED
-static void
-wait_for_services_ready (QrtrNode *node,
-                         GAsyncResult *res,
-                         gpointer user_data)
-{
-    GError *error = NULL;
 
-    if (!qrtr_node_wait_for_services_finish (node, res, &error)) {
-        g_printerr ("error: failed to wait for QRTR services: %s\n", error->message);
+static void
+bus_new_ready (GObject      *source,
+               GAsyncResult *res,
+               gpointer      user_data)
+{
+    g_autoptr(GError)  error = NULL;
+    guint              node_id;
+    QrtrNode          *node;
+
+    node_id = GPOINTER_TO_UINT (user_data);
+
+    qrtr_bus = qrtr_bus_new_finish (res, &error);
+    if (!qrtr_bus) {
+        g_printerr ("error: couldn't access QRTR bus: %s\n", error->message);
+        exit (EXIT_FAILURE);
+    }
+
+    node = qrtr_bus_peek_node (qrtr_bus, node_id);
+    if (!node) {
+        g_printerr ("error: node with id %u not found in QRTR bus\n", node_id);
         exit (EXIT_FAILURE);
     }
 
@@ -816,42 +733,12 @@ wait_for_services_ready (QrtrNode *node,
                               NULL);
 }
 
-static void
-qrtr_node_ready (GObject *unused,
-                 GAsyncResult *res)
-{
-    QrtrNode *node;
-    GArray *services;
-    GError *error = NULL;
-
-    node = qrtr_node_for_id_finish (res, &error);
-    if (!node) {
-        g_printerr ("error: couldn't open QRTR node: %s\n", error->message);
-        exit (EXIT_FAILURE);
-    }
-
-    services = g_array_sized_new (FALSE, FALSE, sizeof (QmiService), 1);
-    g_array_append_val (services, service);
-
-    qrtr_node_wait_for_services (node,
-                                 services,
-                                 5,
-                                 NULL,
-                                 (GAsyncReadyCallback) wait_for_services_ready,
-                                 NULL);
-
-    g_array_unref (services);
-    g_object_unref (node);
-}
 #endif
 
 static gboolean
 make_device (GFile *file)
 {
-    gchar *id;
-#if QMI_QRTR_SUPPORTED
-    guint32 node_id;
-#endif
+    g_autofree gchar *id = NULL;
 
     id = g_file_get_path (file);
     if (id) {
@@ -860,26 +747,27 @@ make_device (GFile *file)
                         cancellable,
                         (GAsyncReadyCallback)device_new_ready,
                         NULL);
-        g_free (id);
         return TRUE;
     }
 
 #if QMI_QRTR_SUPPORTED
-    id = g_file_get_uri (file);
-    if (!qrtr_get_node_for_uri (id, &node_id)) {
-        g_printerr ("error: URI wasn't a QRTR node: %s\n", id);
-        g_free (id);
+    {
+        guint32 node_id;
+
+        id = g_file_get_uri (file);
+        if (qrtr_get_node_for_uri (id, &node_id)) {
+            qrtr_bus_new (1000, /* ms */
+                          cancellable,
+                          (GAsyncReadyCallback)bus_new_ready,
+                          GUINT_TO_POINTER (node_id));
+            return TRUE;
+        }
+
+        g_printerr ("error: URI is neither a local file path nor a QRTR node: %s\n", id);
         return FALSE;
     }
-
-    qrtr_node_for_id (node_id,
-                      10,
-                      cancellable,
-                      (GAsyncReadyCallback)qrtr_node_ready,
-                      NULL);
-    g_free (id);
-    return TRUE;
 #else
+    g_printerr ("error: URI is not a local file path: %s\n", id);
     return FALSE;
 #endif
 }
@@ -891,9 +779,18 @@ parse_actions (void)
 {
     guint actions_enabled = 0;
 
-    /* Generic options? */
     if (generic_options_enabled ()) {
         service = QMI_SERVICE_CTL;
+        actions_enabled++;
+    }
+
+    if (qmicli_link_management_options_enabled ()) {
+        service = QMI_SERVICE_UNKNOWN;
+        actions_enabled++;
+    }
+
+    if (qmicli_qmiwwan_options_enabled ()) {
+        service = QMI_SERVICE_UNKNOWN;
         actions_enabled++;
     }
 
@@ -1072,6 +969,8 @@ int main (int argc, char **argv)
 #if defined HAVE_QMI_SERVICE_DSD
     g_option_context_add_group (context, qmicli_dsd_get_option_group ());
 #endif
+    g_option_context_add_group (context, qmicli_link_management_get_option_group ());
+    g_option_context_add_group (context, qmicli_qmiwwan_get_option_group ());
     g_option_context_add_main_entries (context, main_entries, NULL);
     if (!g_option_context_parse (context, &argc, &argv, &error)) {
         g_printerr ("error: %s\n",
@@ -1088,11 +987,16 @@ int main (int argc, char **argv)
     if (verbose_flag)
         qmi_utils_set_traces_enabled (TRUE);
 
-#if defined MBIM_QMUX_ENABLED
+#if QMI_MBIM_QMUX_SUPPORTED
     /* libmbim logging */
     g_log_set_handler ("Mbim", G_LOG_LEVEL_MASK, log_handler, NULL);
     if (verbose_flag)
         mbim_utils_set_traces_enabled (TRUE);
+#endif
+
+#if QMI_QRTR_SUPPORTED
+    /* libqrtr-glib logging */
+    g_log_set_handler ("Qrtr", G_LOG_LEVEL_MASK, log_handler, NULL);
 #endif
 
     /* No device path given? */

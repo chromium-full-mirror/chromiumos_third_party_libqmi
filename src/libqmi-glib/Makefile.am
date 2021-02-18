@@ -10,6 +10,7 @@ libqmi_glib_compat_la_SOURCES = \
 libqmi_glib_compat_la_CPPFLAGS = \
 	$(WARN_CFLAGS) \
 	$(GLIB_CFLAGS) \
+	$(QRTR_CFLAGS) \
 	-I$(top_srcdir) \
 	-I$(top_srcdir)/src/libqmi-glib \
 	-I$(top_srcdir)/src/libqmi-glib/generated \
@@ -20,16 +21,10 @@ libqmi_glib_compat_la_CPPFLAGS = \
 	-Wno-deprecated-declarations \
 	$(NULL)
 
-if QMI_QRTR_SUPPORTED
-libqmi_glib_compat_la_CPPFLAGS += \
-	-I$(top_srcdir)/src/libqrtr-glib \
-	-I$(top_builddir)/src/libqrtr-glib \
-	$(NULL)
-endif
-
 libqmi_glib_compat_la_LDFLAGS = \
 	$(WARN_LDFLAGS) \
 	$(GLIB_LIBS) \
+	$(QRTR_LIBS) \
 	$(NULL)
 
 lib_LTLIBRARIES = libqmi-glib.la
@@ -38,6 +33,7 @@ libqmi_glib_la_CPPFLAGS = \
 	$(WARN_CFLAGS) \
 	$(GLIB_CFLAGS) \
 	$(MBIM_CFLAGS) \
+	$(QRTR_CFLAGS) \
 	-I$(top_srcdir) \
 	-I$(top_builddir) \
 	-I$(top_srcdir)/src/libqmi-glib \
@@ -69,7 +65,8 @@ libqmi_glib_la_SOURCES = \
 	qmi-enums-gas.h \
 	qmi-enums-dsd.h qmi-flags64-dsd.h\
 	qmi-enums.h qmi-enums-private.h \
-	qmi-utils.h qmi-utils-private.h qmi-utils.c \
+	qmi-utils.h qmi-utils.c \
+	qmi-helpers.h qmi-helpers.c \
 	qmi-message.h qmi-message.c \
 	qmi-message-context.h qmi-message-context.c \
 	qmi-device.h qmi-device.c \
@@ -77,7 +74,10 @@ libqmi_glib_la_SOURCES = \
 	qmi-proxy.h qmi-proxy.c \
 	qmi-file.h qmi-file.c \
 	qmi-endpoint.h qmi-endpoint.c \
-	qmi-endpoint-qmux.h qmi-endpoint-qmux.c
+	qmi-endpoint-qmux.h qmi-endpoint-qmux.c \
+	qmi-net-port-manager.h qmi-net-port-manager.c \
+	qmi-net-port-manager-qmiwwan.h qmi-net-port-manager-qmiwwan.c \
+	$(NULL)
 
 nodist_libqmi_glib_la_SOURCES = \
 	qmi-version.h \
@@ -94,21 +94,15 @@ libqmi_glib_la_SOURCES += \
 endif
 
 if QMI_QRTR_SUPPORTED
-
-libqmi_glib_la_CPPFLAGS += \
-	-I$(top_srcdir)/src/libqrtr-glib \
-	-I$(top_builddir)/src/libqrtr-glib \
-	$(NULL)
-
 libqmi_glib_la_SOURCES += \
 	qmi-endpoint-qrtr.h qmi-endpoint-qrtr.c \
-	qmi-net-port-manager.h qmi-net-port-manager.c \
 	$(NULL)
+endif
 
-libqmi_glib_la_LIBADD += \
-	${top_builddir}/src/libqrtr-glib/libqrtr-glib.la \
+if RMNET_SUPPORT_ENABLED
+libqmi_glib_la_SOURCES += \
+	qmi-net-port-manager-rmnet.h qmi-net-port-manager-rmnet.c \
 	$(NULL)
-
 endif
 
 libqmi_glib_la_LDFLAGS = \
@@ -116,6 +110,7 @@ libqmi_glib_la_LDFLAGS = \
 	$(WARN_CFLAGS) \
 	$(GLIB_LIBS) \
 	$(MBIM_LIBS) \
+	$(QRTR_LIBS) \
 	$(NULL)
 
 includedir = @includedir@/libqmi-glib
@@ -172,9 +167,12 @@ INTROSPECTION_COMPILER_ARGS =
 
 Qmi-1.0.gir: libqmi-glib.la
 Qmi_1_0_gir_INCLUDES = GLib-2.0 GObject-2.0 Gio-2.0
+if QMI_QRTR_SUPPORTED
+Qmi_1_0_gir_INCLUDES += Qrtr-1.0
+endif
 Qmi_1_0_gir_CFLAGS = $(libqmi_glib_la_CPPFLAGS)
 Qmi_1_0_gir_LIBS = libqmi-glib.la
-Qmi_1_0_gir_EXPORT_PACKAGES = libqmi-glib
+Qmi_1_0_gir_EXPORT_PACKAGES = qmi-glib
 Qmi_1_0_gir_SCANNERFLAGS = \
 	$(WARN_SCANNERFLAGS) \
 	--c-include "libqmi-glib.h" \
@@ -189,16 +187,6 @@ Qmi_1_0_gir_FILES = \
 	$(wildcard generated/*.h) \
 	$(wildcard generated/*.c) \
 	$(NULL)
-
-if QMI_QRTR_SUPPORTED
-INTROSPECTION_COMPILER_ARGS += \
-	--includedir="$(top_srcdir)/src/libqrtr-glib" \
-	--includedir="$(top_builddir)/src/libqrtr-glib" \
-	$(NULL)
-Qmi_1_0_gir_SCANNERFLAGS += \
-	--include-uninstalled="$(top_builddir)/src/libqrtr-glib/Qrtr-1.0.gir" \
-	$(NULL)
-endif
 
 girdir = $(datadir)/gir-1.0
 nodist_gir_DATA = $(INTROSPECTION_GIRS)

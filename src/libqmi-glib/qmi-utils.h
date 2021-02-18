@@ -38,18 +38,11 @@
 G_BEGIN_DECLS
 
 /**
- * QmiEndian:
- * @QMI_ENDIAN_LITTLE: Little endian.
- * @QMI_ENDIAN_BIG: Big endian.
+ * SECTION:qmi-utils
  *
- * Type of endianness
- *
- * Since: 1.0
+ * This section exposes a set of common utilities that may be used to work
+ * with the QMI library.
  */
-typedef enum {
-    QMI_ENDIAN_LITTLE = 0,
-    QMI_ENDIAN_BIG    = 1
-} QmiEndian;
 
 /* Enabling/Disabling traces */
 

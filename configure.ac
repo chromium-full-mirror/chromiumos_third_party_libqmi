@@ -4,7 +4,7 @@ AC_PREREQ([2.68])
 dnl The QMI version number
 m4_define([qmi_major_version], [1])
 m4_define([qmi_minor_version], [27])
-m4_define([qmi_micro_version], [3])
+m4_define([qmi_micro_version], [4])
 m4_define([qmi_version],
           [qmi_major_version.qmi_minor_version.qmi_micro_version])
 
@@ -19,7 +19,6 @@ dnl            functions have changed or been removed), then zero a.
 m4_define([qmi_glib_lt_current],  [12])
 m4_define([qmi_glib_lt_revision], [0])
 m4_define([qmi_glib_lt_age],      [7])
-
 
 AC_INIT([libqmi], [qmi_version], [libqmi-devel@lists.freedesktop.org])
 AC_CONFIG_SRCDIR([config.h.in])
@@ -108,6 +107,16 @@ AM_PATH_PYTHON([], [], [PYTHON=python])
 
 dnl GObject Introspection
 GOBJECT_INTROSPECTION_CHECK([0.9.6])
+
+dnl rmnet support in the kernel
+AC_EGREP_HEADER([ifla_rmnet_flags],
+                [linux/if_link.h],
+                [enable_rmnet_support=yes],
+                [enable_rmnet_support=no])
+if test "x$enable_rmnet_support" = "xyes"; then
+    AC_DEFINE(RMNET_SUPPORT_ENABLED, 1, [Define if rmnet support is built])
+fi
+AM_CONDITIONAL([RMNET_SUPPORT_ENABLED], test "x$enable_rmnet_support" = "xyes")
 
 dnl message collection (existing file in data/qmi-collection-${COLLECTION}.json)
 dnl custom collections may be added as files in data/
@@ -225,15 +234,12 @@ AC_SUBST(QMI_MBIM_QMUX_SUPPORTED)
 AM_CONDITIONAL([QMI_MBIM_QMUX_SUPPORTED], [test "x$QMI_MBIM_QMUX_SUPPORTED" = "x1"])
 
 # QRTR support
-have_qrtr="yes"
-AC_CHECK_HEADER(linux/qrtr.h, [], [have_qrtr=no], [])
-AC_CHECK_HEADER(linux/if_link.h, [], [have_qrtr=no], [])
-AC_CHECK_HEADER(linux/netlink.h, [], [have_qrtr=no], [])
-AC_CHECK_HEADER(linux/rtnetlink.h, [], [have_qrtr=no], [])
+QRTR_GLIB_VERSION=1.0.0
+PKG_CHECK_MODULES([QRTR], [qrtr-glib >= ${QRTR_GLIB_VERSION}], [have_qrtr=yes], [have_qrtr=no])
 AC_ARG_ENABLE(qrtr,
-              AS_HELP_STRING([--enable-qrtr], [Enable support for QRTR protocol [default=no]]),
+              AS_HELP_STRING([--enable-qrtr], [Enable support for QMI over QRTR [default=auto]]),
               [enable_qrtr=$enableval],
-              [enable_qrtr=no])
+              [enable_qrtr=auto])
 
 if test "x$enable_qrtr" = "xauto"; then
     enable_qrtr=$have_qrtr
@@ -241,14 +247,19 @@ fi
 
 if test "x$enable_qrtr" = "xyes"; then
     if test "x$have_qrtr" = "xno"; then
-        AC_MSG_ERROR([Couldn't find one of the follwing linux headers (qrtr.h, if_link.h, netlink.h, rtnetlink.h). Install them, or otherwise configure using --disable-qrtr to disable QRTR support.])
+        AC_MSG_ERROR([Couldn't find `libqrtr-glib` >= ${QRTR_GLIB_VERSION}. Install it, or otherwise configure using --disable-qrtr to disable the QMI over QRTR support.])
     fi
-    AC_DEFINE(QRTR_ENABLED, 1, [Define if QRTR support enabled])
+    AC_DEFINE(QRTR_ENABLED, 1, [Define if QRTR QMUX support enabled])
+    AC_SUBST(QRTR_CFLAGS)
+    AC_SUBST(QRTR_LIBS)
     QMI_QRTR_SUPPORTED=1
+    QRTR_PKGCONFIG_NAME="qrtr-glib"
 else
     QMI_QRTR_SUPPORTED=0
+    QRTR_PKGCONFIG_NAME=""
 fi
 AC_SUBST(QMI_QRTR_SUPPORTED)
+AC_SUBST(QRTR_PKGCONFIG_NAME)
 AM_CONDITIONAL([QMI_QRTR_SUPPORTED], [test "x$QMI_QRTR_SUPPORTED" = "x1"])
 
 # udev base directory
@@ -272,7 +283,6 @@ AC_CONFIG_FILES([Makefile
                  build-aux/templates/Makefile
                  build-aux/qmi-codegen/Makefile
                  src/Makefile
-                 src/libqrtr-glib/Makefile
                  src/libqmi-glib/Makefile
                  src/libqmi-glib/qmi-version.h
                  src/libqmi-glib/generated/Makefile
@@ -316,11 +326,12 @@ echo "
       udev base directory:      ${UDEV_BASE_DIR}
 
     Features:
-      QMUX over MBIM:           ${enable_mbim_qmux}
+      QMI over MBIM:            ${enable_mbim_qmux}
+      QMI over QRTR:            ${enable_qrtr}
       QMI username:             ${QMI_USERNAME_ENABLED} (${QMI_USERNAME})
+      rmnet support:            ${enable_rmnet_support}
 
     Built items:
-      libqrtr-glib:             ${enable_qrtr}
       libqmi-glib:              yes (${QMI_COLLECTION_NAME})
       qmicli:                   yes
       qmi-firmware-update:      ${build_firmware_update}

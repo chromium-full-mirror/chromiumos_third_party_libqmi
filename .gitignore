@@ -28,8 +28,6 @@ Makefile.in
 
 /data/pkg-config/qmi-glib.pc
 
-/src/libqrtr-glib/qrtr-version.h
-
 /src/libqmi-glib/libqmi-glib.la
 /src/libqmi-glib/qmi-version.h
 

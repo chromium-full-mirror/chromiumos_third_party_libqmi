@@ -36,7 +36,7 @@
 #include "qmi-error-types.h"
 #include "qmi-device.h"
 #include "qmi-ctl.h"
-#include "qmi-utils-private.h"
+#include "qmi-helpers.h"
 #include "qmi-proxy.h"
 #include "qmi-version.h"
 
@@ -80,6 +80,10 @@ struct _QmiProxyPrivate {
      * application (e.g. they were allocated by a client application but
      * then not explicitly released). */
     GArray *disowned_qmi_client_info_array;
+
+#if QMI_QRTR_SUPPORTED
+    QrtrBus *qrtr_bus;
+#endif
 };
 
 /*****************************************************************************/
@@ -102,7 +106,7 @@ typedef struct {
 typedef struct {
     volatile gint ref_count;
 
-    QmiProxy          *proxy; /* not full ref */
+    QmiProxy *proxy; /* not full ref */
 
     /* client socket connection context */
     GSocketConnection *connection;
@@ -115,6 +119,9 @@ typedef struct {
     GArray     *qmi_client_info_array;
     guint       indication_id;
     guint       device_removed_id;
+#if QMI_QRTR_SUPPORTED
+    guint node_id;
+#endif
 } Client;
 
 static gboolean connection_readable_cb (GSocket *socket, GIOCondition condition, Client *client);
@@ -425,34 +432,59 @@ out:
 }
 
 #if QMI_QRTR_SUPPORTED
-static void
-qrtr_node_ready (GObject *source,
-                 GAsyncResult *res,
-                 Client *client)
-{
-    QmiProxy *self = client->proxy;
-    QrtrNode *node;
-    GError *error = NULL;
 
-    node = qrtr_node_for_id_finish (res, &error);
+static void
+device_from_node (QmiProxy *self,
+                  Client   *client)
+{
+    QrtrNode *node;
+
+    g_assert (self->priv->qrtr_bus);
+
+    node = qrtr_bus_peek_node (self->priv->qrtr_bus, client->node_id);
     if (!node) {
-        g_debug ("couldn't open QRTR node: %s", error->message);
-        g_error_free (error);
+        g_debug ("node with id %u not found in QRTR bus", client->node_id);
         untrack_client (self, client);
-        goto out;
+        return;
     }
 
     qmi_device_new_from_node (node,
                               NULL,
                               (GAsyncReadyCallback)device_new_ready,
-                              client_ref (client)); /* Full ref */
+                              client_ref (client)); /* full reference */
+}
 
-    g_object_unref (node);
+static void
+bus_new_ready (GObject      *source,
+               GAsyncResult *res,
+               Client       *client)
+{
+    QmiProxy            *self;
+    g_autoptr(QrtrBus)   qrtr_bus = NULL;
+    g_autoptr(GError)    error = NULL;
 
-out:
-    /* Balance out the reference we got */
+    /* Note: we get a full client ref */
+
+    self = client->proxy;
+
+    qrtr_bus = qrtr_bus_new_finish (res, &error);
+    if (!qrtr_bus) {
+        g_debug ("couldn't access QRTR bus: %s", error->message);
+        untrack_client (self, client);
+        client_unref (client);
+        return;
+    }
+
+    /* Don't store the new bus if some other concurrent request already did
+     * it. We don't really care which bus object to use, we just need to use
+     * always the same */
+    if (!self->priv->qrtr_bus)
+        self->priv->qrtr_bus = g_object_ref (qrtr_bus);
+
+    device_from_node (self, client);
     client_unref (client);
 }
+
 #endif
 
 static gboolean
@@ -460,38 +492,33 @@ process_internal_proxy_open (QmiProxy   *self,
                              Client     *client,
                              QmiMessage *message)
 {
-    gsize   offset = 0;
-    gsize   init_offset;
-    gchar  *incoming_path;
-    gchar  *device_file_path;
-    GError *error = NULL;
+    gsize              offset = 0;
+    gsize              init_offset;
+    g_autofree gchar  *incoming_path = NULL;
+    g_autofree gchar  *device_file_path = NULL;
+    g_autoptr(GError)  error = NULL;
 
     if ((init_offset = qmi_message_tlv_read_init (message, QMI_MESSAGE_CTL_INTERNAL_PROXY_OPEN_INPUT_TLV_DEVICE_PATH, NULL, &error)) == 0) {
         g_debug ("ignoring message from client: invalid proxy open request: %s", error->message);
-        g_error_free (error);
         return FALSE;
     }
 
     if (!qmi_message_tlv_read_string (message, init_offset, &offset, 0, 0, &incoming_path, &error)) {
         g_debug ("ignoring message from client: invalid device file path: %s", error->message);
-        g_error_free (error);
         return FALSE;
     }
 
     /* The incoming path may be a symlink. In the proxy, we always use the real path of the
      * device, so that clients using different symlinks for the same file don't collide with
      * each other. */
-    device_file_path = __qmi_utils_get_devpath (incoming_path, &error);
+    device_file_path = qmi_helpers_get_devpath (incoming_path, &error);
     if (!device_file_path) {
         g_warning ("Error looking up real device path: %s", error->message);
-        g_error_free (error);
-        g_free (incoming_path);
         return FALSE;
     }
-    g_free (incoming_path);
 
     /* The remaining size of the buffer needs to be 0 if we successfully read the TLV */
-    if ((offset = __qmi_message_tlv_read_remaining_size (message, init_offset, offset)) > 0)
+    if ((offset = qmi_message_tlv_read_remaining_size (message, init_offset, offset)) > 0)
         g_warning ("Left '%" G_GSIZE_FORMAT "' bytes unread when getting the 'Device Path' TLV", offset);
 
     g_debug ("valid request to open connection to QMI device file: %s", device_file_path);
@@ -503,32 +530,33 @@ process_internal_proxy_open (QmiProxy   *self,
 
     /* Need to create a device ourselves */
     if (!client->device) {
-        GFile *file;
 #if QMI_QRTR_SUPPORTED
-        guint32 node_id;
-
-        if (qrtr_get_node_for_uri (device_file_path, &node_id)) {
-            qrtr_node_for_id (node_id,
-                              10, /* timeout in seconds */
+        if (qrtr_get_node_for_uri (device_file_path, &client->node_id)) {
+            if (!self->priv->qrtr_bus) {
+                qrtr_bus_new (1000, /* ms */
                               NULL,
-                              (GAsyncReadyCallback)qrtr_node_ready,
+                              (GAsyncReadyCallback)bus_new_ready,
                               client_ref (client)); /* Full ref */
-        } else
+                return TRUE;
+            }
+
+            device_from_node (self, client);
+            return TRUE;
+        }
 #endif
         {
+            g_autoptr(GFile) file = NULL;
+
             file = g_file_new_for_path (device_file_path);
             qmi_device_new (file,
                             NULL,
                             (GAsyncReadyCallback)device_new_ready,
                             client_ref (client)); /* Full ref */
-            g_object_unref (file);
+            return TRUE;
         }
-        g_free (device_file_path);
-        return TRUE;
-    } else
-        register_signal_handlers (client);
+    }
 
-    g_free (device_file_path);
+    register_signal_handlers (client);
 
     /* Keep a reference to the device in the client */
     g_object_ref (client->device);
@@ -580,7 +608,7 @@ track_cid (Client     *client,
         g_error_free (error);
         return;
     }
-    g_warn_if_fail (__qmi_message_tlv_read_remaining_size (message, init_offset, offset) == 0);
+    g_warn_if_fail (qmi_message_tlv_read_remaining_size (message, init_offset, offset) == 0);
     if ((error_status != 0x00) || (error_code != QMI_PROTOCOL_ERROR_NONE))
         return;
 
@@ -985,7 +1013,7 @@ incoming_cb (GSocketService *service,
         g_error_free (error);
         return;
     }
-    if (!__qmi_user_allowed (uid, &error)) {
+    if (!qmi_helpers_check_user_allowed (uid, &error)) {
         g_warning ("Client not allowed: %s", error->message);
         g_error_free (error);
         return;
@@ -1068,7 +1096,7 @@ qmi_proxy_new (GError **error)
 {
     QmiProxy *self;
 
-    if (!__qmi_user_allowed (getuid (), error))
+    if (!qmi_helpers_check_user_allowed (getuid (), error))
         return NULL;
 
     self = g_object_new (QMI_TYPE_PROXY, NULL);
@@ -1119,6 +1147,10 @@ dispose (GObject *object)
         g_unlink (QMI_PROXY_SOCKET_PATH);
         g_debug ("UNIX socket service at '%s' stopped", QMI_PROXY_SOCKET_PATH);
     }
+
+#if QMI_QRTR_SUPPORTED
+    g_clear_object (&priv->qrtr_bus);
+#endif
 
     G_OBJECT_CLASS (qmi_proxy_parent_class)->dispose (object);
 }

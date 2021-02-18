@@ -110,7 +110,7 @@ typedef struct _QmiDevicePrivate QmiDevicePrivate;
 #define QMI_DEVICE_SIGNAL_INDICATION "indication"
 
 /**
- * QMI_DEVICE_REMOVED:
+ * QMI_DEVICE_SIGNAL_REMOVED:
  *
  * Symbol defining the #QmiDevice::device-removed signal.
  *
@@ -220,23 +220,6 @@ const gchar *qmi_device_get_path (QmiDevice *self);
  * Since: 1.0
  */
 const gchar *qmi_device_get_path_display (QmiDevice *self);
-
-/**
- * qmi_device_get_wwan_iface:
- * @self: a #QmiDevice.
- *
- * Get the WWAN interface name associated with the QMI control port.
- * This value will be loaded every time it's asked for it.
- *
- * <note><para>
- * This method is only applicable when using the qmi_wwan kernel driver.
- * </para></note>
- *
- * Returns: UTF-8 encoded network interface name, or %NULL if not available.
- *
- * Since: 1.14
- */
-const gchar *qmi_device_get_wwan_iface (QmiDevice *self);
 
 /**
  * qmi_device_is_open:
@@ -737,13 +720,39 @@ void qmi_device_get_service_version_info (QmiDevice           *self,
 GArray *qmi_device_get_service_version_info_finish (QmiDevice     *self,
                                                     GAsyncResult  *res,
                                                     GError       **error);
+
+/******************************************************************************/
+/* qmi_wwan specific APIs */
+
+/**
+ * qmi_device_get_wwan_iface:
+ * @self: a #QmiDevice.
+ *
+ * Get the WWAN interface name associated with the QMI control port.
+ * This value will be loaded every time it's asked for it.
+ *
+ * <note><para>
+ * This method is only applicable when using the qmi_wwan kernel driver.
+ * </para></note>
+ *
+ * Returns: UTF-8 encoded network interface name, or %NULL if not available.
+ *
+ * Since: 1.14
+ */
+const gchar *qmi_device_get_wwan_iface (QmiDevice *self);
+
 /**
  * QmiDeviceExpectedDataFormat:
  * @QMI_DEVICE_EXPECTED_DATA_FORMAT_UNKNOWN: Unknown.
  * @QMI_DEVICE_EXPECTED_DATA_FORMAT_802_3: 802.3.
  * @QMI_DEVICE_EXPECTED_DATA_FORMAT_RAW_IP: Raw IP.
+ * @QMI_DEVICE_EXPECTED_DATA_FORMAT_QMAP_PASS_THROUGH: QMAP pass-through. Since 1.28.
  *
  * Data format expected by the kernel.
+ *
+ * <note><para>
+ * This type is only applicable when using the qmi_wwan kernel driver.
+ * </para></note>
  *
  * Since: 1.14
  */
@@ -751,6 +760,7 @@ typedef enum { /*< since=1.14 >*/
     QMI_DEVICE_EXPECTED_DATA_FORMAT_UNKNOWN,
     QMI_DEVICE_EXPECTED_DATA_FORMAT_802_3,
     QMI_DEVICE_EXPECTED_DATA_FORMAT_RAW_IP,
+    QMI_DEVICE_EXPECTED_DATA_FORMAT_QMAP_PASS_THROUGH,
 } QmiDeviceExpectedDataFormat;
 
 /**
@@ -789,7 +799,7 @@ QmiDeviceExpectedDataFormat qmi_device_get_expected_data_format (QmiDevice  *sel
  * This method is only applicable when using the qmi_wwan kernel driver.
  * </para></note>
  *
- * Returns: %TRUE if successful, or %NULL if @error is set.
+ * Returns: %TRUE if successful, or %FALSE if @error is set.
  *
  * Since: 1.14
  */
@@ -797,77 +807,29 @@ gboolean qmi_device_set_expected_data_format (QmiDevice                    *self
                                               QmiDeviceExpectedDataFormat   format,
                                               GError                      **error);
 
-
-/******************************************************************************/
-/* New QRTR based APIs */
-
-#if QMI_QRTR_SUPPORTED
-
 /**
- * QMI_DEVICE_NODE:
- *
- * Symbol defining the #QmiDevice:device-node property.
- */
-#define QMI_DEVICE_NODE "device-node"
-
-/**
- * qmi_device_new_from_node:
- * @node: a #QrtrNode.
- * @cancellable: optional #GCancellable object, #NULL to ignore.
- * @callback: a #GAsyncReadyCallback to call when the initialization is finished.
- * @user_data: the data to pass to callback function.
- *
- * Asynchronously creates a #QmiDevice object to manage @node.
- * When the operation is finished, @callback will be invoked. You can then call
- * qmi_device_new_finish() to get the result of the operation.
- *
- * Only available if libqmi was compiled with QRTR support.
- *
- * Since: 1.26
- */
-void qmi_device_new_from_node (QrtrNode            *node,
-                               GCancellable        *cancellable,
-                               GAsyncReadyCallback  callback,
-                               gpointer             user_data);
-
-/**
- * qmi_device_new_from_node_finish:
- * @res: a #GAsyncResult.
+ * qmi_device_check_expected_data_format_supported:
+ * @self: a #QmiDevice.
+ * @format: a known #QmiDeviceExpectedDataFormat.
  * @error: Return location for error or %NULL.
  *
- * Finishes an operation started with qmi_device_new_from_node().
+ * Checks whether the given data format is supported by the kernel.
+ * interface.
  *
- * Returns: (transfer full): A newly created #QmiDevice, or %NULL if @error is set.
+ * <note><para>
+ * This method is only applicable when using the qmi_wwan kernel driver.
+ * </para></note>
  *
- * Since: 1.26
- */
-QmiDevice *qmi_device_new_from_node_finish (GAsyncResult  *res,
-                                            GError       **error);
-
-/**
- * qmi_device_get_node:
- * @self: a #QmiDevice.
- *
- * Get the #QrtrNode associated with this #QmiDevice.
- *
- * Returns: (transfer full): a #QrtrNode that must be freed with g_object_unref() or %NULL if none available.
+ * Returns: %TRUE if the data format is supported, or %FALSE if @error is set.
  *
  * Since: 1.28
  */
-QrtrNode *qmi_device_get_node (QmiDevice *self);
+gboolean qmi_device_check_expected_data_format_supported (QmiDevice                    *self,
+                                                          QmiDeviceExpectedDataFormat   format,
+                                                          GError                      **error);
 
-/**
- * qmi_device_peek_node:
- * @self: a #QmiDevice.
- *
- * Get the #QrtrNode associated with this #QmiDevice, without increasing the
- * reference count on the returned object.
- *
- * Returns: (transfer none): a #QrtrNode or %NULL if none available. Do not free the returned object, it is owned by @self.
- *
- * Since: 1.28
- */
-QrtrNode *qmi_device_peek_node (QmiDevice *self);
+/******************************************************************************/
+/* Link management APIs */
 
 /**
  * QMI_DEVICE_MUX_ID_AUTOMATIC:
@@ -890,21 +852,73 @@ QrtrNode *qmi_device_peek_node (QmiDevice *self);
 #define QMI_DEVICE_MUX_ID_UNBOUND 0
 
 /**
+ * QMI_DEVICE_MUX_ID_MIN:
+ *
+ * Symbol defining the minimum supported mux id.
+ *
+ * Since: 1.28
+ */
+#define QMI_DEVICE_MUX_ID_MIN 1
+
+/**
+ * QMI_DEVICE_MUX_ID_MAX:
+ *
+ * Symbol defining the maximum supported mux id.
+ *
+ * Since: 1.28
+ */
+#define QMI_DEVICE_MUX_ID_MAX 0xFE
+
+/**
  * qmi_device_add_link:
  * @self: a #QmiDevice.
- * @mux_id: the mux ID for the link, or #QMI_DEVICE_MUX_ID_AUTOMATIC to find the first available mux id.
+ * @mux_id: the mux id for the link, in the
+ *   [#QMI_DEVICE_MUX_ID_MIN,#QMI_DEVICE_MUX_ID_MAX] range, or
+ *   #QMI_DEVICE_MUX_ID_AUTOMATIC to find the first available mux id.
  * @base_ifname: the interface which the new link will be created on.
- * @ifname_prefix: the prefix to be used for the name of the new link created.
+ * @ifname_prefix: the prefix suggested to be used for the name of the new link
+ *   created.
  * @cancellable: a #GCancellable, or %NULL.
  * @callback: a #GAsyncReadyCallback to call when the operation is finished.
  * @user_data: the data to pass to callback function.
  *
- * Asynchronously creates a new virtual network device node with a custom prefix on top
- * of @base_ifname. This allows having multiple net interfaces running on top of another
- * using multiplexing. Drivers like IPA and BAM-DMUX provide this capability.
+ * Asynchronously creates a new virtual network device node with a custom prefix
+ * on top of @base_ifname. This allows having multiple net interfaces running on
+ * top of another using multiplexing.
+ *
+ * If the kernel driver doesn't allow this functionality, a
+ * %QMI_CORE_ERROR_UNSUPPORTED error will be returned.
+ *
+ * The operation may fail if the given interface name is not associated to the
+ * QMI control port managed by the #QmiDevice.
+ *
+ * Depending on the kernel driver in use and the multiplexing method, the given
+ * @ifname_prefix may be ignored. The user should not assume that the returned
+ * link interface name is prefixed with @ifname_prefix as it may not be the
+ * case.
  *
  * When the operation is finished @callback will be called. You can then call
  * qmi_device_add_link_finish() to get the result of the operation.
+ *
+ * <note><para>
+ * When using the qmi_wwan kernel driver, the configured expected kernel data
+ * format will be used to select the type of multiplexing method. If the
+ * format is %QMI_DEVICE_EXPECTED_DATA_FORMAT_RAW_IP the qmi_wwan specific
+ * add_mux/del_mux operations will be used. If the format is
+ * %QMI_DEVICE_EXPECTED_DATA_FORMAT_QMAP_PASS_THROUGH, the generic rmnet netlink
+ * operations will be used. No multiplexing support exists when the format is
+ * %QMI_DEVICE_EXPECTED_DATA_FORMAT_802_3.
+ * </para><para>
+ * For every other kernel driver (e.g. ipa), rmnet netlink operations are
+ * assumed to be supported.
+ * </para></note>
+ *
+ * <note><para>
+ * When using the qmi_wwan driver from a kernel older than v5.12, some of the
+ * multiplexing features like using #QMI_DEVICE_MUX_ID_AUTOMATIC may not be fully
+ * available for programs that use ephimeral #QmiDevice objects for single
+ * operations.
+ * </para></note>
  *
  * Since: 1.28
  */
@@ -929,15 +943,16 @@ void qmi_device_add_link (QmiDevice           *self,
  *
  * Since: 1.28
  */
-gchar * qmi_device_add_link_finish (QmiDevice     *self,
-                                    GAsyncResult  *res,
-                                    guint         *mux_id,
-                                    GError       **error);
+gchar *qmi_device_add_link_finish (QmiDevice     *self,
+                                   GAsyncResult  *res,
+                                   guint         *mux_id,
+                                   GError       **error);
 
 /**
- * qmi_device_del_link:
+ * qmi_device_delete_link:
  * @self: a #QmiDevice.
- * @ifname: the name of the net interface to remove.
+ * @ifname: the name of the link to remove.
+ * @mux_id: the mux ID of the link to remove.
  * @cancellable: a #GCancellable, or %NULL.
  * @callback: a #GAsyncReadyCallback to call when the operation is finished.
  * @user_data: the data to pass to callback function.
@@ -945,32 +960,210 @@ gchar * qmi_device_add_link_finish (QmiDevice     *self,
  * Asynchronously deletes a virtual network interface that has been previously
  * created with qmi_device_add_link().
  *
+ * If the kernel driver doesn't allow this functionality, a
+ * %QMI_CORE_ERROR_UNSUPPORTED error will be returned.
+ *
  * When the operation is finished @callback will be called. You can then call
- * qmi_device_del_link_finish() to get the result of the operation.
+ * qmi_device_delete_link_finish() to get the result of the operation.
+ *
+ * <note><para>
+ * The %QMI_DEVICE_MUX_ID_UNBOUND value may be given as @mux_id if the user
+ * can guarantee that the underlying kernel support doesn't require the
+ * mux id info to delete the link. When using the qmi_wwan driver from a kernel
+ * older than v5.12, a valid @mux_id is required.
+ * </para></note>
  *
  * Since: 1.28
  */
-void qmi_device_del_link (QmiDevice           *self,
-                          const gchar         *ifname,
-                          GCancellable        *cancellable,
-                          GAsyncReadyCallback  callback,
-                          gpointer             user_data);
+void qmi_device_delete_link (QmiDevice           *self,
+                             const gchar         *ifname,
+                             guint                mux_id,
+                             GCancellable        *cancellable,
+                             GAsyncReadyCallback  callback,
+                             gpointer             user_data);
 
 /**
- * qmi_device_del_link_finish:
+ * qmi_device_delete_link_finish:
  * @self: a #QmiDevice.
  * @res: a #GAsyncResult.
  * @error: Return location for error or %NULL.
  *
- * Finishes an operation started with qmi_device_del_link().
+ * Finishes an operation started with qmi_device_delete_link().
  *
  * Returns: %TRUE if successful, %FALSE if @error is set.
  *
  * Since: 1.28
  */
-gboolean qmi_device_del_link_finish (QmiDevice     *self,
-                                     GAsyncResult  *res,
-                                     GError       **error);
+gboolean qmi_device_delete_link_finish (QmiDevice     *self,
+                                        GAsyncResult  *res,
+                                        GError       **error);
+
+/**
+ * qmi_device_delete_all_links:
+ * @self: a #QmiDevice.
+ * @base_ifname: the interface where all links are available.
+ * @cancellable: a #GCancellable, or %NULL.
+ * @callback: a #GAsyncReadyCallback to call when the operation is finished.
+ * @user_data: the data to pass to callback function.
+ *
+ * Asynchronously deletes all virtual network interfaces that have been previously
+ * created with qmi_device_add_link() in @base_ifname.
+ *
+ * When the operation is finished @callback will be called. You can then call
+ * qmi_device_delete_link_finish() to get the result of the operation.
+ *
+ * <note><para>
+ * There is no guarantee that other processes haven't created new links by the
+ * time this method returns. This method should be used with caution, or in setups
+ * where only one single process is expected to do QMI network interface link
+ * management.
+ * </para></note>
+ *
+ * Since: 1.28
+ */
+void qmi_device_delete_all_links (QmiDevice           *self,
+                                  const gchar         *base_ifname,
+                                  GCancellable        *cancellable,
+                                  GAsyncReadyCallback  callback,
+                                  gpointer             user_data);
+
+/**
+ * qmi_device_delete_all_links_finish:
+ * @self: a #QmiDevice.
+ * @res: a #GAsyncResult.
+ * @error: Return location for error or %NULL.
+ *
+ * Finishes an operation started with qmi_device_delete_all_links().
+ *
+ * Returns: %TRUE if successful, %FALSE if @error is set.
+ *
+ * Since: 1.28
+ */
+gboolean qmi_device_delete_all_links_finish (QmiDevice     *self,
+                                             GAsyncResult  *res,
+                                             GError       **error);
+
+/**
+ * qmi_device_list_links:
+ * @self: a #QmiDevice.
+ * @base_ifname: the base interface.
+ * @out_links: (out)(transfer full)(element-type utf8): a placeholder for the
+ *   output #GPtrArray of link names.
+ * @error: Return location for error or %NULL.
+ *
+ * Returns: %TRUE if successful, %FALSE if @error is set.
+ *
+ * Since: 1.28
+ */
+gboolean qmi_device_list_links (QmiDevice    *self,
+                                const gchar  *base_ifname,
+                                GPtrArray   **out_links,
+                                GError      **error);
+
+/**
+ * qmi_device_check_link_supported:
+ * @self: a #QmiDevice.
+ * @error: Return location for error or %NULL.
+ *
+ * Checks whether link management is supported by the kernel.
+ *
+ * Returns: %TRUE if link management is supported, or %FALSE if @error is set.
+ *
+ * Since: 1.28
+ */
+gboolean qmi_device_check_link_supported (QmiDevice  *self,
+                                          GError    **error);
+
+/******************************************************************************/
+/* New QRTR based APIs */
+
+#if QMI_QRTR_SUPPORTED
+
+/**
+ * QMI_DEVICE_NODE:
+ *
+ * Symbol defining the #QmiDevice:device-node property.
+ *
+ * <note><para>
+ * This property is only available when the library is built with QRTR support.
+ * </para></note>
+ *
+ * Since: 1.28
+ */
+#define QMI_DEVICE_NODE "device-node"
+
+/**
+ * qmi_device_new_from_node:
+ * @node: a #QrtrNode.
+ * @cancellable: optional #GCancellable object, #NULL to ignore.
+ * @callback: a #GAsyncReadyCallback to call when the initialization is finished.
+ * @user_data: the data to pass to callback function.
+ *
+ * Asynchronously creates a #QmiDevice object to manage @node.
+ * When the operation is finished, @callback will be invoked. You can then call
+ * qmi_device_new_finish() to get the result of the operation.
+ *
+ * <note><para>
+ * This method is only available when the library is built with QRTR support.
+ * </para></note>
+ *
+ * Since: 1.28
+ */
+void qmi_device_new_from_node (QrtrNode            *node,
+                               GCancellable        *cancellable,
+                               GAsyncReadyCallback  callback,
+                               gpointer             user_data);
+
+/**
+ * qmi_device_new_from_node_finish:
+ * @res: a #GAsyncResult.
+ * @error: Return location for error or %NULL.
+ *
+ * Finishes an operation started with qmi_device_new_from_node().
+ *
+ * <note><para>
+ * This method is only available when the library is built with QRTR support.
+ * </para></note>
+ *
+ * Returns: (transfer full): A newly created #QmiDevice, or %NULL if @error is set.
+ *
+ * Since: 1.28
+ */
+QmiDevice *qmi_device_new_from_node_finish (GAsyncResult  *res,
+                                            GError       **error);
+
+/**
+ * qmi_device_get_node:
+ * @self: a #QmiDevice.
+ *
+ * Get the #QrtrNode associated with this #QmiDevice.
+ *
+ * <note><para>
+ * This method is only available when the library is built with QRTR support.
+ * </para></note>
+ *
+ * Returns: (transfer full): a #QrtrNode that must be freed with g_object_unref() or %NULL if none available.
+ *
+ * Since: 1.28
+ */
+QrtrNode *qmi_device_get_node (QmiDevice *self);
+
+/**
+ * qmi_device_peek_node:
+ * @self: a #QmiDevice.
+ *
+ * Get the #QrtrNode associated with this #QmiDevice, without increasing the
+ * reference count on the returned object.
+ *
+ * <note><para>
+ * This method is only available when the library is built with QRTR support.
+ * </para></note>
+ *
+ * Returns: (transfer none): a #QrtrNode or %NULL if none available. Do not free the returned object, it is owned by @self.
+ *
+ * Since: 1.28
+ */
+QrtrNode *qmi_device_peek_node (QmiDevice *self);
 
 #endif /* QMI_QRTR_SUPPORTED */
 

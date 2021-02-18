@@ -18,7 +18,7 @@
  * Boston, MA 02110-1301 USA.
  *
  * Copyright (C) 2012 Lanedo GmbH
- * Copyright (C) 2012-2017 Aleksander Morgado <aleksander@aleksander.es>
+ * Copyright (C) 2012-2021 Aleksander Morgado <aleksander@aleksander.es>
  */
 
 #include <config.h>
@@ -55,16 +55,20 @@
 #include "qmi-gms.h"
 #include "qmi-dsd.h"
 #include "qmi-utils.h"
-#include "qmi-utils-private.h"
+#include "qmi-helpers.h"
 #include "qmi-error-types.h"
 #include "qmi-enum-types.h"
 #include "qmi-proxy.h"
+#include "qmi-net-port-manager-qmiwwan.h"
 #include "qmi-version.h"
 
 #if QMI_QRTR_SUPPORTED
 # include "qmi-endpoint-qrtr.h"
-# include "qmi-net-port-manager.h"
 # include <libqrtr-glib.h>
+#endif
+
+#if defined RMNET_SUPPORT_ENABLED
+# include "qmi-net-port-manager-rmnet.h"
 #endif
 
 static void async_initable_iface_init (GAsyncInitableIface *iface);
@@ -105,10 +109,8 @@ struct _QmiDevicePrivate {
     gboolean no_wwan_check;
     gchar *wwan_iface;
 
-#if QMI_QRTR_SUPPORTED
     /* Information necessary for data port */
     QmiNetPortManager *net_port_manager;
-#endif
 
     /* Implicit CTL client */
     QmiClientCtl *client_ctl;
@@ -704,7 +706,7 @@ reload_wwan_iface_name (QmiDevice *self)
 
     g_clear_pointer (&self->priv->wwan_iface, g_free);
 
-    cdc_wdm_device_name = __qmi_utils_get_devname (qmi_file_get_path (self->priv->file), &error);
+    cdc_wdm_device_name = qmi_helpers_get_devname (qmi_file_get_path (self->priv->file), &error);
     if (!cdc_wdm_device_name) {
         g_warning ("[%s] invalid path for cdc-wdm control port: %s",
                    qmi_file_get_path_display (self->priv->file),
@@ -768,89 +770,76 @@ qmi_device_get_wwan_iface (QmiDevice *self)
 /* Expected data format */
 
 static gboolean
-get_expected_data_format (QmiDevice *self,
-                          const gchar *sysfs_path,
-                          GError **error)
+validate_yes_or_no (const gchar   value,
+                    GError      **error)
 {
-    QmiDeviceExpectedDataFormat expected = QMI_DEVICE_EXPECTED_DATA_FORMAT_UNKNOWN;
-    gchar value = '\0';
-    FILE *f;
-
-    g_debug ("[%s] Reading expected data format from: %s",
-             qmi_file_get_path_display (self->priv->file),
-             sysfs_path);
-
-    if (!(f = fopen (sysfs_path, "r"))) {
-        g_set_error (error, G_IO_ERROR, g_io_error_from_errno (errno),
-                     "Failed to open file '%s': %s",
-                     sysfs_path, g_strerror (errno));
-        goto out;
-    }
-
-    if (fread (&value, 1, 1, f) != 1) {
-        g_set_error (error, G_IO_ERROR, g_io_error_from_errno (errno),
-                     "Failed to read from file '%s': %s",
-                     sysfs_path, g_strerror (errno));
-        goto out;
-    }
-
-    if (value == 'Y')
-        expected = QMI_DEVICE_EXPECTED_DATA_FORMAT_RAW_IP;
-    else if (value == 'N')
-        expected = QMI_DEVICE_EXPECTED_DATA_FORMAT_802_3;
-    else
+    if (value != 'Y' && value != 'N') {
         g_set_error (error, QMI_CORE_ERROR, QMI_CORE_ERROR_FAILED,
-                     "Unexpected sysfs file contents");
+                     "Unexpected sysfs file contents: %c", value);
+        return FALSE;
+    }
 
- out:
-    g_prefix_error (error, "Expected data format not retrieved properly: ");
-    if (f)
-        fclose (f);
-    return expected;
+    return TRUE;
+}
+
+static gchar *
+build_raw_ip_sysfs_path (QmiDevice *self)
+{
+    return g_strdup_printf ("/sys/class/net/%s/qmi/raw_ip", self->priv->wwan_iface);
+}
+
+static gchar *
+build_pass_through_sysfs_path (QmiDevice *self)
+{
+    return g_strdup_printf ("/sys/class/net/%s/qmi/pass_through", self->priv->wwan_iface);
 }
 
 static gboolean
-set_expected_data_format (QmiDevice *self,
-                          const gchar *sysfs_path,
-                          QmiDeviceExpectedDataFormat requested,
-                          GError **error)
+get_expected_data_format (QmiDevice    *self,
+                          const gchar  *raw_ip_sysfs_path,
+                          const gchar  *pass_through_sysfs_path,
+                          GError      **error)
 {
-    gboolean status = FALSE;
-    gchar value;
-    FILE *f;
+    gchar raw_ip_value = '\0';
+    gchar pass_through_value = '\0';
 
-    g_debug ("[%s] Writing expected data format to: %s",
-             qmi_file_get_path_display (self->priv->file),
-             sysfs_path);
+    if (!qmi_helpers_read_sysfs_file (raw_ip_sysfs_path, &raw_ip_value, 1, error) ||
+        !validate_yes_or_no (raw_ip_value, error))
+        return QMI_DEVICE_EXPECTED_DATA_FORMAT_UNKNOWN;
 
-    if (requested == QMI_DEVICE_EXPECTED_DATA_FORMAT_RAW_IP)
-        value = 'Y';
-    else if (requested == QMI_DEVICE_EXPECTED_DATA_FORMAT_802_3)
-        value = 'N';
-    else
-        g_assert_not_reached ();
+    if (raw_ip_value == 'N')
+        return QMI_DEVICE_EXPECTED_DATA_FORMAT_802_3;
 
-    if (!(f = fopen (sysfs_path, "w"))) {
-        g_set_error (error, G_IO_ERROR, g_io_error_from_errno (errno),
-                     "Failed to open file '%s' for R/W: %s",
-                     sysfs_path, g_strerror (errno));
-        goto out;
+    if (qmi_helpers_read_sysfs_file (pass_through_sysfs_path, &pass_through_value, 1, NULL) &&
+        (pass_through_value == 'Y'))
+        return QMI_DEVICE_EXPECTED_DATA_FORMAT_QMAP_PASS_THROUGH;
+
+    return QMI_DEVICE_EXPECTED_DATA_FORMAT_RAW_IP;
+}
+
+static gboolean
+set_expected_data_format (QmiDevice                    *self,
+                          const gchar                  *raw_ip_sysfs_path,
+                          const gchar                  *pass_through_sysfs_path,
+                          QmiDeviceExpectedDataFormat   requested,
+                          GError                      **error)
+{
+    if (requested == QMI_DEVICE_EXPECTED_DATA_FORMAT_802_3) {
+        qmi_helpers_write_sysfs_file (pass_through_sysfs_path, "N", NULL);
+        return qmi_helpers_write_sysfs_file (raw_ip_sysfs_path, "N", error);
     }
 
-    if (fwrite (&value, 1, 1, f) != 1) {
-        g_set_error (error, G_IO_ERROR, g_io_error_from_errno (errno),
-                     "Failed to write to file '%s': %s",
-                     sysfs_path, g_strerror (errno));
-        goto out;
+    if (requested == QMI_DEVICE_EXPECTED_DATA_FORMAT_RAW_IP) {
+        qmi_helpers_write_sysfs_file (pass_through_sysfs_path, "N", NULL);
+        return qmi_helpers_write_sysfs_file (raw_ip_sysfs_path, "Y", error);
     }
 
-    status = TRUE;
+    if (requested == QMI_DEVICE_EXPECTED_DATA_FORMAT_QMAP_PASS_THROUGH) {
+        return (qmi_helpers_write_sysfs_file (raw_ip_sysfs_path, "Y", error) &&
+                qmi_helpers_write_sysfs_file (pass_through_sysfs_path, "Y", error));
+    }
 
- out:
-    g_prefix_error (error, "Expected data format not updated properly: ");
-    if (f)
-        fclose (f);
-    return status;
+    g_assert_not_reached ();
 }
 
 static QmiDeviceExpectedDataFormat
@@ -858,7 +847,8 @@ common_get_set_expected_data_format (QmiDevice                    *self,
                                      QmiDeviceExpectedDataFormat   requested,
                                      GError                      **error)
 {
-    g_autofree gchar            *sysfs_path = NULL;
+    g_autofree gchar            *raw_ip = NULL;
+    g_autofree gchar            *pass_through = NULL;
     QmiDeviceExpectedDataFormat  expected = QMI_DEVICE_EXPECTED_DATA_FORMAT_UNKNOWN;
     gboolean                     readonly;
 
@@ -871,21 +861,22 @@ common_get_set_expected_data_format (QmiDevice                    *self,
      * driver. */
     if (!self->priv->wwan_iface) {
         g_set_error (error, QMI_CORE_ERROR, QMI_CORE_ERROR_UNSUPPORTED,
-                     "Setting Expected data format management is unsupported by the driver");
+                     "Setting expected data format management is unsupported by the driver");
         return QMI_DEVICE_EXPECTED_DATA_FORMAT_UNKNOWN;
     }
 
     readonly = (requested == QMI_DEVICE_EXPECTED_DATA_FORMAT_UNKNOWN);
 
-    /* Build sysfs file path and open it */
-    sysfs_path = g_strdup_printf ("/sys/class/net/%s/qmi/raw_ip", self->priv->wwan_iface);
+    /* Build sysfs file paths */
+    raw_ip = build_raw_ip_sysfs_path (self);
+    pass_through = build_pass_through_sysfs_path (self);
 
     /* Set operation? */
-    if (!readonly && !set_expected_data_format (self, sysfs_path, requested, error))
+    if (!readonly && !set_expected_data_format (self, raw_ip, pass_through, requested, error))
         return QMI_DEVICE_EXPECTED_DATA_FORMAT_UNKNOWN;
 
     /* Get/Set operations */
-    if ((expected = get_expected_data_format (self, sysfs_path, error)) == QMI_DEVICE_EXPECTED_DATA_FORMAT_UNKNOWN)
+    if ((expected = get_expected_data_format (self, raw_ip, pass_through, error)) == QMI_DEVICE_EXPECTED_DATA_FORMAT_UNKNOWN)
         return QMI_DEVICE_EXPECTED_DATA_FORMAT_UNKNOWN;
 
     /* If we requested an update but we didn't read that value, report an error */
@@ -896,6 +887,10 @@ common_get_set_expected_data_format (QmiDevice                    *self,
                      qmi_device_expected_data_format_get_string (expected));
         return QMI_DEVICE_EXPECTED_DATA_FORMAT_UNKNOWN;
     }
+
+    /* If the set operation succeeds, we clear the net port manager, as we may need to use a
+     * different one */
+    g_clear_object (&self->priv->net_port_manager);
 
     return expected;
 }
@@ -917,6 +912,39 @@ qmi_device_set_expected_data_format (QmiDevice *self,
     g_return_val_if_fail (QMI_IS_DEVICE (self), FALSE);
 
     return (common_get_set_expected_data_format (self, format, error) != QMI_DEVICE_EXPECTED_DATA_FORMAT_UNKNOWN);
+}
+
+gboolean
+qmi_device_check_expected_data_format_supported (QmiDevice                    *self,
+                                                 QmiDeviceExpectedDataFormat   format,
+                                                 GError                      **error)
+{
+    g_autofree gchar *sysfs_path = NULL;
+    gchar             value = '\0';
+
+    g_return_val_if_fail (QMI_IS_DEVICE (self), FALSE);
+
+    switch (format) {
+        case QMI_DEVICE_EXPECTED_DATA_FORMAT_802_3:
+            return TRUE;
+        case QMI_DEVICE_EXPECTED_DATA_FORMAT_RAW_IP:
+            reload_wwan_iface_name (self);
+            sysfs_path = build_raw_ip_sysfs_path (self);
+            break;
+        case QMI_DEVICE_EXPECTED_DATA_FORMAT_QMAP_PASS_THROUGH:
+            reload_wwan_iface_name (self);
+            sysfs_path = build_pass_through_sysfs_path (self);
+            break;
+        default:
+        case QMI_DEVICE_EXPECTED_DATA_FORMAT_UNKNOWN:
+            g_set_error (error, QMI_CORE_ERROR, QMI_CORE_ERROR_FAILED,
+                         "Unknown expected data format given: 0x%x", format);
+            return FALSE;
+    }
+
+    g_assert (sysfs_path);
+    return (qmi_helpers_read_sysfs_file (sysfs_path, &value, 1, error) &&
+            validate_yes_or_no (value, error));
 }
 
 /*****************************************************************************/
@@ -1506,6 +1534,8 @@ qmi_device_set_instance_id (QmiDevice *self,
     GTask *task;
     QmiMessageCtlSetInstanceIdInput *input;
 
+    g_return_if_fail (QMI_IS_DEVICE (self));
+
     task = g_task_new (self, cancellable, callback, user_data);
 
     input = qmi_message_ctl_set_instance_id_input_new ();
@@ -1616,7 +1646,7 @@ trace_message (QmiDevice         *self,
         action_str = "Received";
     }
 
-    printable = __qmi_utils_str_hex (((GByteArray *)message)->data,
+    printable = qmi_helpers_str_hex (((GByteArray *)message)->data,
                                      ((GByteArray *)message)->len,
                                      ':');
     g_debug ("[%s] %s message...\n"
@@ -1728,6 +1758,279 @@ process_message (QmiMessage *message,
     trace_message (self, message, FALSE, "unexpected message", NULL);
     g_debug ("[%s] Message received but it is neither an indication nor a response. Skipping it.",
              qmi_file_get_path_display (self->priv->file));
+}
+
+/*****************************************************************************/
+
+static gboolean
+setup_net_port_manager (QmiDevice  *self,
+                        GError    **error)
+{
+    QmiDeviceExpectedDataFormat expected_data_format;
+
+    /* If we have a valid one already, use that one */
+    if (self->priv->net_port_manager)
+        return TRUE;
+
+    /* The qmi_wwan driver allows configuring the expected data format,
+     * and depending on the configured one, we'll use one link management
+     * api or another one. */
+    expected_data_format = qmi_device_get_expected_data_format (self, NULL);
+
+    switch (expected_data_format) {
+    case QMI_DEVICE_EXPECTED_DATA_FORMAT_802_3:
+        g_set_error (error, QMI_CORE_ERROR, QMI_CORE_ERROR_FAILED,
+                     "Link management not supported with the expected data format configured as 802.3");
+        break;
+    case QMI_DEVICE_EXPECTED_DATA_FORMAT_RAW_IP:
+        self->priv->net_port_manager = QMI_NET_PORT_MANAGER (qmi_net_port_manager_qmiwwan_new (self->priv->wwan_iface, error));
+        break;
+    case QMI_DEVICE_EXPECTED_DATA_FORMAT_QMAP_PASS_THROUGH:
+    case QMI_DEVICE_EXPECTED_DATA_FORMAT_UNKNOWN:
+    default:
+#if defined RMNET_SUPPORT_ENABLED
+        /* when the data format is unknown, it very likely is because this
+         * is not the qmi_wwan driver; fallback to plain rmnet in that
+         * case. */
+        self->priv->net_port_manager = QMI_NET_PORT_MANAGER (qmi_net_port_manager_rmnet_new (error));
+#else
+        g_set_error (error, QMI_CORE_ERROR, QMI_CORE_ERROR_FAILED,
+                     "Link management not supported");
+#endif
+        break;
+    }
+
+    return !!self->priv->net_port_manager;
+}
+
+/*****************************************************************************/
+/* Link management APIs */
+
+typedef struct {
+    guint  mux_id;
+    gchar *ifname;
+} AddLinkResult;
+
+static void
+add_link_result_free (AddLinkResult *ctx)
+{
+    g_free (ctx->ifname);
+    g_free (ctx);
+}
+
+gchar *
+qmi_device_add_link_finish (QmiDevice     *self,
+                            GAsyncResult  *res,
+                            guint         *mux_id,
+                            GError       **error)
+{
+    AddLinkResult *ctx;
+
+    ctx = g_task_propagate_pointer (G_TASK (res), error);
+    if (!ctx)
+        return NULL;
+
+    if (mux_id)
+        *mux_id = ctx->mux_id;
+
+    return g_steal_pointer (&ctx->ifname);
+}
+
+static void
+device_add_link_ready (QmiNetPortManager *net_port_manager,
+                       GAsyncResult      *res,
+                       GTask             *task)
+{
+    GError        *error = NULL;
+    AddLinkResult *ctx;
+
+    ctx = g_new0 (AddLinkResult, 1);
+    ctx->ifname = qmi_net_port_manager_add_link_finish (net_port_manager, &ctx->mux_id, res, &error);
+
+    if (!ctx->ifname) {
+        g_prefix_error (&error, "Could not allocate link: ");
+        g_task_return_error (task, error);
+        add_link_result_free (ctx);
+    } else
+        g_task_return_pointer (task, ctx, (GDestroyNotify) add_link_result_free);
+
+    g_object_unref (task);
+}
+
+void
+qmi_device_add_link (QmiDevice           *self,
+                     guint                mux_id,
+                     const gchar         *base_ifname,
+                     const gchar         *ifname_prefix,
+                     GCancellable        *cancellable,
+                     GAsyncReadyCallback  callback,
+                     gpointer             user_data)
+{
+    GTask  *task;
+    GError *error = NULL;
+
+    g_return_if_fail (QMI_IS_DEVICE (self));
+    g_return_if_fail (base_ifname);
+    g_return_if_fail (mux_id >= QMI_DEVICE_MUX_ID_MIN);
+    g_return_if_fail ((mux_id <= QMI_DEVICE_MUX_ID_MAX) || (mux_id == QMI_DEVICE_MUX_ID_AUTOMATIC));
+
+    task = g_task_new (self, cancellable, callback, user_data);
+
+    if (!setup_net_port_manager (self, &error)) {
+        g_task_return_error (task, error);
+        g_object_unref (task);
+        return;
+    }
+
+    g_assert (self->priv->net_port_manager);
+    qmi_net_port_manager_add_link (self->priv->net_port_manager,
+                                   mux_id,
+                                   base_ifname,
+                                   ifname_prefix,
+                                   5,
+                                   cancellable,
+                                   (GAsyncReadyCallback) device_add_link_ready,
+                                   task);
+}
+
+gboolean
+qmi_device_delete_link_finish (QmiDevice     *self,
+                               GAsyncResult  *res,
+                               GError       **error)
+{
+    return g_task_propagate_boolean (G_TASK (res), error);
+}
+
+static void
+device_del_link_ready (QmiNetPortManager *net_port_manager,
+                       GAsyncResult      *res,
+                       GTask             *task)
+{
+    GError *error = NULL;
+
+    if (!qmi_net_port_manager_del_link_finish (net_port_manager, res, &error))
+        g_task_return_error (task, error);
+    else
+        g_task_return_boolean (task, TRUE);
+    g_object_unref (task);
+}
+
+void
+qmi_device_delete_link (QmiDevice           *self,
+                        const gchar         *ifname,
+                        guint                mux_id,
+                        GCancellable        *cancellable,
+                        GAsyncReadyCallback  callback,
+                        gpointer             user_data)
+{
+    GTask  *task;
+    GError *error = NULL;
+
+    g_return_if_fail (QMI_IS_DEVICE (self));
+    g_return_if_fail (ifname);
+
+    task = g_task_new (self, cancellable, callback, user_data);
+
+    if (!setup_net_port_manager (self, &error)) {
+        g_task_return_error (task, error);
+        g_object_unref (task);
+        return;
+    }
+
+    g_assert (self->priv->net_port_manager);
+    qmi_net_port_manager_del_link (self->priv->net_port_manager,
+                                   ifname,
+                                   mux_id,
+                                   5, /* timeout */
+                                   cancellable,
+                                   (GAsyncReadyCallback) device_del_link_ready,
+                                   task);
+}
+
+/*****************************************************************************/
+
+gboolean
+qmi_device_delete_all_links_finish (QmiDevice     *self,
+                                    GAsyncResult  *res,
+                                    GError       **error)
+{
+    return g_task_propagate_boolean (G_TASK (res), error);
+}
+
+static void
+device_del_all_links_ready (QmiNetPortManager *net_port_manager,
+                            GAsyncResult      *res,
+                            GTask             *task)
+{
+    GError *error = NULL;
+
+    if (!qmi_net_port_manager_del_all_links_finish (net_port_manager, res, &error))
+        g_task_return_error (task, error);
+    else
+        g_task_return_boolean (task, TRUE);
+    g_object_unref (task);
+}
+
+void
+qmi_device_delete_all_links (QmiDevice           *self,
+                             const gchar         *base_ifname,
+                             GCancellable        *cancellable,
+                             GAsyncReadyCallback  callback,
+                             gpointer             user_data)
+{
+    GTask  *task;
+    GError *error = NULL;
+
+    g_return_if_fail (QMI_IS_DEVICE (self));
+    g_return_if_fail (base_ifname);
+
+    task = g_task_new (self, cancellable, callback, user_data);
+
+    if (!setup_net_port_manager (self, &error)) {
+        g_task_return_error (task, error);
+        g_object_unref (task);
+        return;
+    }
+
+    g_assert (self->priv->net_port_manager);
+    qmi_net_port_manager_del_all_links (self->priv->net_port_manager,
+                                        base_ifname,
+                                        cancellable,
+                                        (GAsyncReadyCallback) device_del_all_links_ready,
+                                        task);
+}
+
+/*****************************************************************************/
+
+gboolean
+qmi_device_list_links (QmiDevice    *self,
+                       const gchar  *base_ifname,
+                       GPtrArray   **out_links,
+                       GError      **error)
+{
+    g_return_val_if_fail (QMI_IS_DEVICE (self), FALSE);
+    g_return_val_if_fail (base_ifname, FALSE);
+
+    if (!setup_net_port_manager (self, error))
+        return FALSE;
+
+    g_assert (self->priv->net_port_manager);
+    return qmi_net_port_manager_list_links (self->priv->net_port_manager,
+                                            base_ifname,
+                                            out_links,
+                                            error);
+}
+
+/*****************************************************************************/
+
+gboolean
+qmi_device_check_link_supported (QmiDevice  *self,
+                                 GError    **error)
+{
+    g_return_val_if_fail (QMI_IS_DEVICE (self), FALSE);
+
+    /* if we can setup a net port manager, link management is supported */
+    return setup_net_port_manager (self, error);
 }
 
 /*****************************************************************************/
@@ -1974,6 +2277,61 @@ open_version_info_ready (QmiClientCtl *client_ctl,
     device_open_step (task);
 }
 
+#if QMI_QRTR_SUPPORTED
+
+static void
+build_services_from_qrtr_node (GTask *task)
+{
+    QmiDevice           *self;
+    DeviceOpenContext   *ctx;
+    GList               *services;
+    guint                n_services;
+    GList               *elem;
+    QrtrNodeServiceInfo *qrtr_serv_info;
+
+    self = g_task_get_source_object (task);
+    ctx = g_task_get_task_data (task);
+
+    g_assert (self->priv->node);
+    services = qrtr_node_peek_service_info_list (self->priv->node);
+    n_services = g_list_length (services);
+
+    self->priv->supported_services = g_array_sized_new (FALSE,
+                                                        FALSE,
+                                                        sizeof (QmiMessageCtlGetVersionInfoOutputServiceListService),
+                                                        n_services);
+
+    g_debug ("[%s] QMI Device supports %u services:",
+             qmi_file_get_path_display (self->priv->file),
+             n_services);
+
+    for (elem = services; elem; elem = elem->next) {
+        const gchar *service_str;
+        QmiMessageCtlGetVersionInfoOutputServiceListService info;
+
+        qrtr_serv_info = elem->data;
+        info.service = qrtr_node_service_info_get_service (qrtr_serv_info);
+        info.major_version = qrtr_node_service_info_get_version (qrtr_serv_info);
+        g_array_append_val (self->priv->supported_services, info);
+
+        service_str = qmi_service_get_string (info.service);
+        if (service_str)
+            g_debug ("[%s]    %s (%u) ",
+                     qmi_file_get_path_display (self->priv->file),
+                     service_str,
+                     info.major_version);
+        else
+            g_debug ("[%s]    unknown [0x%04x] (%u)",
+                     qmi_file_get_path_display (self->priv->file),
+                     info.service,
+                     info.major_version);
+    }
+
+    ctx->step++;
+    device_open_step (task);
+}
+#endif
+
 static void
 endpoint_ready (QmiEndpoint *endpoint,
                 GAsyncResult *res,
@@ -2036,115 +2394,16 @@ device_create_endpoint (QmiDevice *self,
     g_debug ("[%s] created endpoint", qmi_file_get_path_display (self->priv->file));
 }
 
-#if QMI_QRTR_SUPPORTED
-
-typedef struct {
-    guint  mux_id;
-    gchar *ifname;
-} AddLinkResult;
-
-static void
-add_link_result_free (AddLinkResult *ctx)
-{
-    g_free (ctx->ifname);
-    g_free (ctx);
-}
-
-gchar *
-qmi_device_add_link_finish (QmiDevice     *self,
-                            GAsyncResult  *res,
-                            guint         *mux_id,
-                            GError       **error)
-{
-    AddLinkResult *ctx;
-
-    ctx = g_task_propagate_pointer (G_TASK (res), error);
-    if (!ctx)
-        return NULL;
-
-    if (mux_id)
-        *mux_id = ctx->mux_id;
-
-    return g_steal_pointer (&ctx->ifname);
-}
-
-static void
-device_add_link_ready (QmiNetPortManager *manager,
-                       GAsyncResult      *res,
-                       GTask             *task)
-{
-    QmiDevice     *self;
-    GError        *error = NULL;
-    AddLinkResult *ctx;
-
-    self = g_task_get_source_object (task);
-
-    ctx = g_new0 (AddLinkResult, 1);
-    ctx->ifname = qmi_net_port_manager_add_link_finish (manager, &ctx->mux_id, res, &error);
-
-    if (!ctx->ifname) {
-        g_prefix_error (&error, "Could not allocate link: ");
-        g_task_return_error (task, error);
-        add_link_result_free (ctx);
-    } else {
-        g_debug ("[%s] Allocated link %s for mux id %d",
-                 qmi_file_get_path_display (self->priv->file),
-                 ctx->ifname,
-                 ctx->mux_id);
-        g_task_return_pointer (task, ctx, (GDestroyNotify) add_link_result_free);
-    }
-
-    g_object_unref (task);
-}
-
-void
-qmi_device_add_link (QmiDevice           *self,
-                     guint                mux_id,
-                     const gchar         *base_ifname,
-                     const gchar         *ifname_prefix,
-                     GCancellable        *cancellable,
-                     GAsyncReadyCallback  callback,
-                     gpointer             user_data)
-{
-    GTask  *task;
-    GError *error = NULL;
-
-    task = g_task_new (self, cancellable, callback, user_data);
-
-    if (!self->priv->net_port_manager) {
-        self->priv->net_port_manager = qmi_net_port_manager_new (&error);
-        if (!self->priv->net_port_manager) {
-            g_debug ("Failed to create the net port manager: %s",
-                     error->message);
-            g_task_return_error (task, error);
-            g_object_unref (task);
-            return;
-        }
-    }
-
-    qmi_net_port_manager_add_link (self->priv->net_port_manager,
-                                   mux_id,
-                                   base_ifname,
-                                   ifname_prefix,
-                                   5,
-                                   cancellable,
-                                   (GAsyncReadyCallback) device_add_link_ready,
-                                   task);
-
-}
-
-#endif
-
 static gboolean
 device_setup_open_flags_by_transport (QmiDevice          *self,
                                       DeviceOpenContext  *ctx,
                                       GError            **error)
 {
-    __QmiTransportType  transport;
-    GError             *inner_error = NULL;
+    QmiHelpersTransportType  transport;
+    GError                  *inner_error = NULL;
 
-    transport = __qmi_utils_get_transport_type (qmi_file_get_path (self->priv->file), &inner_error);
-    if ((transport == __QMI_TRANSPORT_TYPE_UNKNOWN) && !self->priv->no_file_check)
+    transport = qmi_helpers_get_transport_type (qmi_file_get_path (self->priv->file), &inner_error);
+    if ((transport == QMI_HELPERS_TRANSPORT_TYPE_UNKNOWN) && !self->priv->no_file_check)
         g_warning ("[%s] couldn't detect transport type of port: %s", qmi_file_get_path_display (self->priv->file), inner_error->message);
     g_clear_error (&inner_error);
 
@@ -2153,15 +2412,15 @@ device_setup_open_flags_by_transport (QmiDevice          *self,
     /* Auto mode requested? */
     if (ctx->flags & QMI_DEVICE_OPEN_FLAGS_AUTO) {
         switch (transport) {
-        case __QMI_TRANSPORT_TYPE_MBIM:
+        case QMI_HELPERS_TRANSPORT_TYPE_MBIM:
             g_debug ("[%s] automatically selecting MBIM mode", qmi_file_get_path_display (self->priv->file));
             ctx->flags |= QMI_DEVICE_OPEN_FLAGS_MBIM;
             break;
-        case __QMI_TRANSPORT_TYPE_QMUX:
+        case QMI_HELPERS_TRANSPORT_TYPE_QMUX:
             g_debug ("[%s] automatically selecting QMI mode", qmi_file_get_path_display (self->priv->file));
             ctx->flags &= ~QMI_DEVICE_OPEN_FLAGS_MBIM;
             break;
-        case __QMI_TRANSPORT_TYPE_UNKNOWN:
+        case QMI_HELPERS_TRANSPORT_TYPE_UNKNOWN:
             g_set_error (&inner_error, QMI_CORE_ERROR, QMI_CORE_ERROR_FAILED,
                          "Cannot automatically select QMI/MBIM mode");
             break;
@@ -2173,7 +2432,7 @@ device_setup_open_flags_by_transport (QmiDevice          *self,
 
     /* MBIM mode requested? */
     if (ctx->flags & QMI_DEVICE_OPEN_FLAGS_MBIM) {
-        if ((transport != __QMI_TRANSPORT_TYPE_MBIM) && !self->priv->no_file_check)
+        if ((transport != QMI_HELPERS_TRANSPORT_TYPE_MBIM) && !self->priv->no_file_check)
             g_warning ("[%s] requested MBIM mode but unexpected transport type found", qmi_file_get_path_display (self->priv->file));
         goto out;
     }
@@ -2191,7 +2450,7 @@ device_setup_open_flags_by_transport (QmiDevice          *self,
 #endif /* MBIM_QMUX_ENABLED */
 
     /* QMI mode requested? */
-    if ((transport != __QMI_TRANSPORT_TYPE_QMUX) && !self->priv->no_file_check)
+    if ((transport != QMI_HELPERS_TRANSPORT_TYPE_QMUX) && !self->priv->no_file_check)
         g_warning ("[%s] requested QMI mode but unexpected transport type found",
                    qmi_file_get_path_display (self->priv->file));
 
@@ -2266,12 +2525,21 @@ device_open_step (GTask *task)
             g_debug ("[%s] Checking version info (%u retries)...",
                      qmi_file_get_path_display (self->priv->file),
                      ctx->version_check_retries);
-            qmi_client_ctl_get_version_info (self->priv->client_ctl,
-                                             NULL,
-                                             1,
-                                             g_task_get_cancellable (task),
-                                             (GAsyncReadyCallback)open_version_info_ready,
-                                             task);
+#if QMI_QRTR_SUPPORTED
+            if (self->priv->node) {
+                g_debug ("[%s] QRTR does not support version info check: checking only for available services",
+                         qmi_file_get_path_display (self->priv->file));
+                build_services_from_qrtr_node (task);
+            }
+            else
+#endif
+                qmi_client_ctl_get_version_info (self->priv->client_ctl,
+                                                NULL,
+                                                1,
+                                                g_task_get_cancellable (task),
+                                                (GAsyncReadyCallback)open_version_info_ready,
+                                                task);
+
             return;
         }
         ctx->step++;
@@ -2376,14 +2644,6 @@ qmi_device_open (QmiDevice *self,
 
     g_return_if_fail (QMI_IS_DEVICE (self));
 
-#if QMI_QRTR_SUPPORTED
-    if (self->priv->node && (flags & QMI_DEVICE_OPEN_FLAGS_VERSION_INFO)) {
-        g_debug ("[%s] QRTR does not support version info check",
-                 qmi_file_get_path_display (self->priv->file));
-        flags &= ~QMI_DEVICE_OPEN_FLAGS_VERSION_INFO;
-    }
-#endif
-
     flags_str = qmi_device_open_flags_build_string_from_mask (flags);
     g_debug ("[%s] Opening device with flags '%s'...",
              qmi_file_get_path_display (self->priv->file),
@@ -2443,68 +2703,6 @@ endpoint_close_ready (QmiEndpoint  *endpoint,
         g_task_return_boolean (task, TRUE);
     g_object_unref (task);
 }
-
-#if QMI_QRTR_SUPPORTED
-gboolean
-qmi_device_del_link_finish (QmiDevice     *self,
-                            GAsyncResult  *res,
-                            GError       **error)
-{
-    return g_task_propagate_boolean (G_TASK (res), error);
-}
-
-static void
-device_del_link_ready (QmiNetPortManager *manager,
-                       GAsyncResult      *res,
-                       GTask             *task)
-{
-    QmiDevice *self;
-    GError    *error = NULL;
-
-    self = g_task_get_source_object (task);
-
-    if (!qmi_net_port_manager_del_link_finish (manager, res, &error)) {
-        g_debug ("[%s] Could not delete link: %s",
-                 qmi_file_get_path_display (self->priv->file),
-                 error->message);
-        g_task_return_error (task, error);
-    } else
-        g_task_return_boolean (task, TRUE);
-
-    g_object_unref (task);
-}
-
-void
-qmi_device_del_link (QmiDevice           *self,
-                     const gchar         *ifname,
-                     GCancellable        *cancellable,
-                     GAsyncReadyCallback  callback,
-                     gpointer             user_data)
-{
-    GTask  *task;
-    GError *error = NULL;
-
-    task = g_task_new (self, cancellable, callback, user_data);
-
-    if (!self->priv->net_port_manager) {
-        self->priv->net_port_manager = qmi_net_port_manager_new (&error);
-        if (!self->priv->net_port_manager) {
-            g_debug ("Failed to create the net port manager: %s",
-                     error->message);
-            g_task_return_error (task, error);
-            g_object_unref (task);
-            return;
-        }
-    }
-
-    qmi_net_port_manager_del_link (self->priv->net_port_manager,
-                                   ifname,
-                                   5, /* timeout */
-                                   cancellable,
-                                   (GAsyncReadyCallback) device_del_link_ready,
-                                   task);
-}
-#endif
 
 void
 qmi_device_close_async (QmiDevice           *self,
@@ -2895,7 +3093,7 @@ get_file_for_node (QrtrNode *node)
 {
     g_autofree gchar *uri = NULL;
 
-    uri = qrtr_get_uri_for_node (qrtr_node_id (node));
+    uri = qrtr_get_uri_for_node (qrtr_node_get_id (node));
     return qmi_file_new (g_file_new_for_uri (uri));
 }
 #endif
@@ -3034,11 +3232,9 @@ dispose (GObject *object)
         g_clear_object (&self->priv->endpoint);
     }
 
-#if QMI_QRTR_SUPPORTED
     g_clear_object (&self->priv->net_port_manager);
-#endif
-
     g_clear_object (&self->priv->file);
+
 #if QMI_QRTR_SUPPORTED
     g_clear_object (&self->priv->node);
 #endif

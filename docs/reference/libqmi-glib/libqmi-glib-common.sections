@@ -6,6 +6,7 @@ QMI_MINOR_VERSION
 QMI_MICRO_VERSION
 QMI_CHECK_VERSION
 QMI_MBIM_QMUX_SUPPORTED
+QMI_QRTR_SUPPORTED
 </SECTION>
 
 <SECTION>
@@ -52,41 +53,63 @@ QMI_DEVICE_WWAN_IFACE
 QMI_DEVICE_SIGNAL_INDICATION
 QMI_DEVICE_SIGNAL_REMOVED
 QmiDevice
-QmiDeviceOpenFlags
-QmiDeviceReleaseClientFlags
-QmiDeviceServiceVersionInfo
-QmiDeviceExpectedDataFormat
-QmiDeviceCommandAbortableBuildRequestFn
-QmiDeviceCommandAbortableParseResponseFn
 qmi_device_new
 qmi_device_new_finish
 qmi_device_get_file
 qmi_device_peek_file
 qmi_device_get_path
 qmi_device_get_path_display
-qmi_device_get_wwan_iface
-qmi_device_get_expected_data_format
-qmi_device_set_expected_data_format
 qmi_device_is_open
+QmiDeviceOpenFlags
+qmi_device_open_flags_build_string_from_mask
 qmi_device_open
 qmi_device_open_finish
 qmi_device_close_async
 qmi_device_close_finish
 qmi_device_allocate_client
 qmi_device_allocate_client_finish
+QmiDeviceReleaseClientFlags
+qmi_device_release_client_flags_build_string_from_mask
 qmi_device_release_client
 qmi_device_release_client_finish
 qmi_device_set_instance_id
 qmi_device_set_instance_id_finish
-qmi_device_command_full
-qmi_device_command_full_finish
-qmi_device_command_abortable
-qmi_device_command_abortable_finish
+QmiDeviceServiceVersionInfo
 qmi_device_get_service_version_info
 qmi_device_get_service_version_info_finish
-qmi_device_open_flags_build_string_from_mask
-qmi_device_release_client_flags_build_string_from_mask
+qmi_device_command_full
+qmi_device_command_full_finish
+<SUBSECTION AbortableSupport>
+QmiDeviceCommandAbortableBuildRequestFn
+QmiDeviceCommandAbortableParseResponseFn
+qmi_device_command_abortable
+qmi_device_command_abortable_finish
+<SUBSECTION LinkSupport>
+QMI_DEVICE_MUX_ID_AUTOMATIC
+QMI_DEVICE_MUX_ID_UNBOUND
+QMI_DEVICE_MUX_ID_MIN
+QMI_DEVICE_MUX_ID_MAX
+qmi_device_list_links
+qmi_device_add_link
+qmi_device_add_link_finish
+qmi_device_delete_link
+qmi_device_delete_link_finish
+qmi_device_delete_all_links
+qmi_device_delete_all_links_finish
+qmi_device_check_link_supported
+<SUBSECTION UpstreamKernelSupport>
+qmi_device_get_wwan_iface
+QmiDeviceExpectedDataFormat
 qmi_device_expected_data_format_get_string
+qmi_device_get_expected_data_format
+qmi_device_set_expected_data_format
+qmi_device_check_expected_data_format_supported
+<SUBSECTION QrtrSupport>
+QMI_DEVICE_NODE
+qmi_device_new_from_node
+qmi_device_new_from_node_finish
+qmi_device_get_node
+qmi_device_peek_node
 <SUBSECTION Standard>
 QmiDeviceClass
 QMI_DEVICE
@@ -133,21 +156,26 @@ qmi_proxy_get_type
 <FILE>qmi-enums</FILE>
 <TITLE>Common enumerations and flags</TITLE>
 QmiService
+QmiEndian
 QmiDataEndpointType
 QmiSioPort
 <SUBSECTION Methods>
 qmi_service_get_string
+qmi_endian_get_string
 qmi_data_endpoint_type_get_string
 qmi_sio_port_get_string
 <SUBSECTION Private>
 qmi_service_build_string_from_mask
+qmi_endian_build_string_from_mask
 qmi_data_endpoint_type_build_string_from_mask
 qmi_sio_port_build_string_from_mask
 <SUBSECTION Standard>
 QMI_TYPE_SERVICE
+QMI_TYPE_ENDIAN
 QMI_TYPE_DATA_ENDPOINT_TYPE
 QMI_TYPE_SIO_PORT
 qmi_service_get_type
+qmi_endian_get_type
 qmi_data_endpoint_type_get_type
 qmi_sio_port_get_type
 </SECTION>
@@ -335,6 +363,7 @@ QmiNasSwiSystemMode
 QmiNasDrx
 QmiNasBoolean
 QmiNasPlmnLanguageId
+QmiNasLteVoiceDomain
 <SUBSECTION Methods>
 qmi_nas_radio_interface_get_string
 qmi_nas_active_band_get_string
@@ -400,6 +429,7 @@ qmi_nas_swi_system_mode_get_string
 qmi_nas_drx_get_string
 qmi_nas_boolean_get_string
 qmi_nas_plmn_language_id_get_string
+qmi_nas_lte_voice_domain_get_string
 <SUBSECTION Private>
 qmi_nas_radio_interface_build_string_from_mask
 qmi_nas_active_band_build_string_from_mask
@@ -461,6 +491,7 @@ qmi_nas_swi_system_mode_build_string_from_mask
 qmi_nas_drx_build_string_from_mask
 qmi_nas_boolean_build_string_from_mask
 qmi_nas_plmn_language_id_build_string_from_mask
+qmi_nas_lte_voice_domain_build_string_from_mask
 <SUBSECTION Standard>
 QMI_TYPE_NAS_ACTIVE_BAND
 QMI_TYPE_NAS_ATTACH_STATE
@@ -522,6 +553,7 @@ QMI_TYPE_NAS_SWI_SYSTEM_MODE
 QMI_TYPE_NAS_DRX
 QMI_TYPE_NAS_BOOLEAN
 QMI_TYPE_NAS_PLMN_LANGUAGE_ID
+QMI_TYPE_NAS_LTE_VOICE_DOMAIN
 qmi_nas_active_band_get_type
 qmi_nas_attach_state_get_type
 qmi_nas_call_barring_status_get_type
@@ -582,6 +614,7 @@ qmi_nas_swi_system_mode_get_type
 qmi_nas_drx_get_type
 qmi_nas_boolean_get_type
 qmi_nas_plmn_language_id_get_type
+qmi_nas_lte_voice_domain_get_type
 </SECTION>
 
 <SECTION>
@@ -1533,6 +1566,8 @@ qmi_message_set_transaction_id
 <SUBSECTION Printable>
 qmi_message_get_printable_full
 qmi_message_get_tlv_printable
+<SUBSECTION Private>
+qmi_message_tlv_read_remaining_size
 </SECTION>
 
 <SECTION>
@@ -1553,12 +1588,8 @@ qmi_message_context_get_type
 <SECTION>
 <FILE>qmi-utils</FILE>
 <TITLE>Common utilities</TITLE>
-QmiEndian
-<SUBSECTION Traces>
 qmi_utils_get_traces_enabled
 qmi_utils_set_traces_enabled
-<SUBSECTION Private>
-__QmiTransportType
 </SECTION>
 
 <SECTION>
@@ -1748,18 +1779,6 @@ qmi_message_wds_set_default_profile_num_output_get_type
 <SECTION>
 <FILE>ignored</FILE>
 <SUBSECTION Private>
-QMI_DEVICE_NODE
-QMI_QRTR_SUPPORTED
-QMI_DEVICE_MUX_ID_AUTOMATIC
-QMI_DEVICE_MUX_ID_UNBOUND
-qmi_device_new_from_node
-qmi_device_new_from_node_finish
-qmi_device_get_node
-qmi_device_peek_node
-qmi_device_add_link
-qmi_device_add_link_finish
-qmi_device_del_link
-qmi_device_del_link_finish
 HAVE_QMI_MESSAGE_NAS_ABORT
 HAVE_QMI_MESSAGE_WDS_ABORT
 HAVE_QMI_SERVICE_DMS
