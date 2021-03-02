@@ -58,8 +58,9 @@ QMICLI_ENUM_LIST
 
 /* Common helpers to read flags from strings */
 #define QMICLI_FLAGS_LIST                                                               \
-    QMICLI_FLAGS_LIST_ITEM (QmiDeviceOpenFlags, device_open_flags, "device open flags") \
-    QMICLI_FLAGS_LIST_ITEM (QmiLocNmeaType,     loc_nmea_type,     "NMEA type")
+    QMICLI_FLAGS_LIST_ITEM (QmiDeviceOpenFlags,                   device_open_flags,                     "device open flags") \
+    QMICLI_FLAGS_LIST_ITEM (QmiLocNmeaType,                       loc_nmea_type,                         "NMEA type") \
+    QMICLI_FLAGS_LIST_ITEM (QmiNasPlmnAccessTechnologyIdentifier, nas_plmn_access_technology_identifier, "PLMN access technology")
 
 #define QMICLI_FLAGS_LIST_ITEM(TYPE,TYPE_UNDERSCORE,DESCR)        \
     gboolean qmicli_read_## TYPE_UNDERSCORE ##_from_string (const gchar *str, TYPE *out);
@@ -94,7 +95,8 @@ gboolean qmicli_read_ssp_net_options_from_string             (const gchar *str,
                                                               guint16 *out_network_mnc);
 gboolean qmicli_read_parse_3gpp_mcc_mnc                      (const gchar *str,
                                                               guint16     *out_mcc,
-                                                              guint16     *out_mnc);
+                                                              guint16     *out_mnc,
+                                                              gboolean    *out_pcs_digit);
 gboolean qmicli_read_enable_disable_from_string              (const gchar *str,
                                                               gboolean *out);
 gboolean qmicli_read_firmware_id_from_string                 (const gchar *str,
