@@ -35,6 +35,9 @@
 
 #if defined HAVE_QMI_SERVICE_NAS
 
+#undef VALIDATE_MASK_NONE
+#define VALIDATE_MASK_NONE(str) (str ? str : "none")
+
 /* Context */
 typedef struct {
     QmiDevice *device;
@@ -1052,13 +1055,13 @@ get_preferred_networks_ready (QmiClientNas *client,
 
     if (qmi_message_nas_get_preferred_networks_output_get_preferred_networks (output, &preferred_networks_array, NULL)) {
         guint i;
-        gchar *access_tech_string;
 
         g_print ("Preferred PLMN list:\n");
         if (preferred_networks_array->len == 0)
             g_print ("\t<empty>\n");
         for (i = 0; i < preferred_networks_array->len; i++) {
             QmiMessageNasGetPreferredNetworksOutputPreferredNetworksElement *element;
+            g_autofree gchar *access_tech_string = NULL;
 
             element = &g_array_index (preferred_networks_array, QmiMessageNasGetPreferredNetworksOutputPreferredNetworksElement, i);
             access_tech_string = qmi_nas_plmn_access_technology_identifier_build_string_from_mask (element->radio_access_technology);
@@ -1069,8 +1072,7 @@ get_preferred_networks_ready (QmiClientNas *client,
                      i,
                      element->mcc,
                      element->mnc,
-                     access_tech_string);
-            g_free (access_tech_string);
+                     VALIDATE_MASK_NONE (access_tech_string));
         }
     }
 
@@ -2402,7 +2404,8 @@ get_technology_preference_ready (QmiClientNas *client,
     GError *error = NULL;
     QmiNasRadioTechnologyPreference preference;
     QmiNasPreferenceDuration duration;
-    gchar *preference_string;
+    g_autofree gchar *preference_string = NULL;
+    g_autofree gchar *persistent_preference_string = NULL;
 
     output = qmi_client_nas_get_technology_preference_finish (client, res, &error);
     if (!output) {
@@ -2430,18 +2433,15 @@ get_technology_preference_ready (QmiClientNas *client,
     g_print ("[%s] Successfully got technology preference\n"
              "\tActive: '%s', duration: '%s'\n",
              qmi_device_get_path_display (ctx->device),
-             preference_string,
+             VALIDATE_MASK_NONE (preference_string),
              qmi_nas_preference_duration_get_string (duration));
-    g_free (preference_string);
 
     if (qmi_message_nas_get_technology_preference_output_get_persistent (
             output,
             &preference,
             NULL)) {
-        preference_string = qmi_nas_radio_technology_preference_build_string_from_mask (preference);
-        g_print ("\tPersistent: '%s'\n",
-                 preference_string);
-        g_free (preference_string);
+        persistent_preference_string = qmi_nas_radio_technology_preference_build_string_from_mask (preference);
+        g_print ("\tPersistent: '%s'\n", VALIDATE_MASK_NONE (persistent_preference_string));
     }
 
     qmi_message_nas_get_technology_preference_output_unref (output);
@@ -2509,22 +2509,20 @@ get_system_selection_preference_ready (QmiClientNas *client,
             output,
             &mode_preference,
             NULL)) {
-        gchar *str;
+        g_autofree gchar *str = NULL;
 
         str = qmi_nas_rat_mode_preference_build_string_from_mask (mode_preference);
-        g_print ("\tMode preference: '%s'\n", str);
-        g_free (str);
+        g_print ("\tMode preference: '%s'\n", VALIDATE_MASK_NONE (str));
     }
 
     if (qmi_message_nas_get_system_selection_preference_output_get_disabled_modes (
             output,
             &disabled_modes,
             NULL)) {
-        gchar *str;
+        g_autofree gchar *str = NULL;
 
         str = qmi_nas_rat_mode_preference_build_string_from_mask (disabled_modes);
-        g_print ("\tDisabled modes: '%s'\n", str);
-        g_free (str);
+        g_print ("\tDisabled modes: '%s'\n", VALIDATE_MASK_NONE (str));
     }
 
 
@@ -2532,22 +2530,20 @@ get_system_selection_preference_ready (QmiClientNas *client,
             output,
             &band_preference,
             NULL)) {
-        gchar *str;
+        g_autofree gchar *str = NULL;
 
         str = qmi_nas_band_preference_build_string_from_mask (band_preference);
-        g_print ("\tBand preference: '%s'\n", str);
-        g_free (str);
+        g_print ("\tBand preference: '%s'\n", VALIDATE_MASK_NONE (str));
     }
 
     if (qmi_message_nas_get_system_selection_preference_output_get_lte_band_preference (
             output,
             &lte_band_preference,
             NULL)) {
-        gchar *str;
+        g_autofree gchar *str = NULL;
 
         str = qmi_nas_lte_band_preference_build_string_from_mask (lte_band_preference);
-        g_print ("\tLTE band preference: '%s'\n", str);
-        g_free (str);
+        g_print ("\tLTE band preference: '%s'\n", VALIDATE_MASK_NONE (str));
     }
 
     if (qmi_message_nas_get_system_selection_preference_output_get_extended_lte_band_preference (
@@ -2584,11 +2580,10 @@ get_system_selection_preference_ready (QmiClientNas *client,
             output,
             &td_scdma_band_preference,
             NULL)) {
-        gchar *str;
+        g_autofree gchar *str = NULL;
 
         str = qmi_nas_td_scdma_band_preference_build_string_from_mask (td_scdma_band_preference);
-        g_print ("\tTD-SCDMA band preference: '%s'\n", str);
-        g_free (str);
+        g_print ("\tTD-SCDMA band preference: '%s'\n", VALIDATE_MASK_NONE (str));
     }
 
     if (qmi_message_nas_get_system_selection_preference_output_get_cdma_prl_preference (
@@ -2677,7 +2672,7 @@ get_system_selection_preference_ready (QmiClientNas *client,
             NULL)) {
         guint i;
 
-        g_print ("\tAcquisition order preference: ");
+        g_print ("\tAcquisition order preference: '");
         for (i = 0; i < acquisition_order_preference->len; i++) {
             QmiNasRadioInterface radio_interface;
 
@@ -2686,7 +2681,7 @@ get_system_selection_preference_ready (QmiClientNas *client,
                      i > 0 ? ", " : "",
                      qmi_nas_radio_interface_get_string (radio_interface));
         }
-        g_print ("\n");
+        g_print ("'\n");
     }
 
     qmi_message_nas_get_system_selection_preference_output_unref (output);
@@ -2848,7 +2843,7 @@ network_scan_ready (QmiClientNas *client,
 
         for (i = 0; i < array->len; i++) {
             QmiMessageNasNetworkScanOutputNetworkInformationElement *element;
-            gchar *status_str;
+            g_autofree gchar *status_str = NULL;
 
             element = &g_array_index (array, QmiMessageNasNetworkScanOutputNetworkInformationElement, i);
             status_str = qmi_nas_network_status_build_string_from_mask (element->network_status);
@@ -2860,9 +2855,8 @@ network_scan_ready (QmiClientNas *client,
                      i,
                      element->mcc,
                      element->mnc,
-                     status_str,
+                     VALIDATE_MASK_NONE (status_str),
                      element->description);
-            g_free (status_str);
         }
     }
 
@@ -2986,6 +2980,16 @@ get_cell_location_info_ready (QmiClientNas *client,
     QmiNasWcdmaRrcState rrc_state;
 
     guint32 lte_timing_advance;
+
+    guint32 nr5g_arfcn;
+
+    GArray  *nr5g_cell_information_plmn;
+    GArray  *nr5g_cell_information_tac;
+    guint64  nr5g_cell_information_global_cell_id;
+    guint16  nr5g_cell_information_physical_cell_id;
+    gint16   nr5g_cell_information_rsrp;
+    gint16   nr5g_cell_information_rsrq;
+    gint16   nr5g_cell_information_snr;
 
     output = qmi_client_nas_get_cell_location_info_finish (client, res, &error);
     if (!output) {
@@ -3467,6 +3471,50 @@ get_cell_location_info_ready (QmiClientNas *client,
             g_print ("LTE Timing Advance: '%" G_GUINT32_FORMAT"' us\n", lte_timing_advance);
     }
 
+    if (qmi_message_nas_get_cell_location_info_output_get_nr5g_arfcn (
+            output,
+            &nr5g_arfcn,
+            NULL)) {
+        g_print ("5GNR ARFCN: '%" G_GUINT32_FORMAT"'\n", nr5g_arfcn);
+    }
+
+    if (qmi_message_nas_get_cell_location_info_output_get_nr5g_cell_information (
+            output,
+            &nr5g_cell_information_plmn,
+            &nr5g_cell_information_tac,
+            &nr5g_cell_information_global_cell_id,
+            &nr5g_cell_information_physical_cell_id,
+            &nr5g_cell_information_rsrq,
+            &nr5g_cell_information_rsrp,
+            &nr5g_cell_information_snr,
+            NULL)) {
+        g_autofree gchar *plmn = NULL;
+        guint32           tac;
+
+        plmn = str_from_bcd_plmn (nr5g_cell_information_plmn);
+
+        g_assert (nr5g_cell_information_tac->len == 3);
+        tac = ((((g_array_index (nr5g_cell_information_tac, guint8, 0) << 8) |
+                 g_array_index (nr5g_cell_information_tac, guint8, 1)) << 8) |
+               g_array_index (nr5g_cell_information_tac, guint8, 2));
+
+        g_print ("5GNR cell information\n"
+                 "\tPLMN: '%s'\n"
+                 "\tTracking Area Code: '%" G_GUINT32_FORMAT "'\n"
+                 "\tGlobal Cell ID: '%" G_GUINT64_FORMAT "'\n"
+                 "\tPhysical Cell ID: '%" G_GUINT16_FORMAT "'\n"
+                 "\tRSRQ: '%.1lf dB'\n"
+                 "\tRSRP: '%.1lf dBm'\n"
+                 "\tSNR: '%.1lf dB'\n",
+                 plmn,
+                 tac,
+                 nr5g_cell_information_global_cell_id,
+                 nr5g_cell_information_physical_cell_id,
+                 (0.1) * ((gdouble)nr5g_cell_information_rsrq),
+                 (0.1) * ((gdouble)nr5g_cell_information_rsrp),
+                 (0.1) * ((gdouble)nr5g_cell_information_snr));
+    }
+
     qmi_message_nas_get_cell_location_info_output_unref (output);
     operation_shutdown (TRUE);
 }
@@ -3549,14 +3597,14 @@ get_operator_name_ready (QmiClientNas *client,
         &spn_display_condition,
         &spn,
         NULL)) {
-        gchar *dc_string = qmi_nas_network_name_display_condition_build_string_from_mask (spn_display_condition);
+        g_autofree gchar *dc_string = NULL;
 
+        dc_string = qmi_nas_network_name_display_condition_build_string_from_mask (spn_display_condition);
         g_print ("Service Provider Name\n");
         g_print ("\tDisplay Condition: '%s'\n"
                  "\tName             : '%s'\n",
-                 dc_string,
+                 VALIDATE_MASK_NONE (dc_string),
                  spn);
-        g_free (dc_string);
     }
 
     if (qmi_message_nas_get_operator_name_output_get_operator_string_name (
@@ -3939,7 +3987,7 @@ get_rf_band_info_ready (QmiClientNas *client,
     if (qmi_message_nas_get_rf_band_information_output_get_extended_list (
         output,
         &extended_band_array,
-        &error)) {
+        NULL)) {
         g_print ("Band Information (Extended):\n");
         for (i = 0; extended_band_array && i < extended_band_array->len; i++) {
             QmiMessageNasGetRfBandInformationOutputExtendedListElement *info;
@@ -3957,7 +4005,7 @@ get_rf_band_info_ready (QmiClientNas *client,
     if (qmi_message_nas_get_rf_band_information_output_get_bandwidth_list (
         output,
         &bandwidth_array,
-        &error)) {
+        NULL)) {
         g_print ("Bandwidth:\n");
         for (i = 0; bandwidth_array && i < bandwidth_array->len; i++) {
             QmiMessageNasGetRfBandInformationOutputBandwidthListElement *info;

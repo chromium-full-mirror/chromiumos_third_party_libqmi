@@ -70,15 +70,15 @@ def add_header_start(f, output_name, service):
         "#include <gio/gio.h>\n"
         "\n"
         "#include \"qmi-enums.h\"\n")
-    # CTL and GMS don't have enums
-    if service not in ('CTL', 'GMS'):
+    # CTL, DPM and GMS don't have enums
+    if service not in ('CTL', 'DPM', 'GMS'):
         template += (
             "#include \"qmi-enums-${service}.h\"\n")
     if service == 'CTL':
         template += (
             "#include \"qmi-enums-private.h\"\n")
-    # DMS, NAS, LOC and DSD have flags64
-    if service in ('DMS', 'NAS', 'LOC', 'DSD'):
+    # DMS, NAS, LOC, DSD and WDS have flags64
+    if service in ('DMS', 'NAS', 'LOC', 'DSD', 'WDS'):
         template += (
             "#include \"qmi-flags64-${service}.h\"\n")
     template += (

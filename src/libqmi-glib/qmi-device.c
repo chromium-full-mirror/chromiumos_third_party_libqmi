@@ -54,6 +54,7 @@
 #include "qmi-gas.h"
 #include "qmi-gms.h"
 #include "qmi-dsd.h"
+#include "qmi-dpm.h"
 #include "qmi-utils.h"
 #include "qmi-helpers.h"
 #include "qmi-error-types.h"
@@ -1271,6 +1272,11 @@ qmi_device_allocate_client (QmiDevice *self,
         ctx->client_type = QMI_TYPE_CLIENT_SAR;
 #endif
         break;
+    case QMI_SERVICE_DPM:
+#if defined HAVE_QMI_SERVICE_DPM
+        ctx->client_type = QMI_TYPE_CLIENT_DPM;
+#endif
+        break;
 
     case QMI_SERVICE_UNKNOWN:
         g_assert_not_reached ();
@@ -1819,12 +1825,13 @@ add_link_result_free (AddLinkResult *ctx)
 }
 
 gchar *
-qmi_device_add_link_finish (QmiDevice     *self,
-                            GAsyncResult  *res,
-                            guint         *mux_id,
-                            GError       **error)
+qmi_device_add_link_with_flags_finish (QmiDevice     *self,
+                                       GAsyncResult  *res,
+                                       guint         *mux_id,
+                                       GError       **error)
 {
     AddLinkResult *ctx;
+    gchar         *ifname;
 
     ctx = g_task_propagate_pointer (G_TASK (res), error);
     if (!ctx)
@@ -1833,7 +1840,18 @@ qmi_device_add_link_finish (QmiDevice     *self,
     if (mux_id)
         *mux_id = ctx->mux_id;
 
-    return g_steal_pointer (&ctx->ifname);
+    ifname = g_steal_pointer (&ctx->ifname);
+    add_link_result_free (ctx);
+    return ifname;
+}
+
+gchar *
+qmi_device_add_link_finish (QmiDevice     *self,
+                            GAsyncResult  *res,
+                            guint         *mux_id,
+                            GError       **error)
+{
+    return qmi_device_add_link_with_flags_finish (self, res, mux_id, error);
 }
 
 static void
@@ -1858,13 +1876,14 @@ device_add_link_ready (QmiNetPortManager *net_port_manager,
 }
 
 void
-qmi_device_add_link (QmiDevice           *self,
-                     guint                mux_id,
-                     const gchar         *base_ifname,
-                     const gchar         *ifname_prefix,
-                     GCancellable        *cancellable,
-                     GAsyncReadyCallback  callback,
-                     gpointer             user_data)
+qmi_device_add_link_with_flags (QmiDevice             *self,
+                                guint                  mux_id,
+                                const gchar           *base_ifname,
+                                const gchar           *ifname_prefix,
+                                QmiDeviceAddLinkFlags  flags,
+                                GCancellable          *cancellable,
+                                GAsyncReadyCallback    callback,
+                                gpointer               user_data)
 {
     GTask  *task;
     GError *error = NULL;
@@ -1887,10 +1906,25 @@ qmi_device_add_link (QmiDevice           *self,
                                    mux_id,
                                    base_ifname,
                                    ifname_prefix,
+                                   flags,
                                    5,
                                    cancellable,
                                    (GAsyncReadyCallback) device_add_link_ready,
                                    task);
+}
+
+void
+qmi_device_add_link (QmiDevice           *self,
+                     guint                mux_id,
+                     const gchar         *base_ifname,
+                     const gchar         *ifname_prefix,
+                     GCancellable        *cancellable,
+                     GAsyncReadyCallback  callback,
+                     gpointer             user_data)
+{
+    qmi_device_add_link_with_flags (self, mux_id, base_ifname, ifname_prefix,
+                                    QMI_DEVICE_ADD_LINK_FLAGS_NONE,
+                                    cancellable, callback, user_data);
 }
 
 gboolean
@@ -2243,6 +2277,8 @@ open_version_info_ready (QmiClientCtl *client_ctl,
     qmi_message_ctl_get_version_info_output_get_service_list (output,
                                                               &service_list,
                                                               NULL);
+
+    g_clear_pointer (&self->priv->supported_services, g_array_unref);
     self->priv->supported_services = g_array_ref (service_list);
 
     g_debug ("[%s] QMI Device supports %u services:",
@@ -2296,6 +2332,7 @@ build_services_from_qrtr_node (GTask *task)
     services = qrtr_node_peek_service_info_list (self->priv->node);
     n_services = g_list_length (services);
 
+    g_clear_pointer (&self->priv->supported_services, g_array_unref);
     self->priv->supported_services = g_array_sized_new (FALSE,
                                                         FALSE,
                                                         sizeof (QmiMessageCtlGetVersionInfoOutputServiceListService),

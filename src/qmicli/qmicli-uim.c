@@ -35,6 +35,9 @@
 
 #if defined HAVE_QMI_SERVICE_UIM
 
+#undef VALIDATE_MASK_NONE
+#define VALIDATE_MASK_NONE(str) (str ? str : "none")
+
 /* Context */
 typedef struct {
     QmiDevice *device;
@@ -59,6 +62,7 @@ static gchar *sim_power_on_str;
 static gchar *sim_power_off_str;
 static gchar *change_provisioning_session_str;
 static gchar *switch_slot_str;
+static gchar *depersonalization_str;
 static gchar **monitor_refresh_file_array;
 static gboolean get_card_status_flag;
 static gboolean get_supported_messages_flag;
@@ -67,6 +71,7 @@ static gboolean monitor_slot_status_flag;
 static gboolean reset_flag;
 static gboolean monitor_refresh_all_flag;
 static gboolean noop_flag;
+static gboolean get_configuration_flag;
 
 #undef VALIDATE_UNKNOWN
 #define VALIDATE_UNKNOWN(str) (str ? str : "unknown")
@@ -180,6 +185,19 @@ static GOptionEntry entries[] = {
       NULL
     },
 #endif
+#if defined HAVE_QMI_MESSAGE_UIM_GET_CONFIGURATION
+    { "uim-get-configuration", 0, 0, G_OPTION_ARG_NONE, &get_configuration_flag,
+      "Get personalization status of the modem",
+      NULL
+    },
+#endif
+#if defined HAVE_QMI_MESSAGE_UIM_DEPERSONALIZATION
+    { "uim-depersonalization", 0, 0, G_OPTION_ARG_STRING, &depersonalization_str,
+      "Deactivates or unblocks personalization feature",
+      "[(feature),(operation),(control key)[,(slot number)]]"
+    },
+#endif
+
     { "uim-noop", 0, 0, G_OPTION_ARG_NONE, &noop_flag,
       "Just allocate or release a UIM client. Use with `--client-no-release-cid' and/or `--client-cid'",
       NULL
@@ -223,12 +241,14 @@ qmicli_uim_options_enabled (void)
                  !!change_provisioning_session_str +
                  !!switch_slot_str +
                  !!monitor_refresh_file_array +
+                 !!depersonalization_str +
                  get_card_status_flag +
                  get_supported_messages_flag +
                  get_slot_status_flag +
                  monitor_slot_status_flag +
                  reset_flag +
                  monitor_refresh_all_flag +
+                 get_configuration_flag +
                  noop_flag);
 
     if (n_actions > 1) {
@@ -2016,7 +2036,12 @@ get_file_attributes_ready (QmiClientUim *client,
             &activate_security_attributes,
             &raw,
             NULL)) {
-        gchar *str;
+        g_autofree gchar *read_security_attributes_str = NULL;
+        g_autofree gchar *write_security_attributes_str = NULL;
+        g_autofree gchar *increase_security_attributes_str = NULL;
+        g_autofree gchar *deactivate_security_attributes_str = NULL;
+        g_autofree gchar *activate_security_attributes_str = NULL;
+        g_autofree gchar *raw_str = NULL;
 
         g_print ("File attributes:\n");
         g_print ("\tFile size: %u\n", (guint)file_size);
@@ -2025,39 +2050,33 @@ get_file_attributes_ready (QmiClientUim *client,
         g_print ("\tRecord size: %u\n", (guint)record_size);
         g_print ("\tRecord count: %u\n", (guint)record_count);
 
-        str = qmi_uim_security_attribute_build_string_from_mask (read_security_attributes);
+        read_security_attributes_str = qmi_uim_security_attribute_build_string_from_mask (read_security_attributes);
         g_print ("\tRead security attributes: (%s) %s\n",
                  qmi_uim_security_attribute_logic_get_string (read_security_attributes_logic),
-                 str);
-        g_free (str);
+                 VALIDATE_MASK_NONE (read_security_attributes_str));
 
-        str = qmi_uim_security_attribute_build_string_from_mask (write_security_attributes);
+        write_security_attributes_str = qmi_uim_security_attribute_build_string_from_mask (write_security_attributes);
         g_print ("\tWrite security attributes: (%s) %s\n",
                  qmi_uim_security_attribute_logic_get_string (write_security_attributes_logic),
-                 str);
-        g_free (str);
+                 VALIDATE_MASK_NONE (write_security_attributes_str));
 
-        str = qmi_uim_security_attribute_build_string_from_mask (increase_security_attributes);
+        increase_security_attributes_str = qmi_uim_security_attribute_build_string_from_mask (increase_security_attributes);
         g_print ("\tIncrease security attributes: (%s) %s\n",
                  qmi_uim_security_attribute_logic_get_string (increase_security_attributes_logic),
-                 str);
-        g_free (str);
+                 VALIDATE_MASK_NONE (increase_security_attributes_str));
 
-        str = qmi_uim_security_attribute_build_string_from_mask (deactivate_security_attributes);
+        deactivate_security_attributes_str = qmi_uim_security_attribute_build_string_from_mask (deactivate_security_attributes);
         g_print ("\tDeactivate security attributes: (%s) %s\n",
                  qmi_uim_security_attribute_logic_get_string (deactivate_security_attributes_logic),
-                 str);
-        g_free (str);
+                 VALIDATE_MASK_NONE (deactivate_security_attributes_str));
 
-        str = qmi_uim_security_attribute_build_string_from_mask (activate_security_attributes);
+        activate_security_attributes_str = qmi_uim_security_attribute_build_string_from_mask (activate_security_attributes);
         g_print ("\tActivate security attributes: (%s) %s\n",
                  qmi_uim_security_attribute_logic_get_string (activate_security_attributes_logic),
-                 str);
-        g_free (str);
+                 VALIDATE_MASK_NONE (activate_security_attributes_str));
 
-        str = qmicli_get_raw_data_printable (raw, 80, "\t");
-        g_print ("\tRaw: %s\n", str);
-        g_free (str);
+        raw_str = qmicli_get_raw_data_printable (raw, 80, "\t");
+        g_print ("\tRaw: %s\n", raw_str);
     }
 
     qmi_message_uim_get_file_attributes_output_unref (output);
@@ -2381,6 +2400,200 @@ register_refresh_all_events (void)
 }
 
 #endif /* HAVE_QMI_MESSAGE_UIM_REFRESH_REGISTER_ALL */
+
+#if defined HAVE_QMI_MESSAGE_UIM_GET_CONFIGURATION
+
+static QmiMessageUimGetConfigurationInput *
+get_configuration_input_create (void)
+{
+    QmiMessageUimGetConfigurationInput *input;
+
+    input = qmi_message_uim_get_configuration_input_new ();
+
+    qmi_message_uim_get_configuration_input_set_configuration_mask (
+        input,
+        QMI_UIM_CONFIGURATION_PERSONALIZATION_STATUS,
+        NULL);
+
+    return input;
+}
+
+static void
+get_configuration_ready (QmiClientUim *client,
+                         GAsyncResult *res)
+{
+    g_autoptr(QmiMessageUimGetConfigurationOutput) output = NULL;
+    g_autoptr(GError)                              error = NULL;
+    GArray                                        *elements = NULL;
+    GArray                                        *other_slots = NULL;
+
+    output = qmi_client_uim_get_configuration_finish (client, res, &error);
+    if (!output) {
+        g_printerr ("error: operation failed: %s\n", error->message);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    if (!qmi_message_uim_get_configuration_output_get_result (output, &error)) {
+        g_printerr ("error: get configuration failed: %s\n", error->message);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    g_print ("Configuration successfully retrieved\n");
+
+    /* Other slots TLV contains info for slots > 1 */
+    qmi_message_uim_get_configuration_output_get_personalization_status_other_slots (output, &other_slots, NULL);
+
+    if (qmi_message_uim_get_configuration_output_get_personalization_status (output, &elements, NULL)) {
+        if (elements->len == 0)
+            g_print ("Personalization features%s: all disabled\n",
+                     other_slots ? " in slot 1" : "");
+        else {
+            QmiMessageUimGetConfigurationOutputPersonalizationStatusElement *element;
+            guint i;
+
+            g_print ("Personalization features%s:\n",
+                     other_slots ? " in slot 1" : "");
+            for (i = 0; i < elements->len; i++) {
+                element = &g_array_index (elements,
+                                          QmiMessageUimGetConfigurationOutputPersonalizationStatusElement,
+                                          i);
+                g_print ("\tPersonalization: %s\n"
+                         "\t\tVerify left:  %u\n"
+                         "\t\tUnblock left: %u\n",
+                         qmi_uim_card_application_personalization_feature_get_string (element->feature),
+                         element->verify_left,
+                         element->unblock_left);
+            }
+        }
+    }
+
+    if (other_slots) {
+        if (other_slots->len == 0)
+            g_print ("Personalization features in other slots: all disabled\n");
+        else {
+            guint slot;
+
+            for (slot = 0; slot < other_slots->len; slot++) {
+                QmiMessageUimGetConfigurationOutputPersonalizationStatusElement *element;
+                guint i;
+
+                elements = g_array_index (other_slots, GArray *, slot);
+                if (!elements)
+                    continue;
+
+                g_print ("Personalization features in slot %u:\n", slot + 2);
+                for (i = 0; i < elements->len; i++) {
+                    element = &g_array_index (elements,
+                                              QmiMessageUimGetConfigurationOutputPersonalizationStatusElement,
+                                              i);
+                    g_print ("\tPersonalization: %s\n"
+                             "\t\tVerify left:  %u\n"
+                             "\t\tUnblock left: %u\n",
+                             qmi_uim_card_application_personalization_feature_get_string (element->feature),
+                             element->verify_left,
+                             element->unblock_left);
+                }
+            }
+        }
+    }
+
+    operation_shutdown (TRUE);
+}
+
+#endif /* HAVE_QMI_MESSAGE_UIM_GET_CONFIGURATION */
+
+#if defined HAVE_QMI_MESSAGE_UIM_DEPERSONALIZATION
+
+static QmiMessageUimDepersonalizationInput *
+depersonalization_input_create (const gchar *str)
+{
+    g_auto(GStrv)                                split = NULL;
+    QmiMessageUimDepersonalizationInput         *input = NULL;
+    QmiUimCardApplicationPersonalizationFeature  feature;
+    QmiUimDepersonalizationOperation             operation;
+    const gchar                                 *control_key;
+    guint                                        slot = 0;
+
+    /* Prepare inputs.
+     * Format of the string is:
+     *    "[(feature),(operation),(control key)[,(slot number)]]"
+     */
+    split = g_strsplit (str, ",", -1);
+
+    if (!split[0] || !qmicli_read_uim_card_application_personalization_feature_from_string (split[0], &feature)) {
+        g_printerr ("error: invalid personalization feature\n");
+        return NULL;
+    }
+
+    if (!split[1] || !qmicli_read_uim_depersonalization_operation_from_string (split[1], &operation)) {
+        g_printerr ("error: invalid depersonalization operation\n");
+        return NULL;
+    }
+
+    if (!split[2]) {
+        g_printerr ("error: missing control key\n");
+        return NULL;
+    }
+    control_key = split[2];
+
+    if (g_strv_length (split) > 3) {
+        if (!qmicli_read_uint_from_string (split[3], &slot) || (slot < 1) || (slot > 5)) {
+            g_printerr ("error: invalid slot number\n");
+            return NULL;
+        }
+    }
+
+    input = qmi_message_uim_depersonalization_input_new ();
+    qmi_message_uim_depersonalization_input_set_info (input, feature, operation, control_key, NULL);
+
+    /* skip setting slot if not given by the user */
+    if (slot > 0)
+        qmi_message_uim_depersonalization_input_set_slot (input, slot, NULL);
+
+    return input;
+}
+
+static void
+depersonalization_ready (QmiClientUim *client,
+                         GAsyncResult *res)
+{
+    g_autoptr(QmiMessageUimDepersonalizationOutput) output = NULL;
+    g_autoptr(GError)                               error = NULL;
+    guint8                                          unblock_left;
+    guint8                                          verify_left;
+
+    output = qmi_client_uim_depersonalization_finish (client, res, &error);
+    if (!output) {
+        g_printerr ("error: operation failed: %s\n", error->message);
+        operation_shutdown (FALSE);
+        return;
+    }
+
+    if (qmi_message_uim_depersonalization_output_get_result (output, &error)) {
+        g_print ("Modem was unlocked successfully\n");
+        operation_shutdown (TRUE);
+        return;
+    }
+
+    g_printerr ("error: depersonalization failed: %s\n", error->message);
+    if (qmi_message_uim_depersonalization_output_get_retries_remaining (
+            output,
+            &verify_left,
+            &unblock_left,
+            NULL)) {
+        g_printerr ("Retries left:\n"
+                    "\tVerify: %u\n"
+                    "\tUnblock: %u\n",
+                    verify_left,
+                    unblock_left);
+    }
+
+    operation_shutdown (FALSE);
+}
+
+#endif /* HAVE_QMI_MESSAGE_UIM_DEPERSONALIZATION */
 
 void
 qmicli_uim_run (QmiDevice *device,
@@ -2710,6 +2923,50 @@ qmicli_uim_run (QmiDevice *device,
                               ctx->cancellable,
                               (GAsyncReadyCallback)reset_ready,
                               NULL);
+        return;
+    }
+#endif
+
+#if defined HAVE_QMI_MESSAGE_UIM_GET_CONFIGURATION
+    /* Request to get personalization status? */
+    if (get_configuration_flag) {
+        g_autoptr(QmiMessageUimGetConfigurationInput) input = NULL;
+
+        g_debug ("Asynchronously getting UIM configuration...");
+        input = get_configuration_input_create ();
+        if (!input) {
+            operation_shutdown (FALSE);
+            return;
+        }
+
+        qmi_client_uim_get_configuration (ctx->client,
+                                          input,
+                                          10,
+                                          ctx->cancellable,
+                                          (GAsyncReadyCallback)get_configuration_ready,
+                                          NULL);
+        return;
+    }
+#endif
+
+#if defined HAVE_QMI_MESSAGE_UIM_DEPERSONALIZATION
+    /* Request to depersonalize the modem? */
+    if (depersonalization_str) {
+        g_autoptr(QmiMessageUimDepersonalizationInput) input = NULL;
+
+        g_debug ("Asynchronously removing personalization...");
+        input = depersonalization_input_create (depersonalization_str);
+        if (!input) {
+            operation_shutdown (FALSE);
+            return;
+        }
+
+        qmi_client_uim_depersonalization (ctx->client,
+                                          input,
+                                          10,
+                                          ctx->cancellable,
+                                          (GAsyncReadyCallback)depersonalization_ready,
+                                          NULL);
         return;
     }
 #endif

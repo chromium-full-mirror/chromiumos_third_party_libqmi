@@ -58,6 +58,7 @@
 #include "qmi-gms.h"
 #include "qmi-dsd.h"
 #include "qmi-sar.h"
+#include "qmi-dpm.h"
 
 #define PACKED __attribute__((packed))
 
@@ -1543,7 +1544,6 @@ qmi_message_get_tlv_printable (QmiMessage *self,
     g_return_val_if_fail (self != NULL, NULL);
     g_return_val_if_fail (line_prefix != NULL, NULL);
     g_return_val_if_fail (raw != NULL, NULL);
-    g_return_val_if_fail (raw_length > 0, NULL);
 
     value_hex = qmi_helpers_str_hex (raw, raw_length, ':');
     printable = g_strdup_printf ("%sTLV:\n"
@@ -1716,6 +1716,11 @@ qmi_message_get_printable_full (QmiMessage        *self,
         contents = __qmi_message_dsd_get_printable (self, context, line_prefix);
 #endif
         break;
+    case QMI_SERVICE_DPM:
+#if defined HAVE_QMI_SERVICE_DPM
+        contents = __qmi_message_dpm_get_printable (self, context, line_prefix);
+#endif
+        break;
 
     case QMI_SERVICE_UNKNOWN:
         g_assert_not_reached ();
@@ -1822,6 +1827,7 @@ __qmi_message_is_abortable (QmiMessage        *self,
     case QMI_SERVICE_IMSRTP:
     case QMI_SERVICE_RFRPE:
     case QMI_SERVICE_SSCTL:
+    case QMI_SERVICE_DPM:
     case QMI_SERVICE_CAT:
     case QMI_SERVICE_RMS:
     case QMI_SERVICE_FOTA:
