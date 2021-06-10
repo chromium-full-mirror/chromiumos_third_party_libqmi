@@ -456,6 +456,13 @@ allocate_client_ready (QmiDevice *dev,
 #else
         break;
 #endif
+    case QMI_SERVICE_DPM:
+#if defined HAVE_QMI_SERVICE_DPM
+        qmicli_dpm_run (dev, QMI_CLIENT_DPM (client), cancellable);
+        return;
+#else
+        break;
+#endif
     case QMI_SERVICE_UNKNOWN:
     case QMI_SERVICE_CTL:
     case QMI_SERVICE_AUTH:
@@ -899,6 +906,13 @@ parse_actions (void)
     }
 #endif
 
+#if defined HAVE_QMI_SERVICE_DPM
+    if (qmicli_dpm_options_enabled ()) {
+        service = QMI_SERVICE_DPM;
+        actions_enabled++;
+    }
+#endif
+
     /* Cannot mix actions from different services */
     if (actions_enabled > 1) {
         g_printerr ("error: cannot execute multiple actions of different services\n");
@@ -968,6 +982,9 @@ int main (int argc, char **argv)
 #endif
 #if defined HAVE_QMI_SERVICE_DSD
     g_option_context_add_group (context, qmicli_dsd_get_option_group ());
+#endif
+#if defined HAVE_QMI_SERVICE_DPM
+    g_option_context_add_group (context, qmicli_dpm_get_option_group ());
 #endif
     g_option_context_add_group (context, qmicli_link_management_get_option_group ());
     g_option_context_add_group (context, qmicli_qmiwwan_get_option_group ());

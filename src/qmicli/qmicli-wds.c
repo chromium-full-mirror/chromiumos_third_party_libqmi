@@ -37,6 +37,9 @@
 
 #if defined HAVE_QMI_SERVICE_WDS
 
+#undef VALIDATE_MASK_NONE
+#define VALIDATE_MASK_NONE(str) (str ? str : "none")
+
 #define QMI_WDS_MUX_ID_UNDEFINED 0xFF
 #define QMI_WDS_ENDPOINT_INTERFACE_NUMBER_UNDEFINED -1
 
@@ -641,7 +644,7 @@ start_network_input_create (const gchar                     *str,
                             QmiMessageWdsStartNetworkInput **input,
                             GError                         **error)
 {
-    gchar *aux_auth_str = NULL;
+    g_autofree gchar *aux_auth_str = NULL;
     const gchar *ip_type_str = NULL;
     gchar **split = NULL;
     StartNetworkProperties props = {
@@ -757,7 +760,6 @@ out:
     g_free     (props.apn);
     g_free     (props.username);
     g_free     (props.password);
-    g_free     (aux_auth_str);
 
     return success;
 }
@@ -1166,8 +1168,8 @@ print_current_data_bearer_technology_results (const gchar *which,
                                               guint32 rat_mask,
                                               guint32 so_mask)
 {
-    gchar *rat_string = NULL;
-    gchar *so_string = NULL;
+    g_autofree gchar *rat_string = NULL;
+    g_autofree gchar *so_string = NULL;
 
     if (network_type == QMI_WDS_NETWORK_TYPE_3GPP2) {
         rat_string = qmi_wds_rat_3gpp2_build_string_from_mask (rat_mask);
@@ -1185,14 +1187,11 @@ print_current_data_bearer_technology_results (const gchar *which,
              qmi_device_get_path_display (ctx->device),
              which,
              qmi_wds_network_type_get_string (network_type),
-             VALIDATE_UNKNOWN (rat_string));
+             VALIDATE_MASK_NONE (rat_string));
 
     if (network_type == QMI_WDS_NETWORK_TYPE_3GPP2)
         g_print ("            Service Option: '%s'\n",
-                 VALIDATE_UNKNOWN (so_string));
-
-    g_free (rat_string);
-    g_free (so_string);
+                 VALIDATE_MASK_NONE (so_string));
 }
 
 static void
@@ -1376,6 +1375,8 @@ typedef struct {
     gchar                *name;
     QmiWdsPdpType         pdp_type;
     gboolean              pdp_type_set;
+    QmiWdsApnTypeMask     apn_type;
+    gboolean              apn_type_set;
     gchar                *apn;
     gchar                *username;
     gchar                *password;
@@ -1464,6 +1465,19 @@ create_modify_profile_properties_handle (const gchar  *key,
             return FALSE;
         }
         props->pdp_type_set = TRUE;
+        return TRUE;
+    }
+
+    if (g_ascii_strcasecmp (key, "apn-type-mask") == 0 && !props->apn_type_set) {
+        if (!qmicli_read_wds_apn_type_mask_from_string (value, &(props->apn_type))) {
+            g_set_error (error,
+                         QMI_CORE_ERROR,
+                         QMI_CORE_ERROR_FAILED,
+                         "unknown apn type '%s'",
+                         value);
+            return FALSE;
+        }
+        props->apn_type_set = TRUE;
         return TRUE;
     }
 
@@ -1567,6 +1581,9 @@ create_profile_input_create (const gchar                      *str,
 
     if (props.pdp_type_set)
         qmi_message_wds_create_profile_input_set_pdp_type (*input, props.pdp_type, NULL);
+
+    if (props.apn_type_set)
+        qmi_message_wds_create_profile_input_set_apn_type_mask (*input, props.apn_type, NULL);
 
     if (props.name)
         qmi_message_wds_create_profile_input_set_profile_name (*input, props.name, NULL);
@@ -1881,6 +1898,9 @@ modify_profile_input_create (const gchar                      *str,
     if (props.pdp_type_set)
         qmi_message_wds_modify_profile_input_set_pdp_type (*input, props.pdp_type, NULL);
 
+    if (props.apn_type_set)
+        qmi_message_wds_modify_profile_input_set_apn_type_mask (*input, props.apn_type, NULL);
+
     if (props.name)
         qmi_message_wds_modify_profile_input_set_profile_name (*input, props.name, NULL);
 
@@ -2046,10 +2066,17 @@ get_profile_settings_ready (QmiClientWds *client,
         guint8 context_number;
         QmiWdsPdpType pdp_type;
         QmiWdsAuthentication auth;
+        QmiWdsApnTypeMask apn_type;
         gboolean flag;
 
         if (qmi_message_wds_get_profile_settings_output_get_apn_name (output, &str, NULL))
             g_print ("\t\tAPN: '%s'\n", str);
+        if (qmi_message_wds_get_profile_settings_output_get_apn_type_mask (output, &apn_type, NULL)) {
+            g_autofree gchar *aux = NULL;
+
+            aux = qmi_wds_apn_type_mask_build_string_from_mask (apn_type);
+            g_print ("\t\tAPN type: '%s'\n", VALIDATE_MASK_NONE (aux));
+        }
         if (qmi_message_wds_get_profile_settings_output_get_pdp_type (output, &pdp_type, NULL))
             g_print ("\t\tPDP type: '%s'\n", qmi_wds_pdp_type_get_string (pdp_type));
         if (qmi_message_wds_get_profile_settings_output_get_pdp_context_number (output, &context_number, NULL))
@@ -2059,11 +2086,10 @@ get_profile_settings_ready (QmiClientWds *client,
         if (qmi_message_wds_get_profile_settings_output_get_password (output, &str, NULL))
             g_print ("\t\tPassword: '%s'\n", str);
         if (qmi_message_wds_get_profile_settings_output_get_authentication (output, &auth, NULL)) {
-            gchar *aux;
+            g_autofree gchar *aux = NULL;
 
             aux = qmi_wds_authentication_build_string_from_mask (auth);
-            g_print ("\t\tAuth: '%s'\n", aux);
-            g_free (aux);
+            g_print ("\t\tAuth: '%s'\n", VALIDATE_MASK_NONE (aux));
         }
         if (qmi_message_wds_get_profile_settings_output_get_roaming_disallowed_flag (output, &flag, NULL))
             g_print ("\t\tNo roaming: '%s'\n", flag ? "yes" : "no");
@@ -2226,11 +2252,10 @@ get_default_settings_ready (QmiClientWds *client,
     if (qmi_message_wds_get_default_settings_output_get_password (output, &str, NULL))
         g_print ("\tPassword: '%s'\n", str);
     if (qmi_message_wds_get_default_settings_output_get_authentication (output, &auth, NULL)) {
-        gchar *aux;
+        g_autofree gchar *aux = NULL;
 
         aux = qmi_wds_authentication_build_string_from_mask (auth);
-        g_print ("\tAuth: '%s'\n", aux);
-        g_free (aux);
+        g_print ("\tAuth: '%s'\n", VALIDATE_MASK_NONE (aux));
     }
 
     qmi_message_wds_get_default_settings_output_unref (output);

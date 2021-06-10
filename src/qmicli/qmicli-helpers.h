@@ -27,29 +27,31 @@
 #define __QMICLI_HELPERS_H__
 
 /* Common helpers to read enums from strings */
-#define QMICLI_ENUM_LIST                                                                                                         \
-    QMICLI_ENUM_LIST_ITEM (QmiDmsOperatingMode,              dms_operating_mode,                "operating mode")                \
-    QMICLI_ENUM_LIST_ITEM (QmiDmsUimFacility,                dms_uim_facility,                  "facility")                      \
-    QMICLI_ENUM_LIST_ITEM (QmiPdcConfigurationType,          pdc_configuration_type,            "configuration type")            \
-    QMICLI_ENUM_LIST_ITEM (QmiNasRadioInterface,             nas_radio_interface,               "radio interface")               \
-    QMICLI_ENUM_LIST_ITEM (QmiDeviceExpectedDataFormat,      device_expected_data_format,       "device expected data format")   \
-    QMICLI_ENUM_LIST_ITEM (QmiWdaLinkLayerProtocol,          wda_link_layer_protocol,           "link layer protocol")           \
-    QMICLI_ENUM_LIST_ITEM (QmiWdaDataAggregationProtocol,    wda_data_aggregation_protocol,     "data aggregation protocol")     \
-    QMICLI_ENUM_LIST_ITEM (QmiDataEndpointType,              data_endpoint_type,                "data endpoint type")            \
-    QMICLI_ENUM_LIST_ITEM (QmiWdsAutoconnectSetting,         wds_autoconnect_setting,           "autoconnect setting")           \
-    QMICLI_ENUM_LIST_ITEM (QmiWdsAutoconnectSettingRoaming,  wds_autoconnect_setting_roaming,   "autoconnect setting roaming")   \
-    QMICLI_ENUM_LIST_ITEM (QmiDmsBootImageDownloadMode,      dms_boot_image_download_mode,      "boot image download mode")      \
-    QMICLI_ENUM_LIST_ITEM (QmiDmsHpDeviceMode,               dms_hp_device_mode,                "hp device mode")                \
-    QMICLI_ENUM_LIST_ITEM (QmiDmsSwiUsbComposition,          dms_swi_usb_composition,           "swi usb composition")           \
-    QMICLI_ENUM_LIST_ITEM (QmiDmsFoxconnDeviceMode,          dms_foxconn_device_mode,           "foxconn device mode")           \
-    QMICLI_ENUM_LIST_ITEM (QmiDmsFoxconnFirmwareVersionType, dms_foxconn_firmware_version_type, "foxconn firmware version type") \
-    QMICLI_ENUM_LIST_ITEM (QmiUimSessionType,                uim_session_type,                  "session type")                  \
-    QMICLI_ENUM_LIST_ITEM (QmiDsdApnType,                    dsd_apn_type,                      "apn type")                      \
-    QMICLI_ENUM_LIST_ITEM (QmiDmsMacType,                    dms_mac_type,                      "mac address type")              \
-    QMICLI_ENUM_LIST_ITEM (QmiSarRfState,                    sar_rf_state,                      "sar rf state")                  \
-    QMICLI_ENUM_LIST_ITEM (QmiSioPort,                       sio_port,                          "sio port")                      \
-    QMICLI_ENUM_LIST_ITEM (QmiLocOperationMode,              loc_operation_mode,                "operation mode")                \
-    QMICLI_ENUM_LIST_ITEM (QmiLocLockType,                   loc_lock_type,                     "lock type")
+#define QMICLI_ENUM_LIST                                                                                                                               \
+    QMICLI_ENUM_LIST_ITEM (QmiDmsOperatingMode,                         dms_operating_mode,                           "operating mode")                \
+    QMICLI_ENUM_LIST_ITEM (QmiDmsUimFacility,                           dms_uim_facility,                             "facility")                      \
+    QMICLI_ENUM_LIST_ITEM (QmiPdcConfigurationType,                     pdc_configuration_type,                       "configuration type")            \
+    QMICLI_ENUM_LIST_ITEM (QmiNasRadioInterface,                        nas_radio_interface,                          "radio interface")               \
+    QMICLI_ENUM_LIST_ITEM (QmiDeviceExpectedDataFormat,                 device_expected_data_format,                  "device expected data format")   \
+    QMICLI_ENUM_LIST_ITEM (QmiWdaLinkLayerProtocol,                     wda_link_layer_protocol,                      "link layer protocol")           \
+    QMICLI_ENUM_LIST_ITEM (QmiWdaDataAggregationProtocol,               wda_data_aggregation_protocol,                "data aggregation protocol")     \
+    QMICLI_ENUM_LIST_ITEM (QmiDataEndpointType,                         data_endpoint_type,                           "data endpoint type")            \
+    QMICLI_ENUM_LIST_ITEM (QmiWdsAutoconnectSetting,                    wds_autoconnect_setting,                      "autoconnect setting")           \
+    QMICLI_ENUM_LIST_ITEM (QmiWdsAutoconnectSettingRoaming,             wds_autoconnect_setting_roaming,              "autoconnect setting roaming")   \
+    QMICLI_ENUM_LIST_ITEM (QmiDmsBootImageDownloadMode,                 dms_boot_image_download_mode,                 "boot image download mode")      \
+    QMICLI_ENUM_LIST_ITEM (QmiDmsHpDeviceMode,                          dms_hp_device_mode,                           "hp device mode")                \
+    QMICLI_ENUM_LIST_ITEM (QmiDmsSwiUsbComposition,                     dms_swi_usb_composition,                      "swi usb composition")           \
+    QMICLI_ENUM_LIST_ITEM (QmiDmsFoxconnDeviceMode,                     dms_foxconn_device_mode,                      "foxconn device mode")           \
+    QMICLI_ENUM_LIST_ITEM (QmiDmsFoxconnFirmwareVersionType,            dms_foxconn_firmware_version_type,            "foxconn firmware version type") \
+    QMICLI_ENUM_LIST_ITEM (QmiUimSessionType,                           uim_session_type,                             "session type")                  \
+    QMICLI_ENUM_LIST_ITEM (QmiDsdApnType,                               dsd_apn_type,                                 "apn type")                      \
+    QMICLI_ENUM_LIST_ITEM (QmiDmsMacType,                               dms_mac_type,                                 "mac address type")              \
+    QMICLI_ENUM_LIST_ITEM (QmiSarRfState,                               sar_rf_state,                                 "sar rf state")                  \
+    QMICLI_ENUM_LIST_ITEM (QmiSioPort,                                  sio_port,                                     "sio port")                      \
+    QMICLI_ENUM_LIST_ITEM (QmiLocOperationMode,                         loc_operation_mode,                           "operation mode")                \
+    QMICLI_ENUM_LIST_ITEM (QmiLocLockType,                              loc_lock_type,                                "lock type")                     \
+    QMICLI_ENUM_LIST_ITEM (QmiUimCardApplicationPersonalizationFeature, uim_card_application_personalization_feature, "personalization feature" )      \
+    QMICLI_ENUM_LIST_ITEM (QmiUimDepersonalizationOperation,            uim_depersonalization_operation,              "depersonalization operation" )
 
 #define QMICLI_ENUM_LIST_ITEM(TYPE,TYPE_UNDERSCORE,DESCR)        \
     gboolean qmicli_read_## TYPE_UNDERSCORE ##_from_string (const gchar *str, TYPE *out);
@@ -57,9 +59,10 @@ QMICLI_ENUM_LIST
 #undef QMICLI_ENUM_LIST_ITEM
 
 /* Common helpers to read flags from strings */
-#define QMICLI_FLAGS_LIST                                                               \
-    QMICLI_FLAGS_LIST_ITEM (QmiDeviceOpenFlags,                   device_open_flags,                     "device open flags") \
-    QMICLI_FLAGS_LIST_ITEM (QmiLocNmeaType,                       loc_nmea_type,                         "NMEA type") \
+#define QMICLI_FLAGS_LIST                                                                                                          \
+    QMICLI_FLAGS_LIST_ITEM (QmiDeviceOpenFlags,                   device_open_flags,                     "device open flags")      \
+    QMICLI_FLAGS_LIST_ITEM (QmiDeviceAddLinkFlags,                device_add_link_flags,                 "device add link flags")  \
+    QMICLI_FLAGS_LIST_ITEM (QmiLocNmeaType,                       loc_nmea_type,                         "NMEA type")              \
     QMICLI_FLAGS_LIST_ITEM (QmiNasPlmnAccessTechnologyIdentifier, nas_plmn_access_technology_identifier, "PLMN access technology")
 
 #define QMICLI_FLAGS_LIST_ITEM(TYPE,TYPE_UNDERSCORE,DESCR)        \
@@ -69,7 +72,8 @@ QMICLI_FLAGS_LIST
 
 /* Common helpers to read 64bit flags from strings */
 #define QMICLI_FLAGS64_LIST                                                                            \
-    QMICLI_FLAGS64_LIST_ITEM (QmiDsdApnTypePreference, dsd_apn_type_preference, "apn type preference")
+    QMICLI_FLAGS64_LIST_ITEM (QmiDsdApnTypePreference, dsd_apn_type_preference, "apn type preference") \
+    QMICLI_FLAGS64_LIST_ITEM (QmiWdsApnTypeMask,       wds_apn_type_mask,       "apn type mask")
 
 #define QMICLI_FLAGS64_LIST_ITEM(TYPE,TYPE_UNDERSCORE,DESCR)        \
     gboolean qmicli_read_## TYPE_UNDERSCORE ##_from_string (const gchar *str, TYPE *out);
