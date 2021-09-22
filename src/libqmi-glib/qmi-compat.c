@@ -798,21 +798,6 @@ SESSION_INFORMATION_DEPRECATED_METHOD (ChangePin, change_pin)
 
 /*****************************************************************************/
 
-#if defined HAVE_QMI_MESSAGE_WDA_GET_DATA_FORMAT
-
-gboolean
-qmi_message_wda_get_data_format_output_get_uplink_data_aggregation_max_size (
-    QmiMessageWdaGetDataFormatOutput *self,
-    guint32 *value_uplink_data_aggregation_max_size,
-    GError **error)
-{
-    return qmi_message_wda_get_data_format_output_get_downlink_data_aggregation_max_datagrams (self, value_uplink_data_aggregation_max_size, error);
-}
-
-#endif /* HAVE_QMI_MESSAGE_WDA_GET_DATA_FORMAT */
-
-/*****************************************************************************/
-
 GType
 qmi_dms_dell_firmware_version_type_get_type (void)
 {
@@ -2033,5 +2018,50 @@ qmi_indication_nas_system_info_output_get_td_scma_system_info (
 }
 
 #endif /* HAVE_QMI_INDICATION_NAS_SYSTEM_INFO */
+
+#if defined HAVE_QMI_MESSAGE_NAS_SWI_GET_STATUS
+
+gboolean
+qmi_message_nas_swi_get_status_output_get_common_info (
+    QmiMessageNasSwiGetStatusOutput *self,
+    guint8 *value_common_info_temperature,
+    QmiNasSwiModemMode *value_common_info_modem_mode,
+    QmiNasSwiSystemMode *value_common_info_system_mode,
+    QmiNasSwiImsRegState *value_common_info_ims_registration_state,
+    QmiNasSwiPsState *value_common_info_packet_service_state,
+    GError **error)
+{
+    gint8 signed_temperature;
+
+    if (!qmi_message_nas_swi_get_status_output_get_common_info_v2 (
+            self,
+            &signed_temperature,
+            value_common_info_modem_mode,
+            value_common_info_system_mode,
+            value_common_info_ims_registration_state,
+            value_common_info_packet_service_state,
+            error))
+      return FALSE;
+
+    if (value_common_info_temperature)
+      memcpy (value_common_info_temperature, &signed_temperature, sizeof (guint8));
+
+    return TRUE;
+}
+
+#endif /* HAVE_QMI_MESSAGE_NAS_SWI_GET_STATUS */
+
+#if defined HAVE_QMI_MESSAGE_NAS_SET_SYSTEM_SELECTION_PREFERENCE
+
+gboolean
+qmi_message_nas_set_system_selection_preference_input_get_mnc_pds_digit_include_status (
+    QmiMessageNasSetSystemSelectionPreferenceInput *self,
+    gboolean *value_mnc_pds_digit_include_status,
+    GError **error)
+{
+    return qmi_message_nas_set_system_selection_preference_input_get_mnc_pcs_digit_include_status (self, value_mnc_pds_digit_include_status, error);
+}
+
+#endif /* HAVE_QMI_MESSAGE_NAS_SET_SYSTEM_SELECTION_PREFERENCE */
 
 #endif /* QMI_DISABLE_DEPRECATED */

@@ -1684,29 +1684,6 @@ gboolean qmi_message_uim_change_pin_input_set_session_information (
 
 #endif /* HAVE_QMI_MESSAGE_UIM_CHANGE_PIN */
 
-#if defined HAVE_QMI_MESSAGE_WDA_GET_DATA_FORMAT
-
-/**
- * qmi_message_wda_get_data_format_output_get_uplink_data_aggregation_max_size:
- * @self: a #QmiMessageWdaGetDataFormatOutput.
- * @value_uplink_data_aggregation_max_size: a placeholder for the output #guint32, or %NULL if not required.
- * @error: Return location for error or %NULL.
- *
- * Get the 'Uplink Data Aggregation Max Size' field from @self.
- *
- * Returns: %TRUE if the field is found, %FALSE otherwise.
- *
- * Since: 1.10
- * Deprecated: 1.24.6: Use qmi_message_wda_get_data_format_output_get_downlink_data_aggregation_max_datagrams() instead.
- */
-G_DEPRECATED_FOR (qmi_message_wda_get_data_format_output_get_downlink_data_aggregation_max_datagrams)
-gboolean qmi_message_wda_get_data_format_output_get_uplink_data_aggregation_max_size
-    (QmiMessageWdaGetDataFormatOutput *self,
-     guint32 *value_uplink_data_aggregation_max_size,
-     GError **error);
-
-#endif /* HAVE_QMI_MESSAGE_WDA_GET_DATA_FORMAT */
-
 #if defined HAVE_QMI_MESSAGE_DMS_FOXCONN_GET_FIRMWARE_VERSION
 
 G_DEPRECATED_FOR (qmi_message_dms_foxconn_get_firmware_version_input_get_type)
@@ -3288,6 +3265,60 @@ gboolean qmi_indication_nas_system_info_output_get_td_scma_system_info (
     GError **error);
 
 #endif /* HAVE_QMI_INDICATION_NAS_SYSTEM_INFO */
+
+#if defined HAVE_QMI_MESSAGE_NAS_SWI_GET_STATUS
+
+/**
+ * qmi_message_nas_swi_get_status_output_get_common_info:
+ * @self: a #QmiMessageNasSwiGetStatusOutput.
+ * @value_common_info_temperature: (out)(optional): a placeholder for the output #guint8, or %NULL if not required.
+ * @value_common_info_modem_mode: (out)(optional): a placeholder for the output #QmiNasSwiModemMode, or %NULL if not required.
+ * @value_common_info_system_mode: (out)(optional): a placeholder for the output #QmiNasSwiSystemMode, or %NULL if not required.
+ * @value_common_info_ims_registration_state: (out)(optional): a placeholder for the output #QmiNasSwiImsRegState, or %NULL if not required.
+ * @value_common_info_packet_service_state: (out)(optional): a placeholder for the output #QmiNasSwiPsState, or %NULL if not required.
+ * @error: Return location for error or %NULL.
+ *
+ * Get the 'Common Info' field from @self.
+ *
+ * Returns: (skip): %TRUE if the field is found, %FALSE otherwise.
+ *
+ * Since: 1.24
+ * Deprecated: 1.30: Use qmi_message_nas_swi_get_status_output_get_common_info_v2() instead.
+ */
+G_DEPRECATED_FOR (qmi_message_nas_swi_get_status_output_get_common_info_v2)
+gboolean qmi_message_nas_swi_get_status_output_get_common_info (
+    QmiMessageNasSwiGetStatusOutput *self,
+    guint8 *value_common_info_temperature,
+    QmiNasSwiModemMode *value_common_info_modem_mode,
+    QmiNasSwiSystemMode *value_common_info_system_mode,
+    QmiNasSwiImsRegState *value_common_info_ims_registration_state,
+    QmiNasSwiPsState *value_common_info_packet_service_state,
+    GError **error);
+
+#endif /* HAVE_QMI_MESSAGE_NAS_SWI_GET_STATUS */
+
+#if defined HAVE_QMI_MESSAGE_NAS_SET_SYSTEM_SELECTION_PREFERENCE
+
+/**
+ * qmi_message_nas_set_system_selection_preference_input_get_mnc_pds_digit_include_status:
+ * @self: a #QmiMessageNasSetSystemSelectionPreferenceInput.
+ * @value_mnc_pds_digit_include_status: (out)(optional): a placeholder for the output #gboolean, or %NULL if not required.
+ * @error: Return location for error or %NULL.
+ *
+ * Get the 'MNC PDS Digit Include Status' field from @self.
+ *
+ * Returns: (skip): %TRUE if the field is found, %FALSE otherwise.
+ *
+ * Since: 1.0
+ * Deprecated: 1.30: Use qmi_message_nas_set_system_selection_preference_input_get_mnc_pcs_digit_include_status() instead.
+ */
+G_DEPRECATED_FOR (qmi_message_nas_set_system_selection_preference_input_get_mnc_pcs_digit_include_status)
+gboolean qmi_message_nas_set_system_selection_preference_input_get_mnc_pds_digit_include_status (
+    QmiMessageNasSetSystemSelectionPreferenceInput *self,
+    gboolean *value_mnc_pds_digit_include_status,
+    GError **error);
+
+#endif /* HAVE_QMI_MESSAGE_NAS_SET_SYSTEM_SELECTION_PREFERENCE */
 
 #endif /* QMI_DISABLE_DEPRECATED */
 

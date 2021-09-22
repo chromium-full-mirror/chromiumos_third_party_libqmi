@@ -429,10 +429,9 @@ qmi_helpers_string_utf8_from_ucs2le (const guint8 *ucs2le,
 /*****************************************************************************/
 
 static gchar *
-helpers_get_driver (const gchar  *device_basename,
-                    GError      **error)
+helpers_get_usb_driver (const gchar *device_basename)
 {
-    static const gchar *subsystems[] = { "usbmisc", "usb", "wwan" };
+    static const gchar *subsystems[] = { "usbmisc", "usb" };
     guint               i;
     gchar              *driver = NULL;
 
@@ -456,9 +455,6 @@ helpers_get_driver (const gchar  *device_basename,
         g_free (path);
     }
 
-    if (!driver)
-        g_set_error (error, QMI_CORE_ERROR, QMI_CORE_ERROR_FAILED,
-                     "couldn't detect device driver");
     return driver;
 }
 
@@ -466,75 +462,67 @@ QmiHelpersTransportType
 qmi_helpers_get_transport_type (const gchar  *path,
                                 GError      **error)
 {
-    QmiHelpersTransportType  transport = QMI_HELPERS_TRANSPORT_TYPE_UNKNOWN;
-    gchar                   *device_basename = NULL;
-    gchar                   *driver = NULL;
-    gchar                   *sysfs_path = NULL;
-    GError                  *inner_error = NULL;
+    g_autofree gchar *device_basename = NULL;
+    g_autofree gchar *usb_driver = NULL;
+    g_autofree gchar *wwan_sysfs_path = NULL;
+    g_autofree gchar *wwan_type_sysfs_path = NULL;
+    g_autofree gchar *smdpkt_sysfs_path = NULL;
+    g_autofree gchar *rpmsg_sysfs_path = NULL;
+    gchar            wwan_type[16] = { 0 };
 
-    device_basename = qmi_helpers_get_devname (path, &inner_error);
+    device_basename = qmi_helpers_get_devname (path, error);
     if (!device_basename)
-        goto out;
+        return QMI_HELPERS_TRANSPORT_TYPE_UNKNOWN;
 
-    driver = helpers_get_driver (device_basename, &inner_error);
-
-    if (!driver) {
-        /* On Android systems we get access to the QMI control port through
-         * virtual smdcntl devices in the smdpkt subsystem. */
-        sysfs_path = g_strdup_printf ("/sys/class/smdpkt/%s", device_basename);
-        if (g_file_test (sysfs_path, G_FILE_TEST_EXISTS)) {
-            g_clear_error (&inner_error);
-            transport = QMI_HELPERS_TRANSPORT_TYPE_QMUX;
-            goto out;
-        }
-        g_free (sysfs_path);
-        /* On mainline kernels this control port is provided by rpmsg */
-        sysfs_path = g_strdup_printf ("/sys/class/rpmsg/%s", device_basename);
-        if (g_file_test (sysfs_path, G_FILE_TEST_EXISTS)) {
-            g_clear_error (&inner_error);
-            transport = QMI_HELPERS_TRANSPORT_TYPE_QMUX;
-        }
-        goto out;
+    /* Most likely case, we have a USB driver */
+    usb_driver = helpers_get_usb_driver (device_basename);
+    if (usb_driver) {
+        if (!g_strcmp0 (usb_driver, "cdc_mbim"))
+            return QMI_HELPERS_TRANSPORT_TYPE_MBIM;
+        if (!g_strcmp0 (usb_driver, "qmi_wwan"))
+            return QMI_HELPERS_TRANSPORT_TYPE_QMUX;
+        g_set_error (error, QMI_CORE_ERROR, QMI_CORE_ERROR_FAILED,
+                     "unexpected usb driver detected: %s", usb_driver);
+        return QMI_HELPERS_TRANSPORT_TYPE_UNKNOWN;
     }
 
-    if (!g_strcmp0 (driver, "cdc_mbim")) {
-        transport = QMI_HELPERS_TRANSPORT_TYPE_MBIM;
-        goto out;
-    }
-
-    if (!g_strcmp0 (driver, "qmi_wwan")) {
-        transport = QMI_HELPERS_TRANSPORT_TYPE_QMUX;
-        goto out;
-    }
-
-    if (!g_strcmp0 (driver, "wwan")) {
-        /* MHI/PCIe uci devices have protocol in their name */
-        if (g_strrstr (device_basename, "QMI")) {
-            transport = QMI_HELPERS_TRANSPORT_TYPE_QMUX;
-            goto out;
+    /* WWAN devices have a type attribute or protocol in their name */
+    wwan_sysfs_path = g_strdup_printf ("/sys/class/wwan/%s", device_basename);
+    if (g_file_test (wwan_sysfs_path, G_FILE_TEST_EXISTS)) {
+        wwan_type_sysfs_path = g_strdup_printf ("/sys/class/wwan/%s/type", device_basename);
+        if (qmi_helpers_read_sysfs_file (wwan_type_sysfs_path, wwan_type,
+                                         sizeof (wwan_type) - 1, NULL)) {
+            g_strstrip (wwan_type);
+            if (!g_strcmp0 (wwan_type, "QMI"))
+                return QMI_HELPERS_TRANSPORT_TYPE_QMUX;
+            if (!g_strcmp0 (wwan_type, "MBIM"))
+                return QMI_HELPERS_TRANSPORT_TYPE_MBIM;
+        } else {
+            /* "type" attribute exists only on Linux 5.14+, fall back to device name */
+            if (g_strrstr (device_basename, "QMI"))
+                return QMI_HELPERS_TRANSPORT_TYPE_QMUX;
+            if (g_strrstr (device_basename, "MBIM"))
+                return QMI_HELPERS_TRANSPORT_TYPE_MBIM;
         }
-        if (g_strrstr (device_basename, "MBIM")) {
-            transport = QMI_HELPERS_TRANSPORT_TYPE_MBIM;
-            goto out;
-        }
+        g_set_error (error, QMI_CORE_ERROR, QMI_CORE_ERROR_FAILED,
+                     "unsupported wwan port");
+        return QMI_HELPERS_TRANSPORT_TYPE_UNKNOWN;
     }
 
-    g_set_error (&inner_error, QMI_CORE_ERROR, QMI_CORE_ERROR_FAILED,
-                 "unexpected driver detected: %s", driver);
+    /* On Android systems we get access to the QMI control port through
+     * virtual smdcntl devices in the smdpkt subsystem. */
+    smdpkt_sysfs_path = g_strdup_printf ("/sys/class/smdpkt/%s", device_basename);
+    if (g_file_test (smdpkt_sysfs_path, G_FILE_TEST_EXISTS))
+        return QMI_HELPERS_TRANSPORT_TYPE_QMUX;
 
- out:
+    /* On mainline kernels this control port is provided by rpmsg */
+    rpmsg_sysfs_path = g_strdup_printf ("/sys/class/rpmsg/%s", device_basename);
+    if (g_file_test (rpmsg_sysfs_path, G_FILE_TEST_EXISTS))
+        return QMI_HELPERS_TRANSPORT_TYPE_QMUX;
 
-    g_free (device_basename);
-    g_free (driver);
-    g_free (sysfs_path);
-
-    if (inner_error) {
-        g_assert (transport == QMI_HELPERS_TRANSPORT_TYPE_UNKNOWN);
-        g_propagate_error (error, inner_error);
-    } else
-        g_assert (transport != QMI_HELPERS_TRANSPORT_TYPE_UNKNOWN);
-
-    return transport;
+    g_set_error (error, QMI_CORE_ERROR, QMI_CORE_ERROR_FAILED,
+                 "unexpected port subsystem");
+    return QMI_HELPERS_TRANSPORT_TYPE_UNKNOWN;
 }
 
 gchar *

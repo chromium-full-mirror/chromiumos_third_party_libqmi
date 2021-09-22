@@ -12,11 +12,12 @@ stages:
   variables:
     FDO_UPSTREAM_REPO: mobile-broadband/libqmi
     FDO_DISTRIBUTION_VERSION: '20.04'
-    FDO_DISTRIBUTION_TAG: '2021-04-28.2'
+    FDO_DISTRIBUTION_TAG: '2021-09-10.2'
     FDO_DISTRIBUTION_PACKAGES: ca-certificates git gcc autoconf automake libtool
                                libgirepository1.0-dev libglib2.0-dev autopoint
-                               autoconf-archive gtk-doc-tools libglib2.0-doc
+                               gtk-doc-tools python-is-python3 libglib2.0-doc
                                libgudev-1.0-dev gobject-introspection valac
+                               bash-completion meson ninja-build
 
 build container:
   extends:
@@ -30,8 +31,7 @@ build container:
     - tags
     - pushes
 
-
-build-autotools-no-deprecated:
+build-no-qrtr-no-mbim-no-rmnet-no-introspection:
   stage: build
   extends:
   - .fdo.distribution-image@ubuntu
@@ -42,54 +42,11 @@ build-autotools-no-deprecated:
     - tags
     - schedules
   script:
-    - NOCONFIGURE=1 ./autogen.sh
-    - ./configure --prefix=/usr --disable-gtk-doc --disable-introspection CFLAGS="-DQMI_DISABLE_DEPRECATED"
-    - make
-    - make check
-    - make install
+    - meson setup build --prefix=/usr -Dwerror=true -Dgtk_doc=false -Dintrospection=disabled -Dmbim_qmux=disabled -Dqrtr=disabled -Drmnet=disabled
+    - ninja -C build
+    - ninja -C build install
 
-build-autotools-no-mbim-no-qrtr:
-  stage: build
-  extends:
-  - .fdo.distribution-image@ubuntu
-  - .common_variables
-  only:
-    - master
-    - merge_requests
-    - tags
-    - schedules
-  script:
-    - NOCONFIGURE=1 ./autogen.sh
-    - ./configure --prefix=/usr --disable-mbim-qmux --disable-qrtr --disable-gtk-doc --disable-introspection
-    - make
-    - make check
-    - make install
-
-build-autotools-no-mbim:
-  stage: build
-  extends:
-  - .fdo.distribution-image@ubuntu
-  - .common_variables
-  only:
-    - master
-    - merge_requests
-    - tags
-    - schedules
-  script:
-    - git clone --depth 1 https://gitlab.freedesktop.org/mobile-broadband/libqrtr-glib.git
-    - pushd libqrtr-glib
-    - NOCONFIGURE=1 ./autogen.sh
-    - ./configure --prefix=/usr --disable-gtk-doc --disable-introspection
-    - make
-    - make install
-    - popd
-    - NOCONFIGURE=1 ./autogen.sh
-    - ./configure --prefix=/usr --disable-gtk-doc --disable-introspection --disable-mbim-qmux --enable-qrtr
-    - make
-    - make check
-    - make install
-
-build-autotools-no-qrtr:
+build-no-rmnet:
   stage: build
   extends:
   - .fdo.distribution-image@ubuntu
@@ -102,89 +59,21 @@ build-autotools-no-qrtr:
   script:
     - git clone --depth 1 https://gitlab.freedesktop.org/mobile-broadband/libmbim.git
     - pushd libmbim
-    - NOCONFIGURE=1 ./autogen.sh
-    - ./configure --prefix=/usr --disable-gtk-doc --disable-introspection
-    - make
-    - make install
+    - meson setup build --prefix=/usr -Dgtk_doc=false -Dintrospection=enabled
+    - ninja -C build
+    - ninja -C build install
     - popd
-    - NOCONFIGURE=1 ./autogen.sh
-    - ./configure --prefix=/usr --disable-gtk-doc --disable-introspection --enable-mbim-qmux --disable-qrtr
-    - make
-    - make check
-    - make install
+    - git clone --depth 1 https://gitlab.freedesktop.org/mobile-broadband/libqrtr-glib.git
+    - pushd libqrtr-glib
+    - meson setup build --prefix=/usr -Dgtk_doc=false -Dintrospection=enabled
+    - ninja -C build
+    - ninja -C build install
+    - popd
+    - meson setup build --prefix=/usr -Dwerror=true -Dgtk_doc=false -Dintrospection=enabled -Dmbim_qmux=enabled -Dqrtr=enabled -Drmnet=disabled
+    - ninja -C build
+    - ninja -C build install
 
-build-autotools-collection-minimal:
-  stage: build
-  extends:
-  - .fdo.distribution-image@ubuntu
-  - .common_variables
-  only:
-    - master
-    - merge_requests
-    - tags
-    - schedules
-  script:
-    - NOCONFIGURE=1 ./autogen.sh
-    - ./configure --prefix=/usr --disable-gtk-doc --disable-introspection --disable-mbim-qmux --disable-qrtr --disable-firmware-update --enable-collection=minimal
-    - make
-    - make check
-    - make install
-
-build-autotools-collection-basic:
-  stage: build
-  extends:
-  - .fdo.distribution-image@ubuntu
-  - .common_variables
-  only:
-    - master
-    - merge_requests
-    - tags
-    - schedules
-  script:
-    - NOCONFIGURE=1 ./autogen.sh
-    - ./configure --prefix=/usr --disable-gtk-doc --disable-introspection --disable-mbim-qmux --disable-qrtr --enable-collection=basic
-    - make
-    - make check
-    - make install
-
-build-autotools-clean-distclean:
-  stage: build
-  extends:
-  - .fdo.distribution-image@ubuntu
-  - .common_variables
-  only:
-    - master
-    - merge_requests
-    - tags
-    - schedules
-  script:
-    - NOCONFIGURE=1 ./autogen.sh
-    - ./configure --prefix=/usr --disable-gtk-doc --disable-introspection
-    - make
-    - make clean
-    - make
-    - make distclean
-    - ./configure --prefix=/usr --disable-gtk-doc --disable-introspection
-    - make
-
-build-autotools-vpath:
-  stage: build
-  extends:
-  - .fdo.distribution-image@ubuntu
-  - .common_variables
-  only:
-    - master
-    - merge_requests
-    - tags
-    - schedules
-  script:
-    - NOCONFIGURE=1 ./autogen.sh
-    - mkdir build
-    - cd build
-    - ../configure --prefix=/usr --disable-gtk-doc --disable-introspection
-    - make
-
-build-autotools-default:
+build-no-qrtr:
   stage: build
   extends:
   - .fdo.distribution-image@ubuntu
@@ -197,28 +86,132 @@ build-autotools-default:
   script:
     - git clone --depth 1 https://gitlab.freedesktop.org/mobile-broadband/libmbim.git
     - pushd libmbim
-    - NOCONFIGURE=1 ./autogen.sh
-    - ./configure --prefix=/usr --enable-gtk-doc --enable-introspection
-    - make
-    - make install
+    - meson setup build --prefix=/usr -Dgtk_doc=false -Dintrospection=enabled
+    - ninja -C build
+    - ninja -C build install
+    - popd
+    - meson setup build --prefix=/usr -Dwerror=true -Dgtk_doc=false -Dintrospection=enabled -Dmbim_qmux=enabled -Dqrtr=disabled -Drmnet=enabled
+    - ninja -C build
+    - ninja -C build install
+
+build-no-qrtr-no-introspection:
+  stage: build
+  extends:
+  - .fdo.distribution-image@ubuntu
+  - .common_variables
+  only:
+    - master
+    - merge_requests
+    - tags
+    - schedules
+  script:
+    - git clone --depth 1 https://gitlab.freedesktop.org/mobile-broadband/libmbim.git
+    - pushd libmbim
+    - meson setup build --prefix=/usr -Dgtk_doc=false -Dintrospection=disabled
+    - ninja -C build
+    - ninja -C build install
+    - popd
+    - meson setup build --prefix=/usr -Dwerror=true -Dgtk_doc=false -Dintrospection=disabled -Dmbim_qmux=enabled -Dqrtr=disabled -Drmnet=enabled
+    - ninja -C build
+    - ninja -C build install
+
+build-no-mbim:
+  stage: build
+  extends:
+  - .fdo.distribution-image@ubuntu
+  - .common_variables
+  only:
+    - master
+    - merge_requests
+    - tags
+    - schedules
+  script:
+    - git clone --depth 1 https://gitlab.freedesktop.org/mobile-broadband/libqrtr-glib.git
+    - pushd libqrtr-glib
+    - meson setup build --prefix=/usr -Dgtk_doc=false -Dintrospection=enabled
+    - ninja -C build
+    - ninja -C build install
+    - popd
+    - meson setup build --prefix=/usr -Dwerror=true -Dgtk_doc=false -Dintrospection=enabled -Dmbim_qmux=disabled -Dqrtr=enabled -Drmnet=enabled
+    - ninja -C build
+    - ninja -C build install
+
+build-no-mbim-no-introspection:
+  stage: build
+  extends:
+  - .fdo.distribution-image@ubuntu
+  - .common_variables
+  only:
+    - master
+    - merge_requests
+    - tags
+    - schedules
+  script:
+    - git clone --depth 1 https://gitlab.freedesktop.org/mobile-broadband/libqrtr-glib.git
+    - pushd libqrtr-glib
+    - meson setup build --prefix=/usr -Dgtk_doc=false -Dintrospection=disabled
+    - ninja -C build
+    - ninja -C build install
+    - popd
+    - meson setup build --prefix=/usr -Dwerror=true -Dgtk_doc=false -Dintrospection=disabled -Dmbim_qmux=disabled -Dqrtr=enabled -Drmnet=enabled
+    - ninja -C build
+    - ninja -C build install
+
+build-collection-minimal:
+  stage: build
+  extends:
+  - .fdo.distribution-image@ubuntu
+  - .common_variables
+  only:
+    - master
+    - merge_requests
+    - tags
+    - schedules
+  script:
+    - meson setup build --prefix=/usr -Dwerror=true -Dgtk_doc=false -Dintrospection=disabled -Dmbim_qmux=disabled -Dqrtr=disabled -Drmnet=disabled -Dcollection=minimal -Dfirmware_update=false
+    - ninja -C build
+    - ninja -C build install
+
+build-collection-basic:
+  stage: build
+  extends:
+  - .fdo.distribution-image@ubuntu
+  - .common_variables
+  only:
+    - master
+    - merge_requests
+    - tags
+    - schedules
+  script:
+    - meson setup build --prefix=/usr -Dwerror=true -Dgtk_doc=false -Dintrospection=disabled -Dmbim_qmux=disabled -Dqrtr=disabled -Drmnet=disabled -Dcollection=basic
+    - ninja -C build
+    - ninja -C build install
+
+build-release:
+  stage: build
+  extends:
+  - .fdo.distribution-image@ubuntu
+  - .common_variables
+  only:
+    - master
+    - merge_requests
+    - tags
+    - schedules
+  script:
+    - git clone --depth 1 https://gitlab.freedesktop.org/mobile-broadband/libmbim.git
+    - pushd libmbim
+    - meson setup build --buildtype=release --prefix=/usr -Dgtk_doc=false -Dintrospection=enabled
+    - ninja -C build
+    - ninja -C build install
     - popd
     - git clone --depth 1 https://gitlab.freedesktop.org/mobile-broadband/libqrtr-glib.git
     - pushd libqrtr-glib
-    - NOCONFIGURE=1 ./autogen.sh
-    - ./configure --prefix=/usr --enable-gtk-doc --enable-introspection
-    - make
-    - make install
+    - meson setup build --buildtype=release --prefix=/usr -Dgtk_doc=false -Dintrospection=enabled
+    - ninja -C build
+    - ninja -C build install
     - popd
-    - NOCONFIGURE=1 ./autogen.sh
-    - ./configure --prefix=/usr --enable-gtk-doc --enable-introspection --enable-mbim-qmux --enable-qrtr
-    - make
-    - make check
-    - make install
-    - make distcheck
-    - sha256sum $CI_PROJECT_NAME-*.tar.xz | awk '{print $1;}' > pkg_hash.txt
-  artifacts:
-    name: "$CI_PROJECT_NAME-$CI_COMMIT_TAG"
-    paths:
-      - /builds/$CI_PROJECT_ROOT_NAMESPACE/$CI_PROJECT_NAME/$CI_PROJECT_NAME-*.tar.xz
-      - /builds/$CI_PROJECT_ROOT_NAMESPACE/$CI_PROJECT_NAME/pkg_hash.txt
-    expire_in: 2 days
+    - meson setup build --buildtype=release --prefix=/usr -Dwerror=true -Dgtk_doc=false -Dintrospection=enabled -Dmbim_qmux=enabled -Dqrtr=enabled -Drmnet=enabled
+    - ninja -C build
+    - ninja -C build install
+    - ninja -C build dist
+    - ninja -C build uninstall
