@@ -16,7 +16,7 @@ if enable_qmi_username
   configure_file(
     input: '76-qmi-proxy-device-ownership.rules.in',
     output: '@BASENAME@',
-    configuration: {'QMI_USERNAME': qmi_username},
+    configuration: config_h,
     install_dir: udev_udevdir / 'rules.d',
   )
 endif
