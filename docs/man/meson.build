@@ -10,16 +10,12 @@ if enable_firmware_update
   mans += [['qmi-firmware-update', [help2man, '--output=@OUTPUT@', '--name=Update firmware in QMI devices', qmi_firmware_update]]]
 endif
 
-# https://gitlab.freedesktop.org/mobile-broadband/libqmi/-/issues/75 was filed
-# to track the build failure on cross-compilation. This can be re-enabled when
-# the underlying issue is fixed
-#
-# foreach man: mans
-#   custom_target(
-#     man[0],
-#     output: man[0] + '.1',
-#     command: man[1],
-#     install: true,
-#     install_dir: qmi_mandir / 'man1',
-#   )
-# endforeach
+foreach man: mans
+  custom_target(
+    man[0],
+    output: man[0] + '.1',
+    command: man[1],
+    install: true,
+    install_dir: qmi_mandir / 'man1',
+  )
+endforeach
