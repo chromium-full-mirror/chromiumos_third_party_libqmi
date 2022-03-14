@@ -20,31 +20,16 @@
  */
 
 #include "config.h"
-
 #include <stdlib.h>
-
 #include <gio/gio.h>
 
-#if defined WITH_UDEV
-# include <gudev/gudev.h>
+#if !defined WITH_UDEV
+# error udev is required
 #endif
 
-#include "qfu-udev-helpers.h"
-
-/******************************************************************************/
-
-static const gchar *device_type_str[] = {
-    [QFU_UDEV_HELPER_DEVICE_TYPE_TTY]     = "tty",
-    [QFU_UDEV_HELPER_DEVICE_TYPE_CDC_WDM] = "cdc-wdm",
-};
-
-G_STATIC_ASSERT (G_N_ELEMENTS (device_type_str) == QFU_UDEV_HELPER_DEVICE_TYPE_LAST);
-
-const gchar *
-qfu_udev_helper_device_type_to_string (QfuUdevHelperDeviceType type)
-{
-    return device_type_str[type];
-}
+#include "qfu-helpers.h"
+#include "qfu-helpers-udev.h"
+#include <gudev/gudev.h>
 
 /******************************************************************************/
 
@@ -166,8 +151,8 @@ udev_helper_get_udev_interface_details (GUdevDevice  *device,
 /******************************************************************************/
 
 gchar *
-qfu_udev_helper_find_by_file (GFile   *file,
-                              GError **error)
+qfu_helpers_udev_find_by_file (GFile   *file,
+                               GError **error)
 {
     GUdevClient  *client = NULL;
     GUdevDevice  *device = NULL;
@@ -213,35 +198,6 @@ out:
     g_clear_object (&device);
     g_clear_object (&client);
     return sysfs_path;
-}
-
-gchar *
-qfu_udev_helper_find_by_file_path (const gchar  *path,
-                                   GError      **error)
-{
-    GFile *file;
-    gchar *sysfs_path;
-
-    file = g_file_new_for_path (path);
-    sysfs_path = qfu_udev_helper_find_by_file (file, error);
-    g_object_unref (file);
-    return sysfs_path;
-}
-
-gchar *
-qfu_udev_helper_find_peer_port (const gchar  *sysfs_path,
-                                GError      **error)
-{
-    gchar *tmp, *path;
-
-    tmp = g_build_filename (sysfs_path, "port", "peer", NULL);
-    path = realpath (tmp, NULL);
-    g_free (tmp);
-    if (!path)
-        return NULL;
-
-    g_debug ("[qfu-udev] peer port for '%s' found: %s", sysfs_path, path);
-    return path;
 }
 
 /******************************************************************************/
@@ -307,11 +263,11 @@ udev_helper_find_by_device_info_in_subsystem (GPtrArray    *sysfs_paths,
 }
 
 gchar *
-qfu_udev_helper_find_by_device_info (guint16   vid,
-                                     guint16   pid,
-                                     guint     busnum,
-                                     guint     devnum,
-                                     GError  **error)
+qfu_helpers_udev_find_by_device_info (guint16   vid,
+                                      guint16   pid,
+                                      guint     busnum,
+                                      guint     devnum,
+                                      GError  **error)
 {
     GUdevClient *udev;
     guint        i;
@@ -376,9 +332,9 @@ out:
 /******************************************************************************/
 
 static GFile *
-device_matches_sysfs_and_type (GUdevDevice             *device,
-                               const gchar             *sysfs_path,
-                               QfuUdevHelperDeviceType  type)
+device_matches_sysfs_and_type (GUdevDevice          *device,
+                               const gchar          *sysfs_path,
+                               QfuHelpersDeviceType  type)
 {
     GFile *file = NULL;
     gchar *device_sysfs_path = NULL;
@@ -402,15 +358,15 @@ device_matches_sysfs_and_type (GUdevDevice             *device,
         goto out;
 
     switch (type) {
-    case QFU_UDEV_HELPER_DEVICE_TYPE_TTY:
+    case QFU_HELPERS_DEVICE_TYPE_TTY:
         if (g_strcmp0 (device_driver, "qcserial") != 0)
             goto out;
         break;
-    case QFU_UDEV_HELPER_DEVICE_TYPE_CDC_WDM:
+    case QFU_HELPERS_DEVICE_TYPE_CDC_WDM:
         if (g_strcmp0 (device_driver, "qmi_wwan") != 0 && g_strcmp0 (device_driver, "cdc_mbim") != 0)
             goto out;
         break;
-    case QFU_UDEV_HELPER_DEVICE_TYPE_LAST:
+    case QFU_HELPERS_DEVICE_TYPE_LAST:
     default:
         g_assert_not_reached ();
     }
@@ -426,8 +382,8 @@ out:
 }
 
 GList *
-qfu_udev_helper_list_devices (QfuUdevHelperDeviceType  device_type,
-                              const gchar             *sysfs_path)
+qfu_helpers_udev_list_devices (QfuHelpersDeviceType  device_type,
+                               const gchar          *sysfs_path)
 {
     GUdevClient  *udev;
     const gchar **subsys_list = NULL;
@@ -437,13 +393,13 @@ qfu_udev_helper_list_devices (QfuUdevHelperDeviceType  device_type,
     udev = g_udev_client_new (NULL);
 
     switch (device_type) {
-    case QFU_UDEV_HELPER_DEVICE_TYPE_TTY:
+    case QFU_HELPERS_DEVICE_TYPE_TTY:
         subsys_list = tty_subsys_list;
         break;
-    case QFU_UDEV_HELPER_DEVICE_TYPE_CDC_WDM:
+    case QFU_HELPERS_DEVICE_TYPE_CDC_WDM:
         subsys_list = cdc_wdm_subsys_list;
         break;
-    case QFU_UDEV_HELPER_DEVICE_TYPE_LAST:
+    case QFU_HELPERS_DEVICE_TYPE_LAST:
     default:
         g_assert_not_reached ();
     }
@@ -472,13 +428,13 @@ qfu_udev_helper_list_devices (QfuUdevHelperDeviceType  device_type,
 #define WAIT_FOR_DEVICE_TIMEOUT_SECS 120
 
 typedef struct {
-    QfuUdevHelperDeviceType  device_type;
-    GUdevClient             *udev;
-    gchar                   *sysfs_path;
-    gchar                   *peer_port;
-    guint                    timeout_id;
-    gulong                   uevent_id;
-    gulong                   cancellable_id;
+    QfuHelpersDeviceType  device_type;
+    GUdevClient          *udev;
+    gchar                *sysfs_path;
+    gchar                *peer_port;
+    guint                 timeout_id;
+    gulong                uevent_id;
+    gulong                cancellable_id;
 } WaitForDeviceContext;
 
 static void
@@ -495,8 +451,8 @@ wait_for_device_context_free (WaitForDeviceContext *ctx)
 }
 
 GFile *
-qfu_udev_helper_wait_for_device_finish (GAsyncResult  *res,
-                                        GError       **error)
+qfu_helpers_udev_wait_for_device_finish (GAsyncResult  *res,
+                                         GError       **error)
 {
     return G_FILE (g_task_propagate_pointer (G_TASK (res), error));
 }
@@ -533,7 +489,7 @@ handle_uevent (GUdevClient *client,
         return;
 
     g_debug ("[qfu-udev] waiting device (%s) matched: %s",
-             qfu_udev_helper_device_type_to_string (ctx->device_type),
+             qfu_helpers_device_type_to_string (ctx->device_type),
              g_udev_device_get_name (device));
 
     /* Disconnect this handler */
@@ -598,12 +554,12 @@ wait_for_device_cancelled (GCancellable *cancellable,
 }
 
 void
-qfu_udev_helper_wait_for_device (QfuUdevHelperDeviceType  device_type,
-                                 const gchar             *sysfs_path,
-                                 const gchar             *peer_port,
-                                 GCancellable            *cancellable,
-                                 GAsyncReadyCallback      callback,
-                                 gpointer                 user_data)
+qfu_helpers_udev_wait_for_device (QfuHelpersDeviceType  device_type,
+                                  const gchar          *sysfs_path,
+                                  const gchar          *peer_port,
+                                  GCancellable         *cancellable,
+                                  GAsyncReadyCallback   callback,
+                                  gpointer              user_data)
 {
     GTask                *task;
     WaitForDeviceContext *ctx;
@@ -613,9 +569,9 @@ qfu_udev_helper_wait_for_device (QfuUdevHelperDeviceType  device_type,
     ctx->sysfs_path = g_strdup (sysfs_path);
     ctx->peer_port = g_strdup (peer_port);
 
-    if (ctx->device_type == QFU_UDEV_HELPER_DEVICE_TYPE_TTY)
+    if (ctx->device_type == QFU_HELPERS_DEVICE_TYPE_TTY)
         ctx->udev = g_udev_client_new (tty_subsys_list);
-    else if (ctx->device_type == QFU_UDEV_HELPER_DEVICE_TYPE_CDC_WDM)
+    else if (ctx->device_type == QFU_HELPERS_DEVICE_TYPE_CDC_WDM)
         ctx->udev = g_udev_client_new (cdc_wdm_subsys_list);
     else
         g_assert_not_reached ();
@@ -645,15 +601,15 @@ qfu_udev_helper_wait_for_device (QfuUdevHelperDeviceType  device_type,
 
 /******************************************************************************/
 
-struct _QfuUdevHelperGenericMonitor {
+struct _QfuHelpersUdevGenericMonitor {
     GUdevClient *udev;
 };
 
 void
-qfu_udev_helper_generic_monitor_free (QfuUdevHelperGenericMonitor *self)
+qfu_helpers_udev_generic_monitor_free (QfuHelpersUdevGenericMonitor *self)
 {
     g_object_unref (self->udev);
-    g_slice_free (QfuUdevHelperGenericMonitor, self);
+    g_slice_free (QfuHelpersUdevGenericMonitor, self);
 }
 
 static void
@@ -665,8 +621,8 @@ handle_uevent_generic (GUdevClient *client,
     g_debug ("[qfu-udev] event: %s %s", action, g_udev_device_get_name (device));
 }
 
-QfuUdevHelperGenericMonitor *
-qfu_udev_helper_generic_monitor_new (const gchar *sysfs_path)
+QfuHelpersUdevGenericMonitor *
+qfu_helpers_udev_generic_monitor_new (const gchar *sysfs_path)
 {
     static const gchar *all_list[] = {
         "usbmisc", "usb",
@@ -674,9 +630,9 @@ qfu_udev_helper_generic_monitor_new (const gchar *sysfs_path)
         "net",
         NULL };
 
-    QfuUdevHelperGenericMonitor *self;
+    QfuHelpersUdevGenericMonitor *self;
 
-    self = g_slice_new0 (QfuUdevHelperGenericMonitor);
+    self = g_slice_new0 (QfuHelpersUdevGenericMonitor);
     self->udev = g_udev_client_new (all_list);
 
     /* Monitor for device events. */

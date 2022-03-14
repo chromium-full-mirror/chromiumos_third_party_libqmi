@@ -15,7 +15,7 @@
 # Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 #
 # Copyright (C) 2012 Lanedo GmbH
-# Copyright (C) 2012-2017 Aleksander Morgado <aleksander@aleksander.es>
+# Copyright (C) 2012-2022 Aleksander Morgado <aleksander@aleksander.es>
 #
 
 import string
@@ -35,9 +35,9 @@ class FieldResult(Field):
     interface)
     """
     def emit_types(self, hfile, cfile):
-        if TypeFactory.is_type_emitted(self.fullname) is False:
+        if not TypeFactory.is_type_emitted(self.fullname):
             TypeFactory.set_type_emitted(self.fullname)
-            self.variable.emit_types(cfile, self.since, True)
+            self.variable.emit_types(cfile, cfile, self.since, True)
 
 
     """
@@ -53,7 +53,7 @@ class FieldResult(Field):
 
         # Emit the getter header
         template = '\n'
-        if self.static == False:
+        if not self.static and self.service != 'CTL':
             template += (
                 '\n'
                 '/**\n'
@@ -92,7 +92,7 @@ class FieldResult(Field):
             '        return FALSE;\n'
             '    }\n'
             '\n'
-            '    if (self->${variable_name}.error_status == QMI_STATUS_SUCCESS) {\n'
+            '    if (self->${variable_name}_error_status == QMI_STATUS_SUCCESS) {\n'
             '        /* Operation succeeded */\n'
             '        return TRUE;\n'
             '    }\n'
@@ -100,10 +100,10 @@ class FieldResult(Field):
             '    /* Report a QMI protocol error */\n'
             '    g_set_error (error,\n'
             '                 QMI_PROTOCOL_ERROR,\n'
-            '                 (QmiProtocolError) self->${variable_name}.error_code,\n'
+            '                 (QmiProtocolError) self->${variable_name}_error_code,\n'
             '                 "QMI protocol error (%u): \'%s\'",\n'
-            '                 self->${variable_name}.error_code,\n'
-            '                 qmi_protocol_error_get_string ((QmiProtocolError) self->${variable_name}.error_code));\n'
+            '                 self->${variable_name}_error_code,\n'
+            '                 qmi_protocol_error_get_string ((QmiProtocolError) self->${variable_name}_error_code));\n'
             '    return FALSE;\n'
             '}\n')
         cfile.write(string.Template(template).substitute(translations))
@@ -181,7 +181,4 @@ class FieldResult(Field):
         # Public methods
         template = (
             '${prefix_underscore}_get_${underscore}\n')
-        if self.container_type == 'Input':
-            template += (
-                '${prefix_underscore}_set_${underscore}\n')
         sections['public-methods'] += string.Template(template).substitute(translations)

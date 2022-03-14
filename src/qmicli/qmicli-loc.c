@@ -471,8 +471,11 @@ position_report_received (QmiClientLoc                         *client,
         QmiLocTechnologyUsed technology;
         QmiLocTimeSource time_source;
         QmiLocSensorDataUsage sensor_data_usage;
-        QmiIndicationLocPositionReportOutputDilutionOfPrecision dop;
-        QmiIndicationLocPositionReportOutputGpsTime gps_time;
+        gfloat pdop;
+        gfloat hdop;
+        gfloat vdop;
+        guint16 gps_weeks;
+        guint32 gps_time_of_week_milliseconds;
         gboolean auxb;
         GArray *array;
 
@@ -579,10 +582,10 @@ position_report_received (QmiClientLoc                         *client,
         } else
             g_print ("   technology: n/a\n");
 
-        if (qmi_indication_loc_position_report_output_get_dilution_of_precision (output, &dop, NULL)) {
-            g_print ("   position DOP:   %lf\n", (gdouble)dop.position_dilution_of_precision);
-            g_print ("   horizontal DOP: %lf\n", (gdouble)dop.horizontal_dilution_of_precision);
-            g_print ("   vertical DOP:   %lf\n", (gdouble)dop.vertical_dilution_of_precision);
+        if (qmi_indication_loc_position_report_output_get_dop (output, &pdop, &hdop, &vdop, NULL)) {
+            g_print ("   position DOP:   %lf\n", (gdouble)pdop);
+            g_print ("   horizontal DOP: %lf\n", (gdouble)hdop);
+            g_print ("   vertical DOP:   %lf\n", (gdouble)vdop);
         } else {
             g_print ("   position DOP:   n/a\n");
             g_print ("   horizontal DOP: n/a\n");
@@ -599,8 +602,8 @@ position_report_received (QmiClientLoc                         *client,
         else
             g_print ("   Leap seconds: n/a\n");
 
-        if (qmi_indication_loc_position_report_output_get_gps_time (output, &gps_time, NULL))
-            g_print ("   GPS time: %u weeks and %ums\n", gps_time.gps_weeks, gps_time.gps_time_of_week_milliseconds);
+        if (qmi_indication_loc_position_report_output_get_gps_date_time (output, &gps_weeks, &gps_time_of_week_milliseconds, NULL))
+            g_print ("   GPS time: %u weeks and %ums\n", gps_weeks, gps_time_of_week_milliseconds);
         else
             g_print ("   GPS time: n/a\n");
 

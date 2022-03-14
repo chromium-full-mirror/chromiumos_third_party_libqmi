@@ -15,7 +15,7 @@
 # Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 #
 # Copyright (C) 2012 Lanedo GmbH
-# Copyright (C) 2012-2017 Aleksander Morgado <aleksander@aleksander.es>
+# Copyright (C) 2012-2022 Aleksander Morgado <aleksander@aleksander.es>
 #
 
 import string
@@ -35,7 +35,7 @@ class Message:
         # Validate input fields in the dictionary, and only allow those
         # explicitly expected.
         for message_key in dictionary:
-            if message_key not in [ "name", "type", "service", "id", "since", "input", "output", "vendor", "scope", "abort" ]:
+            if message_key not in [ "name", "type", "service", "id", "since", "input", "output", "vendor", "scope", "abort", "output-compat", "input-compat" ]:
                 raise ValueError('Invalid message field: "' + message_key + '"')
 
         # The message service, e.g. "Ctl"
@@ -78,12 +78,15 @@ class Message:
         # will generate a new Output type and public getters for each output
         # field. This applies to both Request/Response and Indications.
         # Output containers are actually optional in Indications
-        self.output = Container(self.fullname,
+        self.output_compat = True if 'output-compat' in dictionary and dictionary['output-compat'] == 'yes' else False
+        self.output = Container(self.service,
+                                self.fullname,
                                 'Output',
                                 dictionary['output'] if 'output' in dictionary else None,
                                 common_objects_dictionary,
                                 self.static,
-                                self.since)
+                                self.since,
+                                self.output_compat)
 
         self.input = None
         if self.type == 'Message':
@@ -91,12 +94,15 @@ class Message:
             # Every defined message will have its own input container, which
             # will generate a new Input type and public getters for each input
             # field
-            self.input = Container(self.fullname,
+            self.input_compat = True if 'input-compat' in dictionary and dictionary['input-compat'] == 'yes' else False
+            self.input = Container(self.service,
+                                   self.fullname,
                                    'Input',
                                    dictionary['input'] if 'input' in dictionary else None,
                                    common_objects_dictionary,
                                    self.static,
-                                   self.since)
+                                   self.since,
+                                   self.input_compat)
 
 
     """
@@ -400,6 +406,22 @@ class Message:
             utils.add_separator(hfile, 'INDICATION', self.fullname);
             utils.add_separator(cfile, 'INDICATION', self.fullname);
 
+        if not self.static and self.service != 'CTL':
+            translations = { 'hyphened' : utils.build_dashed_name (self.fullname),
+                             'fullname' : self.service + ' ' + self.name,
+                             'type'     : 'response' if self.type == 'Message' else 'indication',
+                             'operation' : 'create requests and parse responses' if self.type == 'Message' else 'parse indications' }
+            template = (
+                '\n'
+                '/**\n'
+                ' * SECTION: ${hyphened}\n'
+                ' * @title: ${fullname} ${type}\n'
+                ' * @short_description: Methods to manage the ${fullname} ${type}.\n'
+                ' *\n'
+                ' * Collection of methods to ${operation} of the ${fullname} message.\n'
+                ' */\n')
+            hfile.write(string.Template(template).substitute(translations))
+
         if self.type == 'Message':
             hfile.write('\n/* --- Input -- */\n');
             cfile.write('\n/* --- Input -- */\n');
@@ -455,7 +477,6 @@ class Message:
         template = (
             '<SECTION>\n'
             '<FILE>${hyphened}</FILE>\n'
-            '<TITLE>${fullname} ${message_type}</TITLE>\n'
             '${public_types}'
             '${public_methods}'
             '<SUBSECTION Private>\n'

@@ -37,6 +37,7 @@ sources = files(
   'qfu-at-device.c',
   'qfu-device-selection.c',
   'qfu-dload-message.c',
+  'qfu-helpers.c',
   'qfu-image.c',
   'qfu-image-cwe.c',
   'qfu-image-factory.c',
@@ -50,9 +51,14 @@ sources = files(
   'qfu-reseter.c',
   'qfu-sahara-device.c',
   'qfu-sahara-message.c',
-  'qfu-udev-helpers.c',
   'qfu-updater.c',
 )
+
+if enable_udev
+  sources += files('qfu-helpers-udev.c')
+else
+  sources += files('qfu-helpers-sysfs.c')
+endif
 
 enum_types = 'qfu-enum-types'
 

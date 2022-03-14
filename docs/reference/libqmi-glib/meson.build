@@ -25,6 +25,7 @@ private_headers = [
   'qmi-net-port-manager-qmiwwan.h',
   'test-fixture.h',
   'test-port-context.h',
+  'if_link_rmnet.h',
 ]
 
 scan_args = [
@@ -76,4 +77,5 @@ gnome.gtkdoc(
   fixxref_args: fixxref_args,
   content_files: [sections_txt, version_xml],
   install: true,
+  check: true,
 )

@@ -692,6 +692,17 @@ qmi_helpers_list_links (GFile         *sysfs_file,
     return TRUE;
 }
 
+/******************************************************************************/
+
+void
+qmi_helpers_clear_string (gchar **value)
+{
+    if (value && *value)
+        g_free (*value);
+}
+
+/******************************************************************************/
+
 #if !GLIB_CHECK_VERSION(2,54,0)
 
 gboolean

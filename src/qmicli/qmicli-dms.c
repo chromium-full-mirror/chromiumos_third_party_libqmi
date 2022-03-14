@@ -2919,7 +2919,6 @@ get_image_info (ListImagesContext *operation_ctx)
     GArray *array;
     QmiMessageDmsListStoredImagesOutputListImage *image;
     QmiMessageDmsListStoredImagesOutputListImageSublistSublistElement *subimage;
-    QmiMessageDmsGetStoredImageInfoInputImage image_id;
     g_autoptr(QmiMessageDmsGetStoredImageInfoInput) input = NULL;
 
     qmi_message_dms_list_stored_images_output_get_list (
@@ -2961,11 +2960,12 @@ get_image_info (ListImagesContext *operation_ctx)
                                operation_ctx->j);
 
     /* Query image info */
-    image_id.type = image->type;
-    image_id.unique_id = subimage->unique_id;
-    image_id.build_id = subimage->build_id;
     input = qmi_message_dms_get_stored_image_info_input_new ();
-    qmi_message_dms_get_stored_image_info_input_set_image (input, &image_id, NULL);
+    qmi_message_dms_get_stored_image_info_input_set_image_details (input,
+                                                                   image->type,
+                                                                   subimage->unique_id,
+                                                                   subimage->build_id,
+                                                                   NULL);
     qmi_client_dms_get_stored_image_info (ctx->client,
                                           input,
                                           10,
@@ -3406,32 +3406,39 @@ static void
 get_stored_image_delete_ready (QmiClientDms *client,
                                GAsyncResult *res)
 {
-    QmiMessageDmsDeleteStoredImageInput *input;
-    QmiMessageDmsDeleteStoredImageInputImage modem_image_id;
-    QmiMessageDmsDeleteStoredImageInputImage pri_image_id;
-
-    modem_image_id.type = QMI_DMS_FIRMWARE_IMAGE_TYPE_MODEM;
-    pri_image_id.type = QMI_DMS_FIRMWARE_IMAGE_TYPE_PRI;
+    g_autoptr(QmiMessageDmsDeleteStoredImageInput)  input = NULL;
+    g_autoptr(GArray)                               modem_unique_id = NULL;
+    g_autofree gchar                               *modem_build_id = NULL;
+    g_autoptr(GArray)                               pri_unique_id = NULL;
+    g_autofree gchar                               *pri_build_id = NULL;
 
     get_stored_image_finish (client,
                              res,
-                             &modem_image_id.unique_id,
-                             &modem_image_id.build_id,
-                             &pri_image_id.unique_id,
-                             &pri_image_id.build_id);
+                             &modem_unique_id,
+                             &modem_build_id,
+                             &pri_unique_id,
+                             &pri_build_id);
 
-    if (modem_image_id.unique_id && modem_image_id.build_id &&
-        pri_image_id.unique_id && pri_image_id.build_id) {
+    if (modem_unique_id && modem_build_id &&
+        pri_unique_id && pri_build_id) {
         g_printerr ("error: cannot specify multiple images to delete\n");
         operation_shutdown (FALSE);
         return;
     }
 
     input = qmi_message_dms_delete_stored_image_input_new ();
-    if (modem_image_id.unique_id && modem_image_id.build_id)
-        qmi_message_dms_delete_stored_image_input_set_image (input, &modem_image_id, NULL);
-    else if (pri_image_id.unique_id && pri_image_id.build_id)
-        qmi_message_dms_delete_stored_image_input_set_image (input, &pri_image_id, NULL);
+    if (modem_unique_id && modem_build_id)
+        qmi_message_dms_delete_stored_image_input_set_image_details (input,
+                                                                     QMI_DMS_FIRMWARE_IMAGE_TYPE_MODEM,
+                                                                     modem_unique_id,
+                                                                     modem_build_id,
+                                                                     NULL);
+    else if (pri_unique_id && pri_build_id)
+        qmi_message_dms_delete_stored_image_input_set_image_details (input,
+                                                                     QMI_DMS_FIRMWARE_IMAGE_TYPE_PRI,
+                                                                     pri_unique_id,
+                                                                     pri_build_id,
+                                                                     NULL);
     else {
         g_printerr ("error: didn't specify correctly an image to delete\n");
         operation_shutdown (FALSE);
@@ -3445,14 +3452,6 @@ get_stored_image_delete_ready (QmiClientDms *client,
         NULL,
         (GAsyncReadyCallback)delete_stored_image_ready,
         NULL);
-    qmi_message_dms_delete_stored_image_input_unref (input);
-
-    g_free (modem_image_id.build_id);
-    if (modem_image_id.unique_id)
-        g_array_unref (modem_image_id.unique_id);
-    g_free (pri_image_id.build_id);
-    if (pri_image_id.unique_id)
-        g_array_unref (pri_image_id.unique_id);
 }
 
 #endif /* HAVE_QMI_MESSAGE_DMS_SET_FIRMWARE_PREFERENCE

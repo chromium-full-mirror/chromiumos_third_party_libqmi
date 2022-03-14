@@ -15,7 +15,7 @@
 # Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 #
 # Copyright (C) 2012 Lanedo GmbH
-# Copyright (C) 2012-2017 Aleksander Morgado <aleksander@aleksander.es>
+# Copyright (C) 2012-2022 Aleksander Morgado <aleksander@aleksander.es>
 #
 
 import string
@@ -29,7 +29,12 @@ class Variable:
     """
     Constructor with common variable handling
     """
-    def __init__(self, dictionary):
+    def __init__(self, service, dictionary):
+        """
+        The current QMI service
+        """
+        self.service = service
+
         """
         Variables can define specific public and private formats to be used.
         The public format will be that used in the generated interface file,
@@ -54,6 +59,16 @@ class Variable:
         """
         self.needs_dispose = False
 
+        """
+        Variables that get allocated in heap need to have a clear method so that it
+        can be used as part of an array of this variable type.
+        """
+        self.clear_method = ''
+
+        """
+        Custom endianness configuration for a specific variable; if none given, defaults
+        to host endian.
+        """
         self.endian = "QMI_ENDIAN_LITTLE"
         if 'endian' in dictionary:
             endian = dictionary['endian']
@@ -69,20 +84,35 @@ class Variable:
         """
         self.public = False
 
+        # -----------------------------------------------------------------------------
+        # Variables to support the new GIR array/struct compat methods in 1.32
+
+        """
+        Flag specifying whether a given variable contains any kind of array, indicating
+        the GIR array/struct compat methods in 1.32 are required. There is no need to
+        flag structs independently, because it is ensured that structs are always array
+        members.
+        """
+        self.needs_compat_gir = False
+
+        """
+        Formats and element types
+        """
+        self.public_format_gir = None
+        self.private_format_gir = None
+        self.element_type_gir = None
+
+        """
+        Types involved in GIR support may need additional free() and new() methods.
+        """
+        self.new_method_gir = ''
+        self.free_method_gir = ''
+
     """
     Emits the code to declare specific new types required by the variable.
     """
-    def emit_types(self, f, since, static):
+    def emit_types(self, hfile, cfile, since, static):
         pass
-
-
-    """
-    Emits the code to custom helper methods needed by this variable.
-    They are emitted as early as possible.
-    """
-    def emit_helper_methods(self, hfile, cfile):
-        pass
-
 
     """
     Emits the code involved in reading the variable from the raw byte stream
@@ -91,14 +121,12 @@ class Variable:
     def emit_buffer_read(self, f, line_prefix, tlv_out, error, variable_name):
         pass
 
-
     """
     Emits the code involved in writing the variable to the raw byte stream
     from the specific private format.
     """
     def emit_buffer_write(self, f, line_prefix, tlv_name, variable_name):
         pass
-
 
     """
     Emits the code to get the contents of the given variable as a printable string.
@@ -107,9 +135,10 @@ class Variable:
         pass
 
     """
-    Builds the code to include the declaration of a variable of this kind.
+    Builds the code to include the declaration of a variable of this kind,
+    used when generating input/output bundles.
     """
-    def build_variable_declaration(self, public, line_prefix, variable_name):
+    def build_variable_declaration(self, line_prefix, variable_name):
         return ''
 
     """
@@ -127,7 +156,7 @@ class Variable:
     """
     Builds the code to implement getting this kind of variable.
     """
-    def build_getter_implementation(self, line_prefix, variable_name_from, variable_name_to, to_is_reference):
+    def build_getter_implementation(self, line_prefix, variable_name_from, variable_name_to):
         return ''
 
     """
@@ -146,6 +175,13 @@ class Variable:
     Builds the code to implement setting this kind of variable.
     """
     def build_setter_implementation(self, line_prefix, variable_name_from, variable_name_to):
+        return ''
+
+    """
+    Builds the code to include the declaration of a variable of this kind
+    as a field in a public struct
+    """
+    def build_struct_field_declaration(self, line_prefix, variable_name):
         return ''
 
     """
@@ -171,3 +207,94 @@ class Variable:
     """
     def flag_public(self):
         self.public = True
+
+    # -----------------------------------------------------------------------------
+    # Support for GIR array/struct compat methods in 1.32
+
+    """
+    Emits the code to declare specific new types required by the variable
+    """
+    def emit_types_gir(self, hfile, cfile, since):
+        pass
+
+    """
+    Builds the code to include the declaration of a variable of this kind,
+    used when generating input/output bundles
+    """
+    def build_variable_declaration_gir(self, line_prefix, variable_name):
+        # By default, no extra variable is required in the input/output bundle
+        # for GIR compat methods
+        return ''
+
+    """
+    Builds the code to include in the getter method declaration for this kind of variable
+    """
+    def build_getter_declaration_gir(self, line_prefix, variable_name):
+        return self.build_getter_declaration(line_prefix, variable_name)
+
+    """
+    Builds the documentation of the getter code
+    """
+    def build_getter_documentation_gir(self, line_prefix, variable_name):
+        return self.build_getter_documentation(line_prefix, variable_name)
+
+    """
+    Builds the code to implement getting this kind of variable
+    """
+    def build_getter_implementation_gir(self, line_prefix, variable_name_from, variable_name_to):
+        return self.build_getter_implementation(line_prefix, variable_name_from, variable_name_to)
+
+    """
+    Builds the code to include in the setter method declaration for this kind of variable
+    """
+    def build_setter_declaration_gir(self, line_prefix, variable_name):
+        return self.build_setter_declaration(line_prefix, variable_name)
+
+    """
+    Builds the documentation of the setter code
+    """
+    def build_setter_documentation_gir(self, line_prefix, variable_name):
+        return self.build_setter_documentation(line_prefix, variable_name)
+
+    """
+    Builds the code to implement setting this kind of variable
+    """
+    def build_setter_implementation_gir(self, line_prefix, variable_name_from, variable_name_to):
+        return self.build_setter_implementation(line_prefix, variable_name_from, variable_name_to)
+
+    """
+    Declaration of the variable as a struct field
+    """
+    def build_struct_field_declaration_gir(self, line_prefix, variable_name):
+        return self.build_struct_field_declaration(line_prefix, variable_name)
+
+    """
+    Documentation for the struct field
+    """
+    def build_struct_field_documentation_gir(self, line_prefix, variable_name):
+        return self.build_struct_field_documentation(line_prefix, variable_name)
+
+    """
+    Emits the code to dispose the variable
+    """
+    def build_dispose_gir(self, line_prefix, variable_name):
+        return self.build_dispose(line_prefix, variable_name)
+
+    """
+    Emits the code to copy a variable into its GIR specific format
+    """
+    def build_copy_to_gir(self, line_prefix, variable_name_from, variable_name_to):
+        return ''
+
+    """
+    Emits the code to copy a variable from its GIR specific format
+    """
+    def build_copy_from_gir(self, line_prefix, variable_name_from, variable_name_to):
+        return ''
+
+    """
+    Emits the code to copy a variable from its GIR specific format to another
+    variable in the same format
+    """
+    def build_copy_gir(self, line_prefix, variable_name_from, variable_name_to):
+        return ''

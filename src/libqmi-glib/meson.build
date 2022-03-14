@@ -10,6 +10,7 @@ qmi_enums_headers = files(
   'qmi-enums.h',
   'qmi-enums-dms.h',
   'qmi-enums-dsd.h',
+  'qmi-enums-fox.h',
   'qmi-enums-gas.h',
   'qmi-enums-loc.h',
   'qmi-enums-nas.h',
@@ -166,7 +167,7 @@ if enable_gir and get_option('default_library') != 'static'
     symbol_prefix: ns.to_lower() + '_',
     extra_args: common_c_flags + ['--identifier-prefix=' + ns.to_upper()],
     header: 'libqmi-glib.h',
-    export_packages: 'libqmi-glib',
+    export_packages: libname,
     install: true,
   )
 endif

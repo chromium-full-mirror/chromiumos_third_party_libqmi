@@ -5,6 +5,8 @@ generated_inc = include_directories('.')
 
 gen_sources = []
 gen_headers = []
+private_gen_sources = []
+private_gen_headers = []
 gen_sections = []
 gen_sections_deps = []
 
@@ -65,7 +67,7 @@ gen_headers += custom_target(
   command: [
     python,
     qmi_mkenums,
-    '--fhead', '#ifndef __LIBQMI_GLIB_ENUM_TYPES_H__\n#define __LIBQMI_GLIB_ENUM_TYPES_H__\n#include "qmi-enums.h"\n#include "qmi-enums-wds.h"\n#include "qmi-enums-dms.h"\n#include "qmi-enums-nas.h"\n#include "qmi-enums-wms.h"\n#include "qmi-enums-pds.h"\n#include "qmi-enums-pdc.h"\n#include "qmi-enums-pbm.h"\n#include "qmi-enums-uim.h"\n#include "qmi-enums-sar.h"\n#include "qmi-enums-oma.h"\n#include "qmi-enums-wda.h"\n#include "qmi-enums-voice.h"\n#include "qmi-enums-loc.h"\n#include "qmi-enums-qos.h"\n#include "qmi-enums-gas.h"\n#include "qmi-enums-dsd.h"\n#include "qmi-device.h"\n',
+    '--fhead', '#ifndef __LIBQMI_GLIB_ENUM_TYPES_H__\n#define __LIBQMI_GLIB_ENUM_TYPES_H__\n#include "qmi-enums.h"\n#include "qmi-enums-wds.h"\n#include "qmi-enums-dms.h"\n#include "qmi-enums-nas.h"\n#include "qmi-enums-wms.h"\n#include "qmi-enums-pds.h"\n#include "qmi-enums-pdc.h"\n#include "qmi-enums-pbm.h"\n#include "qmi-enums-uim.h"\n#include "qmi-enums-sar.h"\n#include "qmi-enums-oma.h"\n#include "qmi-enums-wda.h"\n#include "qmi-enums-voice.h"\n#include "qmi-enums-loc.h"\n#include "qmi-enums-qos.h"\n#include "qmi-enums-gas.h"\n#include "qmi-enums-dsd.h"\n#include "qmi-enums-fox.h"\n#include "qmi-device.h"\n',
     '--template', files(templates_dir / enum_types + '.h.template'),
     '--ftail', '#endif /* __LIBQMI_GLIB_ENUM_TYPES_H__ */\n',
     '@INPUT@'],
@@ -90,7 +92,7 @@ gen_sources += custom_target(
 # Private Enum/Flag types
 enum_types = 'qmi-enum-types-private'
 
-gen_headers += custom_target(
+private_gen_headers += custom_target(
   enum_types + '.h',
   input: qmi_enums_private_header,
   output: enum_types + '.h',
@@ -104,7 +106,7 @@ gen_headers += custom_target(
   capture: true,
 )
 
-gen_sources += custom_target(
+private_gen_sources += custom_target(
   enum_types + '.c',
   input: qmi_enums_private_header,
   output: enum_types + '.c',
@@ -161,12 +163,13 @@ generated = custom_target(
   command: [qmi_codegen, '--input', '@INPUT@', '--include', qmi_common, '--output', '@OUTDIR@' / name],
 )
 
-gen_sources += [generated[0], generated[1]]
+private_gen_sources += [generated[0], generated[1]]
 
 services = [
   'dms',
   'dpm',
   'dsd',
+  'fox',
   'gas',
   'gms',
   'loc',
@@ -235,7 +238,7 @@ endif
 
 libqmi_glib_generated = static_library(
   'qmi-glib-generated',
-  sources: gen_sources + gen_headers + [version_header],
+  sources: private_gen_sources + private_gen_headers + gen_sources + gen_headers + [version_header],
   include_directories: incs,
   dependencies: deps,
   c_args: c_flags,
@@ -244,7 +247,7 @@ libqmi_glib_generated = static_library(
 # FIXME: in older versions of meson, if libqmi-glib-generated is linked as shared
 #        it will also try to link it in documentation generation
 generated_dep = declare_dependency(
-  sources: gen_headers + [version_header],
+  sources: private_gen_headers + gen_headers + [version_header],
   include_directories: [libqmi_glib_inc, generated_inc],
   dependencies: deps,
 )

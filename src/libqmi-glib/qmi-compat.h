@@ -16,7 +16,7 @@
  * Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
  * Boston, MA 02110-1301 USA.
  *
- * Copyright (C) 2016-2020 Aleksander Morgado <aleksander@aleksander.es>
+ * Copyright (C) 2016-2022 Aleksander Morgado <aleksander@aleksander.es>
  */
 
 #ifndef _LIBQMI_GLIB_QMI_COMPAT_H_
@@ -34,8 +34,11 @@
 #include "qmi-uim.h"
 #include "qmi-wda.h"
 #include "qmi-wds.h"
+#include "qmi-pdc.h"
+#include "qmi-loc.h"
 #include "qmi-enums-nas.h"
 #include "qmi-enums-wms.h"
+#include "qmi-enums-pdc.h"
 
 /**
  * SECTION:qmi-compat
@@ -612,10 +615,6 @@ void qmi_utils_write_fixed_size_string_to_buffer  (guint8      **buffer,
                                                    guint16       fixed_size,
                                                    const gchar  *in);
 
-/* The following type exists just so that we can get deprecation warnings */
-G_DEPRECATED
-typedef int QmiDeprecatedNasSimRejectState;
-
 /**
  * QMI_NAS_SIM_REJECT_STATE_SIM_VAILABLE:
  *
@@ -624,6 +623,7 @@ typedef int QmiDeprecatedNasSimRejectState;
  * Since: 1.0
  * Deprecated: 1.14.0: Use the correct #QMI_NAS_SIM_REJECT_STATE_SIM_AVAILABLE name instead.
  */
+G_DEPRECATED typedef int QmiDeprecatedNasSimRejectState;
 #define QMI_NAS_SIM_REJECT_STATE_SIM_VAILABLE (QmiDeprecatedNasSimRejectState) QMI_NAS_SIM_REJECT_STATE_SIM_AVAILABLE
 
 /**
@@ -767,10 +767,6 @@ QmiMessage  *qmi_device_command_finish (QmiDevice     *self,
                                         GAsyncResult  *res,
                                         GError       **error);
 
-/* The following type exists just so that we can get deprecation warnings */
-G_DEPRECATED
-typedef int QmiDeprecatedWdsCdmaCauseCode;
-
 /**
  * QMI_WDS_CDMA_CAUSE_CODE_NETWORK_ADDRESS_VACANT:
  *
@@ -779,6 +775,7 @@ typedef int QmiDeprecatedWdsCdmaCauseCode;
  * Since: 1.0
  * Deprecated: 1.18.0: Use the correct #QMI_WMS_CDMA_CAUSE_CODE_NETWORK_ADDRESS_VACANT name instead.
  */
+G_DEPRECATED typedef int QmiDeprecatedWdsCdmaCauseCode;
 #define QMI_WDS_CDMA_CAUSE_CODE_NETWORK_ADDRESS_VACANT (QmiDeprecatedWdsCdmaCauseCode) QMI_WMS_CDMA_CAUSE_CODE_NETWORK_ADDRESS_VACANT
 
 /**
@@ -789,6 +786,7 @@ typedef int QmiDeprecatedWdsCdmaCauseCode;
  * Since: 1.0
  * Deprecated: 1.18.0: Use the correct #QMI_WMS_CDMA_CAUSE_CODE_NETWORK_ADDRESS_TRANSLATION_FAILURE name instead.
  */
+G_DEPRECATED typedef int QmiDeprecatedWdsCdmaCauseCode;
 #define QMI_WDS_CDMA_CAUSE_CODE_NETWORK_ADDRESS_TRANSLATION_FAILURE (QmiDeprecatedWdsCdmaCauseCode) QMI_WMS_CDMA_CAUSE_CODE_NETWORK_ADDRESS_TRANSLATION_FAILURE
 
 /**
@@ -799,6 +797,7 @@ typedef int QmiDeprecatedWdsCdmaCauseCode;
  * Since: 1.0
  * Deprecated: 1.18.0: Use the correct #QMI_WMS_CDMA_CAUSE_CODE_NETWORK_RESOURCE_SHORTAGE name instead.
  */
+G_DEPRECATED typedef int QmiDeprecatedWdsCdmaCauseCode;
 #define QMI_WDS_CDMA_CAUSE_CODE_NETWORK_RESOURCE_SHORTAGE (QmiDeprecatedWdsCdmaCauseCode) QMI_WMS_CDMA_CAUSE_CODE_NETWORK_RESOURCE_SHORTAGE
 
 /**
@@ -809,6 +808,7 @@ typedef int QmiDeprecatedWdsCdmaCauseCode;
  * Since: 1.0
  * Deprecated: 1.18.0: Use the correct #QMI_WMS_CDMA_CAUSE_CODE_NETWORK_FAILURE name instead.
  */
+G_DEPRECATED typedef int QmiDeprecatedWdsCdmaCauseCode;
 #define QMI_WDS_CDMA_CAUSE_CODE_NETWORK_FAILURE (QmiDeprecatedWdsCdmaCauseCode) QMI_WMS_CDMA_CAUSE_CODE_NETWORK_FAILURE
 
 /**
@@ -819,6 +819,7 @@ typedef int QmiDeprecatedWdsCdmaCauseCode;
  * Since: 1.0
  * Deprecated: 1.18.0: Use the correct #QMI_WMS_CDMA_CAUSE_CODE_NETWORK_INVALID_TELESERVICE_ID name instead.
  */
+G_DEPRECATED typedef int QmiDeprecatedWdsCdmaCauseCode;
 #define QMI_WDS_CDMA_CAUSE_CODE_NETWORK_INVALID_TELESERVICE_ID (QmiDeprecatedWdsCdmaCauseCode) QMI_WMS_CDMA_CAUSE_CODE_NETWORK_INVALID_TELESERVICE_ID
 
 /**
@@ -829,6 +830,7 @@ typedef int QmiDeprecatedWdsCdmaCauseCode;
  * Since: 1.0
  * Deprecated: 1.18.0: Use the correct #QMI_WMS_CDMA_CAUSE_CODE_NETWORK_OTHER name instead.
  */
+G_DEPRECATED typedef int QmiDeprecatedWdsCdmaCauseCode;
 #define QMI_WDS_CDMA_CAUSE_CODE_NETWORK_OTHER (QmiDeprecatedWdsCdmaCauseCode) QMI_WMS_CDMA_CAUSE_CODE_NETWORK_OTHER
 
 /**
@@ -839,6 +841,7 @@ typedef int QmiDeprecatedWdsCdmaCauseCode;
  * Since: 1.0
  * Deprecated: 1.18.0: Use the correct #QMI_WMS_CDMA_CAUSE_CODE_DESTINATION_NO_PAGE_RESPONSE name instead.
  */
+G_DEPRECATED typedef int QmiDeprecatedWdsCdmaCauseCode;
 #define QMI_WDS_CDMA_CAUSE_CODE_DESTINATION_NO_PAGE_RESPONSE (QmiDeprecatedWdsCdmaCauseCode) QMI_WMS_CDMA_CAUSE_CODE_DESTINATION_NO_PAGE_RESPONSE
 
 /**
@@ -849,6 +852,7 @@ typedef int QmiDeprecatedWdsCdmaCauseCode;
  * Since: 1.0
  * Deprecated: 1.18.0: Use the correct #QMI_WMS_CDMA_CAUSE_CODE_DESTINATION_BUSY name instead.
  */
+G_DEPRECATED typedef int QmiDeprecatedWdsCdmaCauseCode;
 #define QMI_WDS_CDMA_CAUSE_CODE_DESTINATION_BUSY (QmiDeprecatedWdsCdmaCauseCode) QMI_WMS_CDMA_CAUSE_CODE_DESTINATION_BUSY
 
 /**
@@ -859,8 +863,8 @@ typedef int QmiDeprecatedWdsCdmaCauseCode;
  * Since: 1.0
  * Deprecated: 1.18.0: Use the correct #QMI_WMS_CDMA_CAUSE_CODE_DESTINATION_NO_ACK name instead.
  */
+G_DEPRECATED typedef int QmiDeprecatedWdsCdmaCauseCode;
 #define QMI_WDS_CDMA_CAUSE_CODE_DESTINATION_NO_ACK (QmiDeprecatedWdsCdmaCauseCode) QMI_WMS_CDMA_CAUSE_CODE_DESTINATION_NO_ACK
-
 
 /**
  * QMI_WDS_CDMA_CAUSE_CODE_DESTINATION_RESOURCE_SHORTAGE:
@@ -870,6 +874,7 @@ typedef int QmiDeprecatedWdsCdmaCauseCode;
  * Since: 1.0
  * Deprecated: 1.18.0: Use the correct #QMI_WMS_CDMA_CAUSE_CODE_DESTINATION_RESOURCE_SHORTAGE name instead.
  */
+G_DEPRECATED typedef int QmiDeprecatedWdsCdmaCauseCode;
 #define QMI_WDS_CDMA_CAUSE_CODE_DESTINATION_RESOURCE_SHORTAGE (QmiDeprecatedWdsCdmaCauseCode) QMI_WMS_CDMA_CAUSE_CODE_DESTINATION_RESOURCE_SHORTAGE
 
 /**
@@ -880,6 +885,7 @@ typedef int QmiDeprecatedWdsCdmaCauseCode;
  * Since: 1.0
  * Deprecated: 1.18.0: Use the correct #QMI_WMS_CDMA_CAUSE_CODE_DESTINATION_SMS_DELIVERY_POSTPONED name instead.
  */
+G_DEPRECATED typedef int QmiDeprecatedWdsCdmaCauseCode;
 #define QMI_WDS_CDMA_CAUSE_CODE_DESTINATION_SMS_DELIVERY_POSTPONED (QmiDeprecatedWdsCdmaCauseCode) QMI_WMS_CDMA_CAUSE_CODE_DESTINATION_SMS_DELIVERY_POSTPONED
 
 /**
@@ -890,6 +896,7 @@ typedef int QmiDeprecatedWdsCdmaCauseCode;
  * Since: 1.0
  * Deprecated: 1.18.0: Use the correct #QMI_WMS_CDMA_CAUSE_CODE_DESTINATION_OUT_OF_SERVICE name instead.
  */
+G_DEPRECATED typedef int QmiDeprecatedWdsCdmaCauseCode;
 #define QMI_WDS_CDMA_CAUSE_CODE_DESTINATION_OUT_OF_SERVICE (QmiDeprecatedWdsCdmaCauseCode) QMI_WMS_CDMA_CAUSE_CODE_DESTINATION_OUT_OF_SERVICE
 
 /**
@@ -900,6 +907,7 @@ typedef int QmiDeprecatedWdsCdmaCauseCode;
  * Since: 1.0
  * Deprecated: 1.18.0: Use the correct #QMI_WMS_CDMA_CAUSE_CODE_DESTINATION_NOT_AT_ADDRESS name instead.
  */
+G_DEPRECATED typedef int QmiDeprecatedWdsCdmaCauseCode;
 #define QMI_WDS_CDMA_CAUSE_CODE_DESTINATION_NOT_AT_ADDRESS (QmiDeprecatedWdsCdmaCauseCode) QMI_WMS_CDMA_CAUSE_CODE_DESTINATION_NOT_AT_ADDRESS
 
 /**
@@ -910,6 +918,7 @@ typedef int QmiDeprecatedWdsCdmaCauseCode;
  * Since: 1.0
  * Deprecated: 1.18.0: Use the correct #QMI_WMS_CDMA_CAUSE_CODE_DESTINATION_OTHER name instead.
  */
+G_DEPRECATED typedef int QmiDeprecatedWdsCdmaCauseCode;
 #define QMI_WDS_CDMA_CAUSE_CODE_DESTINATION_OTHER (QmiDeprecatedWdsCdmaCauseCode) QMI_WMS_CDMA_CAUSE_CODE_DESTINATION_OTHER
 
 /**
@@ -920,6 +929,7 @@ typedef int QmiDeprecatedWdsCdmaCauseCode;
  * Since: 1.0
  * Deprecated: 1.18.0: Use the correct #QMI_WMS_CDMA_CAUSE_CODE_RADIO_INTERFACE_RESOURCE_SHORTAGE name instead.
  */
+G_DEPRECATED typedef int QmiDeprecatedWdsCdmaCauseCode;
 #define QMI_WDS_CDMA_CAUSE_CODE_RADIO_INTERFACE_RESOURCE_SHORTAGE (QmiDeprecatedWdsCdmaCauseCode) QMI_WMS_CDMA_CAUSE_CODE_RADIO_INTERFACE_RESOURCE_SHORTAGE
 
 /**
@@ -930,6 +940,7 @@ typedef int QmiDeprecatedWdsCdmaCauseCode;
  * Since: 1.0
  * Deprecated: 1.18.0: Use the correct #QMI_WMS_CDMA_CAUSE_CODE_RADIO_INTERFACE_INCOMPATIBILITY name instead.
  */
+G_DEPRECATED typedef int QmiDeprecatedWdsCdmaCauseCode;
 #define QMI_WDS_CDMA_CAUSE_CODE_RADIO_INTERFACE_INCOMPATIBILITY (QmiDeprecatedWdsCdmaCauseCode) QMI_WMS_CDMA_CAUSE_CODE_RADIO_INTERFACE_INCOMPATIBILITY
 
 /**
@@ -940,6 +951,7 @@ typedef int QmiDeprecatedWdsCdmaCauseCode;
  * Since: 1.0
  * Deprecated: 1.18.0: Use the correct #QMI_WMS_CDMA_CAUSE_CODE_RADIO_INTERFACE_OTHER name instead.
  */
+G_DEPRECATED typedef int QmiDeprecatedWdsCdmaCauseCode;
 #define QMI_WDS_CDMA_CAUSE_CODE_RADIO_INTERFACE_OTHER (QmiDeprecatedWdsCdmaCauseCode) QMI_WMS_CDMA_CAUSE_CODE_RADIO_INTERFACE_OTHER
 
 /**
@@ -950,6 +962,7 @@ typedef int QmiDeprecatedWdsCdmaCauseCode;
  * Since: 1.0
  * Deprecated: 1.18.0: Use the correct #QMI_WMS_CDMA_CAUSE_CODE_GENERAL_ENCODING name instead.
  */
+G_DEPRECATED typedef int QmiDeprecatedWdsCdmaCauseCode;
 #define QMI_WDS_CDMA_CAUSE_CODE_GENERAL_ENCODING (QmiDeprecatedWdsCdmaCauseCode) QMI_WMS_CDMA_CAUSE_CODE_GENERAL_ENCODING
 
 /**
@@ -960,6 +973,7 @@ typedef int QmiDeprecatedWdsCdmaCauseCode;
  * Since: 1.0
  * Deprecated: 1.18.0: Use the correct #QMI_WMS_CDMA_CAUSE_CODE_GENERAL_SMS_ORIGIN_DENIED name instead.
  */
+G_DEPRECATED typedef int QmiDeprecatedWdsCdmaCauseCode;
 #define QMI_WDS_CDMA_CAUSE_CODE_GENERAL_SMS_ORIGIN_DENIED (QmiDeprecatedWdsCdmaCauseCode) QMI_WMS_CDMA_CAUSE_CODE_GENERAL_SMS_ORIGIN_DENIED
 
 /**
@@ -970,6 +984,7 @@ typedef int QmiDeprecatedWdsCdmaCauseCode;
  * Since: 1.0
  * Deprecated: 1.18.0: Use the correct #QMI_WMS_CDMA_CAUSE_CODE_GENERAL_SMS_DESTINATION_DENIED name instead.
  */
+G_DEPRECATED typedef int QmiDeprecatedWdsCdmaCauseCode;
 #define QMI_WDS_CDMA_CAUSE_CODE_GENERAL_SMS_DESTINATION_DENIED (QmiDeprecatedWdsCdmaCauseCode) QMI_WMS_CDMA_CAUSE_CODE_GENERAL_SMS_DESTINATION_DENIED
 
 /**
@@ -980,6 +995,7 @@ typedef int QmiDeprecatedWdsCdmaCauseCode;
  * Since: 1.0
  * Deprecated: 1.18.0: Use the correct #QMI_WMS_CDMA_CAUSE_CODE_GENERAL_SUPPLEMENTARY_SERVICE_NOT_SUPPORTED name instead.
  */
+G_DEPRECATED typedef int QmiDeprecatedWdsCdmaCauseCode;
 #define QMI_WDS_CDMA_CAUSE_CODE_GENERAL_SUPPLEMENTARY_SERVICE_NOT_SUPPORTED (QmiDeprecatedWdsCdmaCauseCode) QMI_WMS_CDMA_CAUSE_CODE_GENERAL_SUPPLEMENTARY_SERVICE_NOT_SUPPORTED
 
 /**
@@ -990,6 +1006,7 @@ typedef int QmiDeprecatedWdsCdmaCauseCode;
  * Since: 1.0
  * Deprecated: 1.18.0: Use the correct #QMI_WMS_CDMA_CAUSE_CODE_GENERAL_SMS_NOT_SUPPORTED name instead.
  */
+G_DEPRECATED typedef int QmiDeprecatedWdsCdmaCauseCode;
 #define QMI_WDS_CDMA_CAUSE_CODE_GENERAL_SMS_NOT_SUPPORTED (QmiDeprecatedWdsCdmaCauseCode) QMI_WMS_CDMA_CAUSE_CODE_GENERAL_SMS_NOT_SUPPORTED
 
 /**
@@ -1000,6 +1017,7 @@ typedef int QmiDeprecatedWdsCdmaCauseCode;
  * Since: 1.0
  * Deprecated: 1.18.0: Use the correct #QMI_WMS_CDMA_CAUSE_CODE_GENERAL_MISSING_EXPECTED_PARAMETER name instead.
  */
+G_DEPRECATED typedef int QmiDeprecatedWdsCdmaCauseCode;
 #define QMI_WDS_CDMA_CAUSE_CODE_GENERAL_MISSING_EXPECTED_PARAMETER (QmiDeprecatedWdsCdmaCauseCode) QMI_WMS_CDMA_CAUSE_CODE_GENERAL_MISSING_EXPECTED_PARAMETER
 
 /**
@@ -1010,6 +1028,7 @@ typedef int QmiDeprecatedWdsCdmaCauseCode;
  * Since: 1.0
  * Deprecated: 1.18.0: Use the correct #QMI_WMS_CDMA_CAUSE_CODE_GENERAL_MISSING_MANDATORY_PARAMETER name instead.
  */
+G_DEPRECATED typedef int QmiDeprecatedWdsCdmaCauseCode;
 #define QMI_WDS_CDMA_CAUSE_CODE_GENERAL_MISSING_MANDATORY_PARAMETER (QmiDeprecatedWdsCdmaCauseCode) QMI_WMS_CDMA_CAUSE_CODE_GENERAL_MISSING_MANDATORY_PARAMETER
 
 /**
@@ -1020,6 +1039,7 @@ typedef int QmiDeprecatedWdsCdmaCauseCode;
  * Since: 1.0
  * Deprecated: 1.18.0: Use the correct #QMI_WMS_CDMA_CAUSE_CODE_GENERAL_UNRECOGNIZED_PARAMETER_VALUE name instead.
  */
+G_DEPRECATED typedef int QmiDeprecatedWdsCdmaCauseCode;
 #define QMI_WDS_CDMA_CAUSE_CODE_GENERAL_UNRECOGNIZED_PARAMETER_VALUE (QmiDeprecatedWdsCdmaCauseCode) QMI_WMS_CDMA_CAUSE_CODE_GENERAL_UNRECOGNIZED_PARAMETER_VALUE
 
 /**
@@ -1030,6 +1050,7 @@ typedef int QmiDeprecatedWdsCdmaCauseCode;
  * Since: 1.0
  * Deprecated: 1.18.0: Use the correct #QMI_WMS_CDMA_CAUSE_CODE_GENERAL_UNEXPECTED_PARAMETER_VALUE name instead.
  */
+G_DEPRECATED typedef int QmiDeprecatedWdsCdmaCauseCode;
 #define QMI_WDS_CDMA_CAUSE_CODE_GENERAL_UNEXPECTED_PARAMETER_VALUE (QmiDeprecatedWdsCdmaCauseCode) QMI_WMS_CDMA_CAUSE_CODE_GENERAL_UNEXPECTED_PARAMETER_VALUE
 
 /**
@@ -1040,6 +1061,7 @@ typedef int QmiDeprecatedWdsCdmaCauseCode;
  * Since: 1.0
  * Deprecated: 1.18.0: Use the correct #QMI_WMS_CDMA_CAUSE_CODE_GENERAL_USER_DATA_SIZE_ERROR name instead.
  */
+G_DEPRECATED typedef int QmiDeprecatedWdsCdmaCauseCode;
 #define QMI_WDS_CDMA_CAUSE_CODE_GENERAL_USER_DATA_SIZE_ERROR (QmiDeprecatedWdsCdmaCauseCode) QMI_WMS_CDMA_CAUSE_CODE_GENERAL_USER_DATA_SIZE_ERROR
 
 /**
@@ -1050,11 +1072,8 @@ typedef int QmiDeprecatedWdsCdmaCauseCode;
  * Since: 1.0
  * Deprecated: 1.18.0: Use the correct #QMI_WMS_CDMA_CAUSE_CODE_GENERAL_OTHER name instead.
  */
+G_DEPRECATED typedef int QmiDeprecatedWdsCdmaCauseCode;
 #define QMI_WDS_CDMA_CAUSE_CODE_GENERAL_OTHER (QmiDeprecatedWdsCdmaCauseCode) QMI_WMS_CDMA_CAUSE_CODE_GENERAL_OTHER
-
-/* The following type exists just so that we can get deprecation warnings */
-G_DEPRECATED
-typedef int QmiDeprecatedProtocolError;
 
 /**
  * QMI_PROTOCOL_ERROR_QOS_UNAVAILABLE:
@@ -1064,11 +1083,8 @@ typedef int QmiDeprecatedProtocolError;
  * Since: 1.0
  * Deprecated: 1.22.0: Use the #QMI_PROTOCOL_ERROR_REQUESTED_NUMBER_UNSUPPORTED instead.
  */
+G_DEPRECATED typedef int QmiDeprecatedProtocolError;
 #define QMI_PROTOCOL_ERROR_QOS_UNAVAILABLE (QmiDeprecatedProtocolError) QMI_PROTOCOL_ERROR_REQUESTED_NUMBER_UNSUPPORTED
-
-/* The following type exists just so that we can get deprecation warnings */
-G_DEPRECATED
-typedef int QmiDeprecatedWdsVerboseCallEndReasonCm;
 
 /**
  * QMI_WDS_VERBOSE_CALL_END_REASON_CM_CONFIGURATION_FAILED:
@@ -1078,6 +1094,7 @@ typedef int QmiDeprecatedWdsVerboseCallEndReasonCm;
  * Since: 1.0
  * Deprecated: 1.24.10: Use the correct #QMI_WDS_VERBOSE_CALL_END_REASON_CM_CONFERENCE_FAILED name instead.
  */
+G_DEPRECATED typedef int QmiDeprecatedWdsVerboseCallEndReasonCm;
 #define QMI_WDS_VERBOSE_CALL_END_REASON_CM_CONFIGURATION_FAILED (QmiDeprecatedWdsVerboseCallEndReasonCm) QMI_WDS_VERBOSE_CALL_END_REASON_CM_CONFERENCE_FAILED
 
 /**
@@ -1121,11 +1138,17 @@ gboolean qmi_message_tlv_read_gfloat (QmiMessage  *self,
  * Since: 1.22.4
  * Deprecated: 1.26: Use #QmiDmsFoxconnFirmwareVersionType instead.
  */
+
+/* The following type exists just so that we don't get deprecation warnings on
+ * our own methods */
 typedef enum {
     QMI_DMS_DELL_FIRMWARE_VERSION_TYPE_FIRMWARE_MCFG      = QMI_DMS_FOXCONN_FIRMWARE_VERSION_TYPE_FIRMWARE_MCFG,
     QMI_DMS_DELL_FIRMWARE_VERSION_TYPE_FIRMWARE_MCFG_APPS = QMI_DMS_FOXCONN_FIRMWARE_VERSION_TYPE_FIRMWARE_MCFG_APPS,
     QMI_DMS_DELL_FIRMWARE_VERSION_TYPE_APPS               = QMI_DMS_FOXCONN_FIRMWARE_VERSION_TYPE_APPS,
-} QmiDmsDellFirmwareVersionType;
+} QmiDeprecatedDmsDellFirmwareVersionType;
+
+G_DEPRECATED
+typedef QmiDeprecatedDmsDellFirmwareVersionType QmiDmsDellFirmwareVersionType;
 
 G_DEPRECATED_FOR (qmi_dms_foxconn_firmware_version_type_get_type)
 GType qmi_dms_dell_firmware_version_type_get_type (void) G_GNUC_CONST;
@@ -1142,7 +1165,8 @@ GType qmi_dms_dell_firmware_version_type_get_type (void) G_GNUC_CONST;
  * Since: 1.22.4
  * Deprecated: 1.26: Use qmi_dms_foxconn_firmware_version_type_get_string() instead.
  */
-const gchar *qmi_dms_dell_firmware_version_type_get_string (QmiDmsDellFirmwareVersionType val);
+G_DEPRECATED_FOR (qmi_dms_foxconn_firmware_version_type_get_string)
+const gchar *qmi_dms_dell_firmware_version_type_get_string (QmiDeprecatedDmsDellFirmwareVersionType val);
 
 /**
  * QmiDmsDellDeviceMode:
@@ -1155,11 +1179,17 @@ const gchar *qmi_dms_dell_firmware_version_type_get_string (QmiDmsDellFirmwareVe
  * Since: 1.22.4
  * Deprecated: 1.26: Use #QmiDmsFoxconnDeviceMode instead.
  */
+
+/* The following type exists just so that we don't get deprecation warnings on
+ * our own methods */
 typedef enum {
     QMI_DMS_DELL_DEVICE_MODE_UNKNOWN         = QMI_DMS_FOXCONN_DEVICE_MODE_UNKNOWN,
     QMI_DMS_DELL_DEVICE_MODE_FASTBOOT_ONLINE = QMI_DMS_FOXCONN_DEVICE_MODE_FASTBOOT_ONLINE,
     QMI_DMS_DELL_DEVICE_MODE_FASTBOOT_OTA    = QMI_DMS_FOXCONN_DEVICE_MODE_FASTBOOT_OTA,
-} QmiDmsDellDeviceMode;
+} QmiDeprecatedDmsDellDeviceMode;
+
+G_DEPRECATED
+typedef QmiDeprecatedDmsDellDeviceMode QmiDmsDellDeviceMode;
 
 G_DEPRECATED_FOR (qmi_dms_foxconn_device_mode_get_type)
 GType qmi_dms_dell_device_mode_get_type (void) G_GNUC_CONST;
@@ -1177,107 +1207,7 @@ GType qmi_dms_dell_device_mode_get_type (void) G_GNUC_CONST;
  * Deprecated: 1.26: Use qmi_dms_foxconn_device_mode_get_string() instead.
  */
 G_DEPRECATED_FOR (qmi_dms_foxconn_device_mode_get_string)
-const gchar *qmi_dms_dell_device_mode_get_string (QmiDmsDellDeviceMode val);
-
-/******************************************************************************/
-/* Note: these defines are on purpose out of the #ifdefs, so that gtkdoc-scan
- * doesn't complain */
-
-/**
- * QmiMessageDmsDellGetFirmwareVersionInput:
- *
- * The #QmiMessageDmsDellGetFirmwareVersionInput structure contains private data and should only be accessed
- * using the provided API.
- *
- * Since: 1.22.4
- * Deprecated: 1.26: Use #QmiMessageDmsFoxconnGetFirmwareVersionInput instead.
- */
-#define QmiMessageDmsDellGetFirmwareVersionInput QmiMessageDmsFoxconnGetFirmwareVersionInput
-#define QMI_TYPE_MESSAGE_DMS_DELL_GET_FIRMWARE_VERSION_INPUT QMI_TYPE_MESSAGE_DMS_FOXCONN_GET_FIRMWARE_VERSION_INPUT
-
-/**
- * QmiMessageDmsDellGetFirmwareVersionOutput:
- *
- * The #QmiMessageDmsDellGetFirmwareVersionOutput structure contains private data and should only be accessed
- * using the provided API.
- *
- * Since: 1.22.4
- * Deprecated: 1.26: Use #QmiMessageDmsFoxconnGetFirmwareVersionOutput instead.
- */
-#define QmiMessageDmsDellGetFirmwareVersionOutput QmiMessageDmsFoxconnGetFirmwareVersionOutput
-#define QMI_TYPE_MESSAGE_DMS_DELL_GET_FIRMWARE_VERSION_OUTPUT QMI_TYPE_MESSAGE_DMS_FOXCONN_GET_FIRMWARE_VERSION_OUTPUT
-
-/**
- * QmiMessageDmsDellChangeDeviceModeInput:
- *
- * The #QmiMessageDmsDellChangeDeviceModeInput structure contains private data and should only be accessed
- * using the provided API.
- *
- * Since: 1.22.4
- * Deprecated: 1.26: Use #QmiMessageDmsFoxconnChangeDeviceModeInput instead.
- */
-#define QmiMessageDmsDellChangeDeviceModeInput QmiMessageDmsFoxconnChangeDeviceModeInput
-#define QMI_TYPE_MESSAGE_DMS_DELL_CHANGE_DEVICE_MODE_INPUT QMI_TYPE_MESSAGE_DMS_FOXCONN_CHANGE_DEVICE_MODE_INPUT
-
-/**
- * QmiMessageDmsDellChangeDeviceModeOutput:
- *
- * The #QmiMessageDmsDellChangeDeviceModeOutput structure contains private data and should only be accessed
- * using the provided API.
- *
- * Since: 1.22.4
- * Deprecated: 1.26: Use #QmiMessageDmsFoxconnChangeDeviceModeOutput instead.
- */
-#define QmiMessageDmsDellChangeDeviceModeOutput QmiMessageDmsFoxconnChangeDeviceModeOutput
-#define QMI_TYPE_MESSAGE_DMS_DELL_CHANGE_DEVICE_MODE_OUTPUT QMI_TYPE_MESSAGE_DMS_FOXCONN_CHANGE_DEVICE_MODE_OUTPUT
-
-/**
- * QmiMessageWdsGetDefaultProfileNumInput:
- *
- * The #QmiMessageWdsGetDefaultProfileNumInput structure contains private data and should only be accessed
- * using the provided API.
- *
- * Since: 1.22
- * Deprecated: 1.28: Use #QmiMessageWdsGetDefaultProfileNumberInput instead.
- */
-#define QmiMessageWdsGetDefaultProfileNumInput QmiMessageWdsGetDefaultProfileNumberInput
-#define QMI_TYPE_MESSAGE_WDS_GET_DEFAULT_PROFILE_NUM_INPUT QMI_TYPE_MESSAGE_WDS_GET_DEFAULT_PROFILE_NUMBER_INPUT
-
-/**
- * QmiMessageWdsGetDefaultProfileNumOutput:
- *
- * The #QmiMessageWdsGetDefaultProfileNumOutput structure contains private data and should only be accessed
- * using the provided API.
- *
- * Since: 1.22
- * Deprecated: 1.28. Use #QmiMessageWdsGetDefaultProfileNumberOutput instead.
- */
-#define QmiMessageWdsGetDefaultProfileNumOutput QmiMessageWdsGetDefaultProfileNumberOutput
-#define QMI_TYPE_MESSAGE_WDS_GET_DEFAULT_PROFILE_NUM_OUTPUT QMI_TYPE_MESSAGE_WDS_GET_DEFAULT_PROFILE_NUMBER_OUTPUT
-
-/**
- * QmiMessageWdsSetDefaultProfileNumInput:
- *
- * The #QmiMessageWdsSetDefaultProfileNumInput structure contains private data and should only be accessed
- * using the provided API.
- *
- * Since: 1.22
- * Deprecated: 1.28. Use #QmiMessageWdsSetDefaultProfileNumberInput instead.
- */
-#define QmiMessageWdsSetDefaultProfileNumInput QmiMessageWdsSetDefaultProfileNumberInput
-#define QMI_TYPE_MESSAGE_WDS_SET_DEFAULT_PROFILE_NUM_INPUT QMI_TYPE_MESSAGE_WDS_SET_DEFAULT_PROFILE_NUMBER_INPUT
-
-/**
- * QmiMessageWdsSetDefaultProfileNumOutput:
- *
- * The #QmiMessageWdsSetDefaultProfileNumOutput structure contains private data and should only be accessed
- * using the provided API.
- *
- * Since: 1.22
- * Deprecated: 1.28. Use #QmiMessageWdsSetDefaultProfileNumberOutput instead.
- */
-#define QmiMessageWdsSetDefaultProfileNumOutput QmiMessageWdsSetDefaultProfileNumberOutput
-#define QMI_TYPE_MESSAGE_WDS_SET_DEFAULT_PROFILE_NUM_OUTPUT QMI_TYPE_MESSAGE_WDS_SET_DEFAULT_PROFILE_NUMBER_OUTPUT
+const gchar *qmi_dms_dell_device_mode_get_string (QmiDeprecatedDmsDellDeviceMode val);
 
 /******************************************************************************/
 /* Conditional method definitions */
@@ -1686,6 +1616,21 @@ gboolean qmi_message_uim_change_pin_input_set_session_information (
 
 #if defined HAVE_QMI_MESSAGE_DMS_FOXCONN_GET_FIRMWARE_VERSION
 
+/**
+ * QmiMessageDmsDellGetFirmwareVersionInput:
+ *
+ * The #QmiMessageDmsDellGetFirmwareVersionInput structure contains private data and should only be accessed
+ * using the provided API.
+ *
+ * Since: 1.22.4
+ * Deprecated: 1.26: Use #QmiMessageDmsFoxconnGetFirmwareVersionInput instead.
+ */
+typedef QmiMessageDmsFoxconnGetFirmwareVersionInput QmiDeprecatedMessageDmsDellGetFirmwareVersionInput;
+G_DEPRECATED_FOR (QmiMessageDmsFoxconnGetFirmwareVersionInput)
+typedef QmiDeprecatedMessageDmsDellGetFirmwareVersionInput QmiMessageDmsDellGetFirmwareVersionInput;
+
+#define QMI_TYPE_MESSAGE_DMS_DELL_GET_FIRMWARE_VERSION_INPUT QMI_TYPE_MESSAGE_DMS_FOXCONN_GET_FIRMWARE_VERSION_INPUT
+
 G_DEPRECATED_FOR (qmi_message_dms_foxconn_get_firmware_version_input_get_type)
 GType qmi_message_dms_dell_get_firmware_version_input_get_type (void) G_GNUC_CONST;
 
@@ -1704,8 +1649,8 @@ GType qmi_message_dms_dell_get_firmware_version_input_get_type (void) G_GNUC_CON
  */
 G_DEPRECATED_FOR (qmi_message_dms_foxconn_get_firmware_version_input_get_version_type)
 gboolean qmi_message_dms_dell_get_firmware_version_input_get_version_type (
-    QmiMessageDmsDellGetFirmwareVersionInput *self,
-    QmiDmsDellFirmwareVersionType *value_version_type,
+    QmiDeprecatedMessageDmsDellGetFirmwareVersionInput *self,
+    QmiDeprecatedDmsDellFirmwareVersionType *value_version_type,
     GError **error);
 
 /**
@@ -1723,8 +1668,8 @@ gboolean qmi_message_dms_dell_get_firmware_version_input_get_version_type (
  */
 G_DEPRECATED_FOR (qmi_message_dms_foxconn_get_firmware_version_input_set_version_type)
 gboolean qmi_message_dms_dell_get_firmware_version_input_set_version_type (
-    QmiMessageDmsDellGetFirmwareVersionInput *self,
-    QmiDmsDellFirmwareVersionType value_version_type,
+    QmiDeprecatedMessageDmsDellGetFirmwareVersionInput *self,
+    QmiDeprecatedDmsDellFirmwareVersionType value_version_type,
     GError **error);
 
 /**
@@ -1739,7 +1684,7 @@ gboolean qmi_message_dms_dell_get_firmware_version_input_set_version_type (
  * Deprecated: 1.26: Use qmi_message_dms_foxconn_get_firmware_version_input_ref() instead.
  */
 G_DEPRECATED_FOR (qmi_message_dms_foxconn_get_firmware_version_input_ref)
-QmiMessageDmsDellGetFirmwareVersionInput *qmi_message_dms_dell_get_firmware_version_input_ref (QmiMessageDmsDellGetFirmwareVersionInput *self);
+QmiDeprecatedMessageDmsDellGetFirmwareVersionInput *qmi_message_dms_dell_get_firmware_version_input_ref (QmiDeprecatedMessageDmsDellGetFirmwareVersionInput *self);
 
 /**
  * qmi_message_dms_dell_get_firmware_version_input_unref:
@@ -1752,7 +1697,7 @@ QmiMessageDmsDellGetFirmwareVersionInput *qmi_message_dms_dell_get_firmware_vers
  * Deprecated: 1.26: Use qmi_message_dms_foxconn_get_firmware_version_input_unref() instead.
  */
 G_DEPRECATED_FOR (qmi_message_dms_foxconn_get_firmware_version_input_unref)
-void qmi_message_dms_dell_get_firmware_version_input_unref (QmiMessageDmsDellGetFirmwareVersionInput *self);
+void qmi_message_dms_dell_get_firmware_version_input_unref (QmiDeprecatedMessageDmsDellGetFirmwareVersionInput *self);
 
 /**
  * qmi_message_dms_dell_get_firmware_version_input_new:
@@ -1765,7 +1710,22 @@ void qmi_message_dms_dell_get_firmware_version_input_unref (QmiMessageDmsDellGet
  * Deprecated: 1.26: Use qmi_message_dms_foxconn_get_firmware_version_input_new() instead.
  */
 G_DEPRECATED_FOR (qmi_message_dms_foxconn_get_firmware_version_input_new)
-QmiMessageDmsDellGetFirmwareVersionInput *qmi_message_dms_dell_get_firmware_version_input_new (void);
+QmiDeprecatedMessageDmsDellGetFirmwareVersionInput *qmi_message_dms_dell_get_firmware_version_input_new (void);
+
+/**
+ * QmiMessageDmsDellGetFirmwareVersionOutput:
+ *
+ * The #QmiMessageDmsDellGetFirmwareVersionOutput structure contains private data and should only be accessed
+ * using the provided API.
+ *
+ * Since: 1.22.4
+ * Deprecated: 1.26: Use #QmiMessageDmsFoxconnGetFirmwareVersionOutput instead.
+ */
+typedef QmiMessageDmsFoxconnGetFirmwareVersionOutput QmiDeprecatedMessageDmsDellGetFirmwareVersionOutput;
+G_DEPRECATED_FOR (QmiMessageDmsFoxconnGetFirmwareVersionOutput)
+typedef QmiDeprecatedMessageDmsDellGetFirmwareVersionOutput QmiMessageDmsDellGetFirmwareVersionOutput;
+
+#define QMI_TYPE_MESSAGE_DMS_DELL_GET_FIRMWARE_VERSION_OUTPUT QMI_TYPE_MESSAGE_DMS_FOXCONN_GET_FIRMWARE_VERSION_OUTPUT
 
 G_DEPRECATED_FOR (qmi_message_dms_foxconn_get_firmware_version_output_get_type)
 GType qmi_message_dms_dell_get_firmware_version_output_get_type (void) G_GNUC_CONST;
@@ -1784,7 +1744,7 @@ GType qmi_message_dms_dell_get_firmware_version_output_get_type (void) G_GNUC_CO
  */
 G_DEPRECATED_FOR (qmi_message_dms_foxconn_get_firmware_version_output_get_result)
 gboolean qmi_message_dms_dell_get_firmware_version_output_get_result (
-    QmiMessageDmsDellGetFirmwareVersionOutput *self,
+    QmiDeprecatedMessageDmsDellGetFirmwareVersionOutput *self,
     GError **error);
 
 /**
@@ -1802,7 +1762,7 @@ gboolean qmi_message_dms_dell_get_firmware_version_output_get_result (
  */
 G_DEPRECATED_FOR (qmi_message_dms_foxconn_get_firmware_version_output_get_version)
 gboolean qmi_message_dms_dell_get_firmware_version_output_get_version (
-    QmiMessageDmsDellGetFirmwareVersionOutput *self,
+    QmiDeprecatedMessageDmsDellGetFirmwareVersionOutput *self,
     const gchar **value_version,
     GError **error);
 
@@ -1818,7 +1778,7 @@ gboolean qmi_message_dms_dell_get_firmware_version_output_get_version (
  * Deprecated: 1.26: Use qmi_message_dms_foxconn_get_firmware_version_output_ref() instead.
  */
 G_DEPRECATED_FOR (qmi_message_dms_foxconn_get_firmware_version_output_ref)
-QmiMessageDmsDellGetFirmwareVersionOutput *qmi_message_dms_dell_get_firmware_version_output_ref (QmiMessageDmsDellGetFirmwareVersionOutput *self);
+QmiDeprecatedMessageDmsDellGetFirmwareVersionOutput *qmi_message_dms_dell_get_firmware_version_output_ref (QmiDeprecatedMessageDmsDellGetFirmwareVersionOutput *self);
 
 /**
  * qmi_message_dms_dell_get_firmware_version_output_unref:
@@ -1831,7 +1791,7 @@ QmiMessageDmsDellGetFirmwareVersionOutput *qmi_message_dms_dell_get_firmware_ver
  * Deprecated: 1.26: Use qmi_message_dms_foxconn_get_firmware_version_output_unref() instead.
  */
 G_DEPRECATED_FOR (qmi_message_dms_foxconn_get_firmware_version_output_unref)
-void qmi_message_dms_dell_get_firmware_version_output_unref (QmiMessageDmsDellGetFirmwareVersionOutput *self);
+void qmi_message_dms_dell_get_firmware_version_output_unref (QmiDeprecatedMessageDmsDellGetFirmwareVersionOutput *self);
 
 /**
  * qmi_client_dms_dell_get_firmware_version:
@@ -1854,7 +1814,7 @@ void qmi_message_dms_dell_get_firmware_version_output_unref (QmiMessageDmsDellGe
 G_DEPRECATED_FOR (qmi_client_dms_foxconn_get_firmware_version)
 void qmi_client_dms_dell_get_firmware_version (
     QmiClientDms *self,
-    QmiMessageDmsDellGetFirmwareVersionInput *input,
+    QmiDeprecatedMessageDmsDellGetFirmwareVersionInput *input,
     guint timeout,
     GCancellable *cancellable,
     GAsyncReadyCallback callback,
@@ -1874,7 +1834,7 @@ void qmi_client_dms_dell_get_firmware_version (
  * Deprecated: 1.26: Use qmi_client_dms_foxconn_get_firmware_version_finish() instead.
  */
 G_DEPRECATED_FOR (qmi_client_dms_foxconn_get_firmware_version_finish)
-QmiMessageDmsDellGetFirmwareVersionOutput *qmi_client_dms_dell_get_firmware_version_finish (
+QmiDeprecatedMessageDmsDellGetFirmwareVersionOutput *qmi_client_dms_dell_get_firmware_version_finish (
     QmiClientDms *self,
     GAsyncResult *res,
     GError **error);
@@ -1882,6 +1842,21 @@ QmiMessageDmsDellGetFirmwareVersionOutput *qmi_client_dms_dell_get_firmware_vers
 #endif /* HAVE_QMI_MESSAGE_DMS_FOXCONN_GET_FIRMWARE_VERSION */
 
 #if defined HAVE_QMI_MESSAGE_DMS_FOXCONN_CHANGE_DEVICE_MODE
+
+/**
+ * QmiMessageDmsDellChangeDeviceModeInput:
+ *
+ * The #QmiMessageDmsDellChangeDeviceModeInput structure contains private data and should only be accessed
+ * using the provided API.
+ *
+ * Since: 1.22.4
+ * Deprecated: 1.26: Use #QmiMessageDmsFoxconnChangeDeviceModeInput instead.
+ */
+typedef QmiMessageDmsFoxconnChangeDeviceModeInput QmiDeprecatedMessageDmsDellChangeDeviceModeInput;
+G_DEPRECATED_FOR (QmiMessageDmsFoxconnChangeDeviceModeInput)
+typedef QmiDeprecatedMessageDmsDellChangeDeviceModeInput QmiMessageDmsDellChangeDeviceModeInput;
+
+#define QMI_TYPE_MESSAGE_DMS_DELL_CHANGE_DEVICE_MODE_INPUT QMI_TYPE_MESSAGE_DMS_FOXCONN_CHANGE_DEVICE_MODE_INPUT
 
 G_DEPRECATED_FOR (qmi_message_dms_foxconn_change_device_mode_input_get_type)
 GType qmi_message_dms_dell_change_device_mode_input_get_type (void) G_GNUC_CONST;
@@ -1901,8 +1876,8 @@ GType qmi_message_dms_dell_change_device_mode_input_get_type (void) G_GNUC_CONST
  */
 G_DEPRECATED_FOR (qmi_message_dms_foxconn_change_device_mode_input_get_mode)
 gboolean qmi_message_dms_dell_change_device_mode_input_get_mode (
-    QmiMessageDmsDellChangeDeviceModeInput *self,
-    QmiDmsDellDeviceMode *value_mode,
+    QmiDeprecatedMessageDmsDellChangeDeviceModeInput *self,
+    QmiDeprecatedDmsDellDeviceMode *value_mode,
     GError **error);
 
 /**
@@ -1920,8 +1895,8 @@ gboolean qmi_message_dms_dell_change_device_mode_input_get_mode (
  */
 G_DEPRECATED_FOR (qmi_message_dms_foxconn_change_device_mode_input_set_mode)
 gboolean qmi_message_dms_dell_change_device_mode_input_set_mode (
-    QmiMessageDmsDellChangeDeviceModeInput *self,
-    QmiDmsDellDeviceMode value_mode,
+    QmiDeprecatedMessageDmsDellChangeDeviceModeInput *self,
+    QmiDeprecatedDmsDellDeviceMode value_mode,
     GError **error);
 
 /**
@@ -1936,7 +1911,7 @@ gboolean qmi_message_dms_dell_change_device_mode_input_set_mode (
  * Deprecated: 1.26: Use qmi_message_dms_foxconn_change_device_mode_input_ref() instead.
  */
 G_DEPRECATED_FOR (qmi_message_dms_foxconn_change_device_mode_input_ref)
-QmiMessageDmsDellChangeDeviceModeInput *qmi_message_dms_dell_change_device_mode_input_ref (QmiMessageDmsDellChangeDeviceModeInput *self);
+QmiDeprecatedMessageDmsDellChangeDeviceModeInput *qmi_message_dms_dell_change_device_mode_input_ref (QmiDeprecatedMessageDmsDellChangeDeviceModeInput *self);
 
 /**
  * qmi_message_dms_dell_change_device_mode_input_unref:
@@ -1949,7 +1924,7 @@ QmiMessageDmsDellChangeDeviceModeInput *qmi_message_dms_dell_change_device_mode_
  * Deprecated: 1.26: Use qmi_message_dms_foxconn_change_device_mode_input_unref() instead.
  */
 G_DEPRECATED_FOR (qmi_message_dms_foxconn_change_device_mode_input_unref)
-void qmi_message_dms_dell_change_device_mode_input_unref (QmiMessageDmsDellChangeDeviceModeInput *self);
+void qmi_message_dms_dell_change_device_mode_input_unref (QmiDeprecatedMessageDmsDellChangeDeviceModeInput *self);
 
 /**
  * qmi_message_dms_dell_change_device_mode_input_new:
@@ -1962,7 +1937,22 @@ void qmi_message_dms_dell_change_device_mode_input_unref (QmiMessageDmsDellChang
  * Deprecated: 1.26: Use qmi_message_dms_foxconn_change_device_mode_input_new() instead.
  */
 G_DEPRECATED_FOR (qmi_message_dms_foxconn_change_device_mode_input_new)
-QmiMessageDmsDellChangeDeviceModeInput *qmi_message_dms_dell_change_device_mode_input_new (void);
+QmiDeprecatedMessageDmsDellChangeDeviceModeInput *qmi_message_dms_dell_change_device_mode_input_new (void);
+
+/**
+ * QmiMessageDmsDellChangeDeviceModeOutput:
+ *
+ * The #QmiMessageDmsDellChangeDeviceModeOutput structure contains private data and should only be accessed
+ * using the provided API.
+ *
+ * Since: 1.22.4
+ * Deprecated: 1.26: Use #QmiMessageDmsFoxconnChangeDeviceModeOutput instead.
+ */
+typedef QmiMessageDmsFoxconnChangeDeviceModeOutput QmiDeprecatedMessageDmsDellChangeDeviceModeOutput;
+G_DEPRECATED_FOR (QmiMessageDmsFoxconnChangeDeviceModeOutput)
+typedef QmiDeprecatedMessageDmsDellChangeDeviceModeOutput QmiMessageDmsDellChangeDeviceModeOutput;
+
+#define QMI_TYPE_MESSAGE_DMS_DELL_CHANGE_DEVICE_MODE_OUTPUT QMI_TYPE_MESSAGE_DMS_FOXCONN_CHANGE_DEVICE_MODE_OUTPUT
 
 G_DEPRECATED_FOR (qmi_message_dms_foxconn_change_device_mode_output_get_type)
 GType qmi_message_dms_dell_change_device_mode_output_get_type (void) G_GNUC_CONST;
@@ -1981,7 +1971,7 @@ GType qmi_message_dms_dell_change_device_mode_output_get_type (void) G_GNUC_CONS
  */
 G_DEPRECATED_FOR (qmi_message_dms_foxconn_change_device_mode_output_get_result)
 gboolean qmi_message_dms_dell_change_device_mode_output_get_result (
-    QmiMessageDmsDellChangeDeviceModeOutput *self,
+    QmiDeprecatedMessageDmsDellChangeDeviceModeOutput *self,
     GError **error);
 
 /**
@@ -1996,7 +1986,7 @@ gboolean qmi_message_dms_dell_change_device_mode_output_get_result (
  * Deprecated: 1.26: Use qmi_message_dms_foxconn_change_device_mode_output_ref() instead.
  */
 G_DEPRECATED_FOR (qmi_message_dms_foxconn_change_device_mode_output_ref)
-QmiMessageDmsDellChangeDeviceModeOutput *qmi_message_dms_dell_change_device_mode_output_ref (QmiMessageDmsDellChangeDeviceModeOutput *self);
+QmiDeprecatedMessageDmsDellChangeDeviceModeOutput *qmi_message_dms_dell_change_device_mode_output_ref (QmiDeprecatedMessageDmsDellChangeDeviceModeOutput *self);
 
 /**
  * qmi_message_dms_dell_change_device_mode_output_unref:
@@ -2009,7 +1999,7 @@ QmiMessageDmsDellChangeDeviceModeOutput *qmi_message_dms_dell_change_device_mode
  * Deprecated: 1.26: Use qmi_message_dms_foxconn_change_device_mode_output_unref() instead.
  */
 G_DEPRECATED_FOR (qmi_message_dms_foxconn_change_device_mode_output_unref)
-void qmi_message_dms_dell_change_device_mode_output_unref (QmiMessageDmsDellChangeDeviceModeOutput *self);
+void qmi_message_dms_dell_change_device_mode_output_unref (QmiDeprecatedMessageDmsDellChangeDeviceModeOutput *self);
 
 /**
  * qmi_client_dms_dell_change_device_mode:
@@ -2032,7 +2022,7 @@ void qmi_message_dms_dell_change_device_mode_output_unref (QmiMessageDmsDellChan
 G_DEPRECATED_FOR (qmi_client_dms_foxconn_change_device_mode)
 void qmi_client_dms_dell_change_device_mode (
     QmiClientDms *self,
-    QmiMessageDmsDellChangeDeviceModeInput *input,
+    QmiDeprecatedMessageDmsDellChangeDeviceModeInput *input,
     guint timeout,
     GCancellable *cancellable,
     GAsyncReadyCallback callback,
@@ -2052,7 +2042,7 @@ void qmi_client_dms_dell_change_device_mode (
  * Deprecated: 1.26: Use qmi_client_dms_foxconn_change_device_mode_finish() instead.
  */
 G_DEPRECATED_FOR (qmi_client_dms_foxconn_change_device_mode_finish)
-QmiMessageDmsDellChangeDeviceModeOutput *qmi_client_dms_dell_change_device_mode_finish (
+QmiDeprecatedMessageDmsDellChangeDeviceModeOutput *qmi_client_dms_dell_change_device_mode_finish (
     QmiClientDms *self,
     GAsyncResult *res,
     GError **error);
@@ -2167,7 +2157,9 @@ gboolean qmi_message_nas_get_home_network_output_get_home_network_3gpp2 (
  * @base_station_identity_code: a #guint8.
  * @rx_level: a #guint16.
  *
- * A QmiMessageNasGetCellLocationInfoOutputGeranInfoCellElement struct.
+ * GERAN info cell.
+ *
+ * This type is deprecated and returns always an empty @plmn string.
  *
  * Since: 1.10
  * Deprecated: 1.26.6.
@@ -2182,6 +2174,19 @@ typedef struct _QmiMessageNasGetCellLocationInfoOutputGeranInfoCellElement {
     guint16 rx_level;
 } QmiMessageNasGetCellLocationInfoOutputGeranInfoCellElement;
 
+/**
+ * QmiMessageNasGetCellLocationInfoOutputIntrafrequencyLteInfoCellElement:
+ *
+ * Intra-frequency LTE info cell.
+ *
+ * The format of this deprecated type is really the same as for the
+ * new #QmiMessageNasGetCellLocationInfoOutputIntrafrequencyLteInfoV2CellElement type,
+ * it is only a name change.
+ *
+ * Since: 1.10
+ * Deprecated: 1.26.6. Use #QmiMessageNasGetCellLocationInfoOutputIntrafrequencyLteInfoV2CellElement instead.
+ */
+G_DEPRECATED_FOR (QmiMessageNasGetCellLocationInfoOutputIntrafrequencyLteInfoV2CellElement)
 typedef QmiMessageNasGetCellLocationInfoOutputIntrafrequencyLteInfoV2CellElement QmiMessageNasGetCellLocationInfoOutputIntrafrequencyLteInfoCellElement;
 
 /**
@@ -2226,7 +2231,34 @@ gboolean qmi_message_nas_get_cell_location_info_output_get_intrafrequency_lte_in
     GArray **value_intrafrequency_lte_info_cell,
     GError **error);
 
+/**
+ * QmiMessageNasGetCellLocationInfoOutputUmtsInfoCellElement:
+ *
+ * UMTS info cell.
+ *
+ * The format of this deprecated type is really the same as for the
+ * new #QmiMessageNasGetCellLocationInfoOutputUmtsInfoV2CellElement type,
+ * it is only a name change.
+ *
+ * Since: 1.10
+ * Deprecated: 1.26.6. Use #QmiMessageNasGetCellLocationInfoOutputUmtsInfoV2CellElement instead.
+ */
+G_DEPRECATED_FOR (QmiMessageNasGetCellLocationInfoOutputUmtsInfoV2CellElement)
 typedef QmiMessageNasGetCellLocationInfoOutputUmtsInfoV2CellElement QmiMessageNasGetCellLocationInfoOutputUmtsInfoCellElement;
+
+/**
+ * QmiMessageNasGetCellLocationInfoOutputUmtsInfoNeighboringGeranElement:
+ *
+ * UMTS info neighboring GERAN cell.
+ *
+ * The format of this deprecated type is really the same as for the
+ * new #QmiMessageNasGetCellLocationInfoOutputUmtsInfoV2NeighboringGeranElement type,
+ * it is only a name change.
+ *
+ * Since: 1.10
+ * Deprecated: 1.26.6. Use #QmiMessageNasGetCellLocationInfoOutputUmtsInfoV2NeighboringGeranElement instead.
+ */
+G_DEPRECATED_FOR (QmiMessageNasGetCellLocationInfoOutputUmtsInfoV2NeighboringGeranElement)
 typedef QmiMessageNasGetCellLocationInfoOutputUmtsInfoV2NeighboringGeranElement QmiMessageNasGetCellLocationInfoOutputUmtsInfoNeighboringGeranElement;
 
 /**
@@ -2283,7 +2315,7 @@ gboolean qmi_message_nas_get_cell_location_info_output_get_umts_info (
  * Get the 'GERAN Info' field from @self.
  *
  * This method is deprecated and returns an empty @value_geran_info_plmn
- * string and an empty @value_geran_info_cell array.
+ * string.
  *
  * Returns: (skip): %TRUE if the field is found, %FALSE otherwise.
  *
@@ -2307,6 +2339,21 @@ gboolean qmi_message_nas_get_cell_location_info_output_get_geran_info (
 
 #if defined HAVE_QMI_MESSAGE_WDS_GET_DEFAULT_PROFILE_NUMBER
 
+/**
+ * QmiMessageWdsGetDefaultProfileNumInput:
+ *
+ * The #QmiMessageWdsGetDefaultProfileNumInput structure contains private data and should only be accessed
+ * using the provided API.
+ *
+ * Since: 1.22
+ * Deprecated: 1.28: Use #QmiMessageWdsGetDefaultProfileNumberInput instead.
+ */
+typedef QmiMessageWdsGetDefaultProfileNumberInput QmiDeprecatedMessageWdsGetDefaultProfileNumInput;
+G_DEPRECATED_FOR (QmiMessageWdsGetDefaultProfileNumberInput)
+typedef QmiDeprecatedMessageWdsGetDefaultProfileNumInput QmiMessageWdsGetDefaultProfileNumInput;
+
+#define QMI_TYPE_MESSAGE_WDS_GET_DEFAULT_PROFILE_NUM_INPUT QMI_TYPE_MESSAGE_WDS_GET_DEFAULT_PROFILE_NUMBER_INPUT
+
 G_DEPRECATED_FOR (qmi_message_wds_get_default_profile_number_input_get_type)
 GType qmi_message_wds_get_default_profile_num_input_get_type (void) G_GNUC_CONST;
 
@@ -2326,7 +2373,7 @@ GType qmi_message_wds_get_default_profile_num_input_get_type (void) G_GNUC_CONST
  */
 G_DEPRECATED_FOR (qmi_message_wds_get_default_profile_number_input_get_profile_type)
 gboolean qmi_message_wds_get_default_profile_num_input_get_profile_type (
-    QmiMessageWdsGetDefaultProfileNumInput *self,
+    QmiDeprecatedMessageWdsGetDefaultProfileNumInput *self,
     QmiWdsProfileType *value_profile_type_profile_type,
     QmiWdsProfileFamily *value_profile_type_profile_family,
     GError **error);
@@ -2347,7 +2394,7 @@ gboolean qmi_message_wds_get_default_profile_num_input_get_profile_type (
  */
 G_DEPRECATED_FOR (Use qmi_message_wds_get_default_profile_number_input_set_profile_type)
 gboolean qmi_message_wds_get_default_profile_num_input_set_profile_type (
-    QmiMessageWdsGetDefaultProfileNumInput *self,
+    QmiDeprecatedMessageWdsGetDefaultProfileNumInput *self,
     QmiWdsProfileType value_profile_type_profile_type,
     QmiWdsProfileFamily value_profile_type_profile_family,
     GError **error);
@@ -2364,7 +2411,7 @@ gboolean qmi_message_wds_get_default_profile_num_input_set_profile_type (
  * Deprecated: 1.28. Use qmi_message_wds_get_default_profile_number_input_ref() instead.
  */
 G_DEPRECATED_FOR (qmi_message_wds_get_default_profile_number_input_ref)
-QmiMessageWdsGetDefaultProfileNumInput *qmi_message_wds_get_default_profile_num_input_ref (QmiMessageWdsGetDefaultProfileNumInput *self);
+QmiDeprecatedMessageWdsGetDefaultProfileNumInput *qmi_message_wds_get_default_profile_num_input_ref (QmiDeprecatedMessageWdsGetDefaultProfileNumInput *self);
 
 /**
  * qmi_message_wds_get_default_profile_num_input_unref:
@@ -2377,7 +2424,7 @@ QmiMessageWdsGetDefaultProfileNumInput *qmi_message_wds_get_default_profile_num_
  * Deprecated: 1.28. Use qmi_message_wds_get_default_profile_number_input_unref() instead.
  */
 G_DEPRECATED_FOR (qmi_message_wds_get_default_profile_number_input_unref)
-void qmi_message_wds_get_default_profile_num_input_unref (QmiMessageWdsGetDefaultProfileNumInput *self);
+void qmi_message_wds_get_default_profile_num_input_unref (QmiDeprecatedMessageWdsGetDefaultProfileNumInput *self);
 
 /**
  * qmi_message_wds_get_default_profile_num_input_new:
@@ -2390,7 +2437,22 @@ void qmi_message_wds_get_default_profile_num_input_unref (QmiMessageWdsGetDefaul
  * Deprecated: 1.28. Use qmi_message_wds_get_default_profile_number_input_new() instead.
  */
 G_DEPRECATED_FOR (qmi_message_wds_get_default_profile_number_input_new)
-QmiMessageWdsGetDefaultProfileNumInput *qmi_message_wds_get_default_profile_num_input_new (void);
+QmiDeprecatedMessageWdsGetDefaultProfileNumInput *qmi_message_wds_get_default_profile_num_input_new (void);
+
+/**
+ * QmiMessageWdsGetDefaultProfileNumOutput:
+ *
+ * The #QmiMessageWdsGetDefaultProfileNumOutput structure contains private data and should only be accessed
+ * using the provided API.
+ *
+ * Since: 1.22
+ * Deprecated: 1.28. Use #QmiMessageWdsGetDefaultProfileNumberOutput instead.
+ */
+typedef QmiMessageWdsGetDefaultProfileNumberOutput QmiDeprecatedMessageWdsGetDefaultProfileNumOutput;
+G_DEPRECATED_FOR (QmiMessageWdsGetDefaultProfileNumberOutput)
+typedef QmiDeprecatedMessageWdsGetDefaultProfileNumOutput QmiMessageWdsGetDefaultProfileNumOutput;
+
+#define QMI_TYPE_MESSAGE_WDS_GET_DEFAULT_PROFILE_NUM_OUTPUT QMI_TYPE_MESSAGE_WDS_GET_DEFAULT_PROFILE_NUMBER_OUTPUT
 
 G_DEPRECATED_FOR (qmi_message_wds_get_default_profile_number_output_get_type)
 GType qmi_message_wds_get_default_profile_num_output_get_type (void) G_GNUC_CONST;
@@ -2409,7 +2471,7 @@ GType qmi_message_wds_get_default_profile_num_output_get_type (void) G_GNUC_CONS
  */
 G_DEPRECATED_FOR (qmi_message_wds_get_default_profile_number_output_get_result)
 gboolean qmi_message_wds_get_default_profile_num_output_get_result (
-    QmiMessageWdsGetDefaultProfileNumOutput *self,
+    QmiDeprecatedMessageWdsGetDefaultProfileNumOutput *self,
     GError **error);
 
 /**
@@ -2427,7 +2489,7 @@ gboolean qmi_message_wds_get_default_profile_num_output_get_result (
  */
 G_DEPRECATED_FOR (qmi_message_wds_get_default_profile_number_output_get_index)
 gboolean qmi_message_wds_get_default_profile_num_output_get_default_profile_number (
-    QmiMessageWdsGetDefaultProfileNumOutput *self,
+    QmiDeprecatedMessageWdsGetDefaultProfileNumOutput *self,
     guint8 *value_default_profile_number,
     GError **error);
 
@@ -2446,7 +2508,7 @@ gboolean qmi_message_wds_get_default_profile_num_output_get_default_profile_numb
  */
 G_DEPRECATED_FOR (qmi_message_wds_get_default_profile_number_output_get_extended_error_code)
 gboolean qmi_message_wds_get_default_profile_num_output_get_extended_error_code (
-    QmiMessageWdsGetDefaultProfileNumOutput *self,
+    QmiDeprecatedMessageWdsGetDefaultProfileNumOutput *self,
     QmiWdsDsProfileError *value_extended_error_code,
     GError **error);
 
@@ -2462,7 +2524,7 @@ gboolean qmi_message_wds_get_default_profile_num_output_get_extended_error_code 
  * Deprecated: 1.28. Use qmi_message_wds_get_default_profile_number_output_ref() instead.
  */
 G_DEPRECATED_FOR (qmi_message_wds_get_default_profile_number_output_ref)
-QmiMessageWdsGetDefaultProfileNumOutput *qmi_message_wds_get_default_profile_num_output_ref (QmiMessageWdsGetDefaultProfileNumOutput *self);
+QmiDeprecatedMessageWdsGetDefaultProfileNumOutput *qmi_message_wds_get_default_profile_num_output_ref (QmiDeprecatedMessageWdsGetDefaultProfileNumOutput *self);
 
 /**
  * qmi_message_wds_get_default_profile_num_output_unref:
@@ -2475,7 +2537,7 @@ QmiMessageWdsGetDefaultProfileNumOutput *qmi_message_wds_get_default_profile_num
  * Deprecated: 1.28. Use qmi_message_wds_get_default_profile_number_output_unref() instead.
  */
 G_DEPRECATED_FOR (qmi_message_wds_get_default_profile_number_output_unref)
-void qmi_message_wds_get_default_profile_num_output_unref (QmiMessageWdsGetDefaultProfileNumOutput *self);
+void qmi_message_wds_get_default_profile_num_output_unref (QmiDeprecatedMessageWdsGetDefaultProfileNumOutput *self);
 
 /**
  * qmi_client_wds_get_default_profile_num:
@@ -2498,7 +2560,7 @@ void qmi_message_wds_get_default_profile_num_output_unref (QmiMessageWdsGetDefau
 G_DEPRECATED_FOR (qmi_message_wds_get_default_profile_number)
 void qmi_client_wds_get_default_profile_num (
     QmiClientWds *self,
-    QmiMessageWdsGetDefaultProfileNumberInput *input,
+    QmiDeprecatedMessageWdsGetDefaultProfileNumInput *input,
     guint timeout,
     GCancellable *cancellable,
     GAsyncReadyCallback callback,
@@ -2518,7 +2580,7 @@ void qmi_client_wds_get_default_profile_num (
  * Deprecated: 1.28. Use qmi_client_wds_get_default_profile_number_finish() instead.
  */
 G_DEPRECATED_FOR (qmi_message_wds_get_default_profile_number_finish)
-QmiMessageWdsGetDefaultProfileNumberOutput *qmi_client_wds_get_default_profile_num_finish (
+QmiDeprecatedMessageWdsGetDefaultProfileNumOutput *qmi_client_wds_get_default_profile_num_finish (
     QmiClientWds *self,
     GAsyncResult *res,
     GError **error);
@@ -2526,6 +2588,21 @@ QmiMessageWdsGetDefaultProfileNumberOutput *qmi_client_wds_get_default_profile_n
 #endif /* HAVE_QMI_MESSAGE_WDS_GET_DEFAULT_PROFILE_NUMBER */
 
 #if defined HAVE_QMI_MESSAGE_WDS_SET_DEFAULT_PROFILE_NUMBER
+
+/**
+ * QmiMessageWdsSetDefaultProfileNumInput:
+ *
+ * The #QmiMessageWdsSetDefaultProfileNumInput structure contains private data and should only be accessed
+ * using the provided API.
+ *
+ * Since: 1.22
+ * Deprecated: 1.28. Use #QmiMessageWdsSetDefaultProfileNumberInput instead.
+ */
+typedef QmiMessageWdsSetDefaultProfileNumberInput QmiDeprecatedMessageWdsSetDefaultProfileNumInput;
+G_DEPRECATED_FOR (QmiMessageWdsSetDefaultProfileNumberInput)
+typedef QmiDeprecatedMessageWdsSetDefaultProfileNumInput QmiMessageWdsSetDefaultProfileNumInput;
+
+#define QMI_TYPE_MESSAGE_WDS_SET_DEFAULT_PROFILE_NUM_INPUT QMI_TYPE_MESSAGE_WDS_SET_DEFAULT_PROFILE_NUMBER_INPUT
 
 G_DEPRECATED_FOR (qmi_message_wds_set_default_profile_number_input_get_type)
 GType qmi_message_wds_set_default_profile_num_input_get_type (void) G_GNUC_CONST;
@@ -2547,7 +2624,7 @@ GType qmi_message_wds_set_default_profile_num_input_get_type (void) G_GNUC_CONST
  */
 G_DEPRECATED_FOR (qmi_message_wds_set_default_profile_number_input_get_profile_identifier)
 gboolean qmi_message_wds_set_default_profile_num_input_get_profile_identifier (
-    QmiMessageWdsSetDefaultProfileNumInput *self,
+    QmiDeprecatedMessageWdsSetDefaultProfileNumInput *self,
     QmiWdsProfileType *value_profile_identifier_profile_type,
     QmiWdsProfileFamily *value_profile_identifier_profile_family,
     guint8 *value_profile_identifier_profile_index,
@@ -2570,7 +2647,7 @@ gboolean qmi_message_wds_set_default_profile_num_input_get_profile_identifier (
  */
 G_DEPRECATED_FOR (qmi_message_wds_set_default_profile_number_input_set_profile_identifier)
 gboolean qmi_message_wds_set_default_profile_num_input_set_profile_identifier (
-    QmiMessageWdsSetDefaultProfileNumInput *self,
+    QmiDeprecatedMessageWdsSetDefaultProfileNumInput *self,
     QmiWdsProfileType value_profile_identifier_profile_type,
     QmiWdsProfileFamily value_profile_identifier_profile_family,
     guint8 value_profile_identifier_profile_index,
@@ -2588,7 +2665,7 @@ gboolean qmi_message_wds_set_default_profile_num_input_set_profile_identifier (
  * Deprecated: 1.28. Use qmi_message_wds_set_default_profile_number_input_ref() instead.
  */
 G_DEPRECATED_FOR (qmi_message_wds_set_default_profile_number_input_ref)
-QmiMessageWdsSetDefaultProfileNumInput *qmi_message_wds_set_default_profile_num_input_ref (QmiMessageWdsSetDefaultProfileNumInput *self);
+QmiDeprecatedMessageWdsSetDefaultProfileNumInput *qmi_message_wds_set_default_profile_num_input_ref (QmiDeprecatedMessageWdsSetDefaultProfileNumInput *self);
 
 /**
  * qmi_message_wds_set_default_profile_num_input_unref:
@@ -2601,7 +2678,7 @@ QmiMessageWdsSetDefaultProfileNumInput *qmi_message_wds_set_default_profile_num_
  * Deprecated: 1.28. Use qmi_message_wds_set_default_profile_number_input_unref() instead.
  */
 G_DEPRECATED_FOR (Use qmi_message_wds_set_default_profile_number_input_unref)
-void qmi_message_wds_set_default_profile_num_input_unref (QmiMessageWdsSetDefaultProfileNumInput *self);
+void qmi_message_wds_set_default_profile_num_input_unref (QmiDeprecatedMessageWdsSetDefaultProfileNumInput *self);
 
 /**
  * qmi_message_wds_set_default_profile_num_input_new:
@@ -2614,7 +2691,22 @@ void qmi_message_wds_set_default_profile_num_input_unref (QmiMessageWdsSetDefaul
  * Deprecated: 1.28. Use qmi_message_wds_set_default_profile_number_input_new() instead.
  */
 G_DEPRECATED_FOR (qmi_message_wds_set_default_profile_number_input_new)
-QmiMessageWdsSetDefaultProfileNumInput *qmi_message_wds_set_default_profile_num_input_new (void);
+QmiDeprecatedMessageWdsSetDefaultProfileNumInput *qmi_message_wds_set_default_profile_num_input_new (void);
+
+/**
+ * QmiMessageWdsSetDefaultProfileNumOutput:
+ *
+ * The #QmiMessageWdsSetDefaultProfileNumOutput structure contains private data and should only be accessed
+ * using the provided API.
+ *
+ * Since: 1.22
+ * Deprecated: 1.28. Use #QmiMessageWdsSetDefaultProfileNumberOutput instead.
+ */
+typedef QmiMessageWdsSetDefaultProfileNumberOutput QmiDeprecatedMessageWdsSetDefaultProfileNumOutput;
+G_DEPRECATED_FOR (QmiMessageWdsSetDefaultProfileNumberOutput)
+typedef QmiDeprecatedMessageWdsSetDefaultProfileNumOutput QmiMessageWdsSetDefaultProfileNumOutput;
+
+#define QMI_TYPE_MESSAGE_WDS_SET_DEFAULT_PROFILE_NUM_OUTPUT QMI_TYPE_MESSAGE_WDS_SET_DEFAULT_PROFILE_NUMBER_OUTPUT
 
 G_DEPRECATED_FOR (qmi_message_wds_set_default_profile_number_output_get_type)
 GType qmi_message_wds_set_default_profile_num_output_get_type (void) G_GNUC_CONST;
@@ -2633,7 +2725,7 @@ GType qmi_message_wds_set_default_profile_num_output_get_type (void) G_GNUC_CONS
  */
 G_DEPRECATED_FOR (qmi_message_wds_set_default_profile_number_output_get_result)
 gboolean qmi_message_wds_set_default_profile_num_output_get_result (
-    QmiMessageWdsSetDefaultProfileNumOutput *self,
+    QmiDeprecatedMessageWdsSetDefaultProfileNumOutput *self,
     GError **error);
 
 /**
@@ -2651,7 +2743,7 @@ gboolean qmi_message_wds_set_default_profile_num_output_get_result (
  */
 G_DEPRECATED_FOR (qmi_message_wds_set_default_profile_number_output_get_extended_error_code)
 gboolean qmi_message_wds_set_default_profile_num_output_get_extended_error_code (
-    QmiMessageWdsSetDefaultProfileNumOutput *self,
+    QmiDeprecatedMessageWdsSetDefaultProfileNumOutput *self,
     QmiWdsDsProfileError *value_extended_error_code,
     GError **error);
 
@@ -2667,7 +2759,7 @@ gboolean qmi_message_wds_set_default_profile_num_output_get_extended_error_code 
  * Deprecated: 1.28. Use qmi_message_wds_set_default_profile_number_output_ref() instead.
  */
 G_DEPRECATED_FOR (qmi_message_wds_set_default_profile_number_output_ref)
-QmiMessageWdsSetDefaultProfileNumOutput *qmi_message_wds_set_default_profile_num_output_ref (QmiMessageWdsSetDefaultProfileNumOutput *self);
+QmiDeprecatedMessageWdsSetDefaultProfileNumOutput *qmi_message_wds_set_default_profile_num_output_ref (QmiDeprecatedMessageWdsSetDefaultProfileNumOutput *self);
 
 /**
  * qmi_message_wds_set_default_profile_num_output_unref:
@@ -2680,7 +2772,7 @@ QmiMessageWdsSetDefaultProfileNumOutput *qmi_message_wds_set_default_profile_num
  * Deprecated: 1.28. Use qmi_message_wds_set_default_profile_number_output_unref() instead.
  */
 G_DEPRECATED_FOR (qmi_message_wds_set_default_profile_number_output_unref)
-void qmi_message_wds_set_default_profile_num_output_unref (QmiMessageWdsSetDefaultProfileNumOutput *self);
+void qmi_message_wds_set_default_profile_num_output_unref (QmiDeprecatedMessageWdsSetDefaultProfileNumOutput *self);
 
 /**
  * qmi_client_wds_set_default_profile_num:
@@ -2703,7 +2795,7 @@ void qmi_message_wds_set_default_profile_num_output_unref (QmiMessageWdsSetDefau
 G_DEPRECATED_FOR (qmi_message_wds_set_default_profile_number)
 void qmi_client_wds_set_default_profile_num (
     QmiClientWds *self,
-    QmiMessageWdsSetDefaultProfileNumberInput *input,
+    QmiDeprecatedMessageWdsSetDefaultProfileNumInput *input,
     guint timeout,
     GCancellable *cancellable,
     GAsyncReadyCallback callback,
@@ -2723,7 +2815,7 @@ void qmi_client_wds_set_default_profile_num (
  * Deprecated: 1.28. Use qmi_client_wds_set_default_profile_number_finish() instead.
  */
 G_DEPRECATED_FOR (qmi_message_wds_set_default_profile_number_finish)
-QmiMessageWdsSetDefaultProfileNumberOutput *qmi_client_wds_set_default_profile_num_finish (
+QmiDeprecatedMessageWdsSetDefaultProfileNumOutput *qmi_client_wds_set_default_profile_num_finish (
     QmiClientWds *self,
     GAsyncResult *res,
     GError **error);
@@ -3319,6 +3411,480 @@ gboolean qmi_message_nas_set_system_selection_preference_input_get_mnc_pds_digit
     GError **error);
 
 #endif /* HAVE_QMI_MESSAGE_NAS_SET_SYSTEM_SELECTION_PREFERENCE */
+
+#if defined HAVE_QMI_MESSAGE_PDC_CONFIG_CHANGE ||          \
+    defined HAVE_QMI_MESSAGE_PDC_SET_SELECTED_CONFIG ||    \
+    defined HAVE_QMI_MESSAGE_PDC_GET_CONFIG_INFO
+
+/**
+ * QmiConfigTypeAndId:
+ * @config_type: a #QmiPdcConfigurationType.
+ * @id: a #GArray of #guint8 elements.
+ *
+ * A QmiConfigTypeAndId struct.
+ *
+ * This type is deprecated and there is no replacement as the
+ * new methods don't require any intermediate type any more.
+ *
+ * Since: 1.18
+ * Deprecated: 1.32
+ */
+typedef struct _QmiDeprecatedConfigTypeAndId {
+    QmiPdcConfigurationType  config_type;
+    GArray                  *id;
+} QmiDeprecatedConfigTypeAndId;
+G_DEPRECATED
+typedef QmiDeprecatedConfigTypeAndId QmiConfigTypeAndId;
+
+#endif /* HAVE_QMI_MESSAGE_PDC_CONFIG_CHANGE
+        * HAVE_QMI_MESSAGE_PDC_SET_SELECTED_CONFIG
+        * HAVE_QMI_MESSAGE_PDC_GET_CONFIG_INFO */
+
+#if defined HAVE_QMI_MESSAGE_PDC_CONFIG_CHANGE
+
+/**
+ * qmi_message_pdc_config_change_input_get_type_with_id:
+ * @self: a #QmiMessagePdcConfigChangeInput.
+ * @value_type_with_id: (out)(optional)(transfer none): a placeholder for the output constant #QmiConfigTypeAndId, or %NULL if not required.
+ * @error: Return location for error or %NULL.
+ *
+ * Get the 'Type With Id' field from @self.
+ *
+ * Returns: (skip): %TRUE if the field is found, %FALSE otherwise.
+ *
+ * Since: 1.18
+ * Deprecated: 1.32: Use qmi_message_pdc_config_change_input_get_type_with_id_v2() instead.
+ */
+G_DEPRECATED_FOR (qmi_message_pdc_config_change_input_get_type_with_id_v2)
+gboolean qmi_message_pdc_config_change_input_get_type_with_id (
+    QmiMessagePdcConfigChangeInput *self,
+    QmiDeprecatedConfigTypeAndId *value_type_with_id,
+    GError **error);
+
+/**
+ * qmi_message_pdc_config_change_input_set_type_with_id:
+ * @self: a #QmiMessagePdcConfigChangeInput.
+ * @value_type_with_id: the address of the #QmiConfigTypeAndId to set.
+ * @error: Return location for error or %NULL.
+ *
+ * Set the 'Type With Id' field in the message.
+ *
+ * Returns: (skip): %TRUE if @value was successfully set, %FALSE otherwise.
+ *
+ * Since: 1.18
+ * Deprecated: 1.32: Use qmi_message_pdc_config_change_input_set_type_with_id_v2() instead.
+ */
+G_DEPRECATED_FOR (qmi_message_pdc_config_change_input_set_type_with_id_v2)
+gboolean qmi_message_pdc_config_change_input_set_type_with_id (
+    QmiMessagePdcConfigChangeInput *self,
+    const QmiDeprecatedConfigTypeAndId *value_type_with_id,
+    GError **error);
+
+/**
+ * qmi_message_pdc_config_change_output_get_type_with_id:
+ * @self: a #QmiMessagePdcConfigChangeOutput.
+ * @value_type_with_id: (out)(optional)(transfer none): a placeholder for the output constant #QmiConfigTypeAndId, or %NULL if not required.
+ * @error: Return location for error or %NULL.
+ *
+ * Get the 'Type With Id' field from @self.
+ *
+ * Returns: (skip): %TRUE if the field is found, %FALSE otherwise.
+ *
+ * Since: 1.18
+ * Deprecated: 1.32: Use qmi_message_pdc_config_change_output_get_type_with_id_v2() instead.
+ */
+G_DEPRECATED_FOR (qmi_message_pdc_config_change_output_get_type_with_id_v2)
+gboolean qmi_message_pdc_config_change_output_get_type_with_id (
+    QmiMessagePdcConfigChangeOutput *self,
+    QmiDeprecatedConfigTypeAndId *value_type_with_id,
+    GError **error);
+
+#endif /* HAVE_QMI_MESSAGE_PDC_CONFIG_CHANGE */
+
+#if defined HAVE_QMI_MESSAGE_PDC_SET_SELECTED_CONFIG
+
+/**
+ * qmi_message_pdc_set_selected_config_input_get_type_with_id:
+ * @self: a #QmiMessagePdcSetSelectedConfigInput.
+ * @value_type_with_id: (out)(optional)(transfer none): a placeholder for the output constant #QmiConfigTypeAndId, or %NULL if not required.
+ * @error: Return location for error or %NULL.
+ *
+ * Get the 'Type With Id' field from @self.
+ *
+ * Returns: (skip): %TRUE if the field is found, %FALSE otherwise.
+ *
+ * Since: 1.18
+ * Deprecated: 1.32: Use qmi_message_pdc_set_selected_config_input_get_type_with_id_v2() instead.
+ */
+G_DEPRECATED_FOR (qmi_message_pdc_set_selected_config_input_get_type_with_id_v2)
+gboolean qmi_message_pdc_set_selected_config_input_get_type_with_id (
+    QmiMessagePdcSetSelectedConfigInput *self,
+    QmiDeprecatedConfigTypeAndId *value_type_with_id,
+    GError **error);
+
+
+/**
+ * qmi_message_pdc_set_selected_config_input_set_type_with_id:
+ * @self: a #QmiMessagePdcSetSelectedConfigInput.
+ * @value_type_with_id: the address of the #QmiConfigTypeAndId to set.
+ * @error: Return location for error or %NULL.
+ *
+ * Set the 'Type With Id' field in the message.
+ *
+ * Returns: (skip): %TRUE if @value was successfully set, %FALSE otherwise.
+ *
+ * Since: 1.18
+ * Deprecated: 1.32: Use qmi_message_pdc_set_selected_config_input_set_type_with_id() instead.
+ */
+G_DEPRECATED_FOR (qmi_message_pdc_set_selected_config_input_set_type_with_id_v2)
+gboolean qmi_message_pdc_set_selected_config_input_set_type_with_id (
+    QmiMessagePdcSetSelectedConfigInput *self,
+    const QmiDeprecatedConfigTypeAndId *value_type_with_id,
+    GError **error);
+
+#endif /* HAVE_QMI_MESSAGE_PDC_SET_SELECTED_CONFIG */
+
+#if defined HAVE_QMI_MESSAGE_PDC_GET_CONFIG_INFO
+
+/**
+ * qmi_message_pdc_get_config_info_input_get_type_with_id:
+ * @self: a #QmiMessagePdcGetConfigInfoInput.
+ * @value_type_with_id: (out)(optional)(transfer none): a placeholder for the output constant #QmiConfigTypeAndId, or %NULL if not required.
+ * @error: Return location for error or %NULL.
+ *
+ * Get the 'Type With Id' field from @self.
+ *
+ * Returns: (skip): %TRUE if the field is found, %FALSE otherwise.
+ *
+ * Since: 1.18
+ * Deprecated: 1.32: Use qmi_message_pdc_get_config_info_input_get_type_with_id_v2() instead.
+ */
+G_DEPRECATED_FOR (qmi_message_pdc_get_config_info_input_get_type_with_id_v2)
+gboolean qmi_message_pdc_get_config_info_input_get_type_with_id (
+    QmiMessagePdcGetConfigInfoInput *self,
+    QmiDeprecatedConfigTypeAndId *value_type_with_id,
+    GError **error);
+
+/**
+ * qmi_message_pdc_get_config_info_input_set_type_with_id:
+ * @self: a #QmiMessagePdcGetConfigInfoInput.
+ * @value_type_with_id: the address of the #QmiConfigTypeAndId to set.
+ * @error: Return location for error or %NULL.
+ *
+ * Set the 'Type With Id' field in the message.
+ *
+ * Returns: (skip): %TRUE if @value was successfully set, %FALSE otherwise.
+ *
+ * Since: 1.18
+ * Deprecated: 1.32: Use qmi_message_pdc_get_config_info_input_set_type_with_id_v2() instead.
+ */
+G_DEPRECATED_FOR (qmi_message_pdc_get_config_info_input_set_type_with_id_v2)
+gboolean qmi_message_pdc_get_config_info_input_set_type_with_id (
+    QmiMessagePdcGetConfigInfoInput *self,
+    const QmiDeprecatedConfigTypeAndId *value_type_with_id,
+    GError **error);
+
+#endif /* HAVE_QMI_MESSAGE_PDC_GET_CONFIG_INFO */
+
+#if defined HAVE_QMI_MESSAGE_DMS_DELETE_STORED_IMAGE
+
+/**
+ * QmiMessageDmsDeleteStoredImageInputImage:
+ * @type: a #QmiDmsFirmwareImageType.
+ * @unique_id: a #GArray of #guint8 elements.
+ * @build_id: a string.
+ *
+ * A QmiMessageDmsDeleteStoredImageInputImage struct.
+ *
+ * This type is deprecated and there is no replacement as the
+ * new methods don't require any intermediate type any more.
+ *
+ * Since: 1.0
+ * Deprecated: 1.32
+ */
+typedef struct _QmiDeprecatedMessageDmsDeleteStoredImageInputImage {
+    QmiDmsFirmwareImageType type;
+    GArray *unique_id;
+    gchar *build_id;
+} QmiDeprecatedMessageDmsDeleteStoredImageInputImage;
+G_DEPRECATED
+typedef QmiDeprecatedMessageDmsDeleteStoredImageInputImage QmiMessageDmsDeleteStoredImageInputImage;
+
+/**
+ * qmi_message_dms_delete_stored_image_input_get_image:
+ * @self: a #QmiMessageDmsDeleteStoredImageInput.
+ * @value_image: (out)(optional)(transfer none): a placeholder for the output constant #QmiMessageDmsDeleteStoredImageInputImage, or %NULL if not required.
+ * @error: Return location for error or %NULL.
+ *
+ * Get the 'Image' field from @self.
+ *
+ * Returns: (skip): %TRUE if the field is found, %FALSE otherwise.
+ *
+ * Since: 1.0
+ * Deprecated: 1.32: Use qmi_message_dms_delete_stored_image_input_set_image_details() instead.
+ */
+G_DEPRECATED_FOR (qmi_message_dms_delete_stored_image_input_get_image_details)
+gboolean qmi_message_dms_delete_stored_image_input_get_image (
+    QmiMessageDmsDeleteStoredImageInput *self,
+    QmiDeprecatedMessageDmsDeleteStoredImageInputImage *value_image,
+    GError **error);
+
+
+/**
+ * qmi_message_dms_delete_stored_image_input_set_image:
+ * @self: a #QmiMessageDmsDeleteStoredImageInput.
+ * @value_image: the address of the #QmiMessageDmsDeleteStoredImageInputImage to set.
+ * @error: Return location for error or %NULL.
+ *
+ * Set the 'Image' field in the message.
+ *
+ * Returns: (skip): %TRUE if @value was successfully set, %FALSE otherwise.
+ *
+ * Since: 1.0
+ * Deprecated: 1.32: Use qmi_message_dms_delete_stored_image_input_set_image_details() instead.
+ */
+G_DEPRECATED_FOR (qmi_message_dms_delete_stored_image_input_set_image_details)
+gboolean qmi_message_dms_delete_stored_image_input_set_image (
+    QmiMessageDmsDeleteStoredImageInput *self,
+    const QmiDeprecatedMessageDmsDeleteStoredImageInputImage *value_image,
+    GError **error);
+
+#endif /* HAVE_QMI_MESSAGE_DMS_DELETE_STORED_IMAGE */
+
+#if defined HAVE_QMI_MESSAGE_DMS_GET_STORED_IMAGE_INFO
+
+/**
+ * QmiMessageDmsGetStoredImageInfoInputImage:
+ * @type: a #QmiDmsFirmwareImageType.
+ * @unique_id: a #GArray of #guint8 elements.
+ * @build_id: a string.
+ *
+ * A QmiMessageDmsGetStoredImageInfoInputImage struct.
+ *
+ * This type is deprecated and there is no replacement as the
+ * new methods don't require any intermediate type any more.
+ *
+ * Since: 1.0
+ * Deprecated: 1.32
+ */
+typedef struct _QmiDeprecatedMessageDmsGetStoredImageInfoInputImage {
+    QmiDmsFirmwareImageType type;
+    GArray *unique_id;
+    gchar *build_id;
+} QmiDeprecatedMessageDmsGetStoredImageInfoInputImage;
+G_DEPRECATED
+typedef QmiDeprecatedMessageDmsGetStoredImageInfoInputImage QmiMessageDmsGetStoredImageInfoInputImage;
+
+/**
+ * qmi_message_dms_get_stored_image_info_input_get_image:
+ * @self: a #QmiMessageDmsGetStoredImageInfoInput.
+ * @value_image: (out)(optional)(transfer none): a placeholder for the output constant #QmiMessageDmsGetStoredImageInfoInputImage, or %NULL if not required.
+ * @error: Return location for error or %NULL.
+ *
+ * Get the 'Image' field from @self.
+ *
+ * Returns: (skip): %TRUE if the field is found, %FALSE otherwise.
+ *
+ * Since: 1.0
+ * Deprecated: 1.32: Use qmi_message_dms_get_stored_image_info_input_get_image_details() instead.
+ */
+G_DEPRECATED_FOR (qmi_message_dms_get_stored_image_info_input_get_image_details)
+gboolean qmi_message_dms_get_stored_image_info_input_get_image (
+    QmiMessageDmsGetStoredImageInfoInput *self,
+    QmiDeprecatedMessageDmsGetStoredImageInfoInputImage *value_image,
+    GError **error);
+
+/**
+ * qmi_message_dms_get_stored_image_info_input_set_image:
+ * @self: a #QmiMessageDmsGetStoredImageInfoInput.
+ * @value_image: the address of the #QmiMessageDmsGetStoredImageInfoInputImage to set.
+ * @error: Return location for error or %NULL.
+ *
+ * Set the 'Image' field in the message.
+ *
+ * Returns: (skip): %TRUE if @value was successfully set, %FALSE otherwise.
+ *
+ * Since: 1.0
+ * Deprecated: 1.32: Use qmi_message_dms_get_stored_image_info_input_set_image_details() instead.
+ */
+G_DEPRECATED_FOR (qmi_message_dms_get_stored_image_info_input_set_image_details)
+gboolean qmi_message_dms_get_stored_image_info_input_set_image (
+    QmiMessageDmsGetStoredImageInfoInput *self,
+    const QmiDeprecatedMessageDmsGetStoredImageInfoInputImage *value_image,
+    GError **error);
+
+#endif /* HAVE_QMI_MESSAGE_DMS_GET_STORED_IMAGE_INFO */
+
+#if defined HAVE_QMI_INDICATION_LOC_POSITION_REPORT
+
+/**
+ * QmiIndicationLocPositionReportOutputDilutionOfPrecision:
+ * @position_dilution_of_precision: a #gfloat.
+ * @horizontal_dilution_of_precision: a #gfloat.
+ * @vertical_dilution_of_precision: a #gfloat.
+ *
+ * A QmiIndicationLocPositionReportOutputDilutionOfPrecision struct.
+ *
+ * This type is deprecated and there is no replacement as the
+ * new methods don't require any intermediate type any more.
+ *
+ * Since: 1.22
+ * Deprecated: 1.32
+ */
+typedef struct _QmiDeprecatedIndicationLocPositionReportOutputDilutionOfPrecision {
+    gfloat position_dilution_of_precision;
+    gfloat horizontal_dilution_of_precision;
+    gfloat vertical_dilution_of_precision;
+} QmiDeprecatedIndicationLocPositionReportOutputDilutionOfPrecision;
+G_DEPRECATED
+typedef QmiDeprecatedIndicationLocPositionReportOutputDilutionOfPrecision QmiIndicationLocPositionReportOutputDilutionOfPrecision;
+
+/**
+ * qmi_indication_loc_position_report_output_get_dilution_of_precision:
+ * @self: a #QmiIndicationLocPositionReportOutput.
+ * @value_dilution_of_precision: (out)(optional)(transfer none): a placeholder for the output constant #QmiIndicationLocPositionReportOutputDilutionOfPrecision, or %NULL if not required.
+ * @error: Return location for error or %NULL.
+ *
+ * Get the 'Dilution of Precision' field from @self.
+ *
+ * Returns: (skip): %TRUE if the field is found, %FALSE otherwise.
+ *
+ * Since: 1.22
+ * Deprecated: 1.32: Use qmi_indication_loc_position_report_output_get_dop() instead.
+ */
+G_DEPRECATED_FOR (qmi_indication_loc_position_report_output_get_dop)
+gboolean qmi_indication_loc_position_report_output_get_dilution_of_precision (
+    QmiIndicationLocPositionReportOutput *self,
+    QmiDeprecatedIndicationLocPositionReportOutputDilutionOfPrecision *value_dilution_of_precision,
+    GError **error);
+
+/**
+ * QmiIndicationLocPositionReportOutputGpsTime:
+ * @gps_weeks: a #guint16.
+ * @gps_time_of_week_milliseconds: a #guint32.
+ *
+ * A QmiIndicationLocPositionReportOutputGpsTime struct.
+ *
+ * This type is deprecated and there is no replacement as the
+ * new methods don't require any intermediate type any more.
+ *
+ * Since: 1.22
+ * Deprecated: 1.32
+ */
+typedef struct _QmiDeprecatedIndicationLocPositionReportOutputGpsTime {
+    guint16 gps_weeks;
+    guint32 gps_time_of_week_milliseconds;
+} QmiDeprecatedIndicationLocPositionReportOutputGpsTime;
+G_DEPRECATED
+typedef QmiDeprecatedIndicationLocPositionReportOutputGpsTime QmiIndicationLocPositionReportOutputGpsTime;
+
+/**
+ * qmi_indication_loc_position_report_output_get_gps_time:
+ * @self: a #QmiIndicationLocPositionReportOutput.
+ * @value_gps_time: (out)(optional)(transfer none): a placeholder for the output constant #QmiIndicationLocPositionReportOutputGpsTime, or %NULL if not required.
+ * @error: Return location for error or %NULL.
+ *
+ * Get the 'GPS Time' field from @self.
+ *
+ * Returns: (skip): %TRUE if the field is found, %FALSE otherwise.
+ *
+ * Since: 1.22
+ * Deprecated: 1.32: Use qmi_indication_loc_position_report_output_get_gps_date_time() instead.
+ */
+G_DEPRECATED_FOR (qmi_indication_loc_position_report_output_get_gps_date_time)
+gboolean qmi_indication_loc_position_report_output_get_gps_time (
+    QmiIndicationLocPositionReportOutput *self,
+    QmiDeprecatedIndicationLocPositionReportOutputGpsTime *value_gps_time,
+    GError **error);
+
+#endif /* HAVE_QMI_INDICATION_LOC_POSITION_REPORT */
+
+#if defined HAVE_QMI_MESSAGE_UIM_GET_SLOT_STATUS
+
+/**
+ * qmi_message_uim_get_slot_status_output_get_slot_eid_information:
+ * @self: a #QmiMessageUimGetSlotStatusOutput.
+ * @value_slot_eid_information: (out)(optional)(element-type GArray)(transfer none): a placeholder for the output #GArray of #GArray * elements, or %NULL if not required. Do not free it, it is owned by @self.
+ * @error: Return location for error or %NULL.
+ *
+ * Get the 'Slot EID Information' field from @self.
+ *
+ * Returns: (skip): %TRUE if the field is found, %FALSE otherwise.
+ *
+ * Since: 1.26
+ * Deprecated: 1.32: Use qmi_message_uim_get_slot_status_output_get_slot_eid() instead.
+ */
+G_DEPRECATED_FOR (qmi_message_uim_get_slot_status_output_get_slot_eid)
+gboolean qmi_message_uim_get_slot_status_output_get_slot_eid_information (
+    QmiMessageUimGetSlotStatusOutput *self,
+    GArray **value_slot_eid_information,
+    GError **error);
+
+#endif /* HAVE_QMI_MESSAGE_UIM_GET_SLOT_STATUS */
+
+#if defined HAVE_QMI_INDICATION_UIM_SLOT_STATUS
+
+/**
+ * qmi_indication_uim_slot_status_output_get_slot_eid_information:
+ * @self: a #QmiIndicationUimSlotStatusOutput.
+ * @value_slot_eid_information: (out)(optional)(element-type GArray)(transfer none): a placeholder for the output #GArray of #GArray * elements, or %NULL if not required. Do not free it, it is owned by @self.
+ * @error: Return location for error or %NULL.
+ *
+ * Get the 'Slot EID Information' field from @self.
+ *
+ * Returns: (skip): %TRUE if the field is found, %FALSE otherwise.
+ *
+ * Since: 1.26
+ * Deprecated: 1.32: Use qmi_indication_uim_slot_status_output_get_slot_eid() instead.
+ */
+G_DEPRECATED_FOR (qmi_indication_uim_slot_status_output_get_slot_eid)
+gboolean qmi_indication_uim_slot_status_output_get_slot_eid_information (
+    QmiIndicationUimSlotStatusOutput *self,
+    GArray **value_slot_eid_information,
+    GError **error);
+
+#endif /* HAVE_QMI_INDICATION_UIM_SLOT_STATUS */
+
+#if defined HAVE_QMI_MESSAGE_UIM_GET_CONFIGURATION
+
+/**
+ * QmiMessageUimGetConfigurationOutputPersonalizationStatusOtherSlotsSlotsElement:
+ * @feature: a #QmiUimCardApplicationPersonalizationFeature.
+ * @verify_left: a #guint8.
+ * @unblock_left: a #guint8.
+ *
+ * A QmiMessageUimGetConfigurationOutputPersonalizationStatusOtherSlotsSlotsElement struct.
+ *
+ * Since: 1.30
+ * Deprecated: 1.32: Use #QmiMessageUimGetConfigurationOutputPersonalizationStatusOtherElementSlotElement instead.
+ */
+G_DEPRECATED_FOR (QmiMessageUimGetConfigurationOutputPersonalizationStatusOtherElementSlotElement)
+typedef struct _QmiMessageUimGetConfigurationOutputPersonalizationStatusOtherSlotsSlotsElement {
+    QmiUimCardApplicationPersonalizationFeature feature;
+    guint8 verify_left;
+    guint8 unblock_left;
+} QmiMessageUimGetConfigurationOutputPersonalizationStatusOtherSlotsSlotsElement;
+
+/**
+ * qmi_message_uim_get_configuration_output_get_personalization_status_other_slots:
+ * @self: a #QmiMessageUimGetConfigurationOutput.
+ * @value_personalization_status_other_slots: (out)(optional)(element-type GArray)(transfer none): a placeholder for the output #GArray of #GArray * elements, or %NULL if not required. Do not free it, it is owned by @self.
+ * @error: Return location for error or %NULL.
+ *
+ * Get the 'Personalization Status Other Slots' field from @self.
+ *
+ * Returns: (skip): %TRUE if the field is found, %FALSE otherwise.
+ *
+ * Since: 1.30
+ * Deprecated: 1.32: Use qmi_message_uim_get_configuration_output_get_personalization_status_other() instead.
+ */
+G_DEPRECATED_FOR (qmi_message_uim_get_configuration_output_get_personalization_status_other)
+gboolean qmi_message_uim_get_configuration_output_get_personalization_status_other_slots (
+    QmiMessageUimGetConfigurationOutput *self,
+    GArray **value_personalization_status_other_slots,
+    GError **error);
+
+#endif /* HAVE_QMI_MESSAGE_UIM_GET_CONFIGURATION */
 
 #endif /* QMI_DISABLE_DEPRECATED */
 

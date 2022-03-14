@@ -16,7 +16,7 @@
  * Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
  * Boston, MA 02110-1301 USA.
  *
- * Copyright (C) 2016-2020 Aleksander Morgado <aleksander@aleksander.es>
+ * Copyright (C) 2016-2022 Aleksander Morgado <aleksander@aleksander.es>
  */
 
 #include <string.h>
@@ -805,7 +805,7 @@ qmi_dms_dell_firmware_version_type_get_type (void)
 }
 
 const gchar *
-qmi_dms_dell_firmware_version_type_get_string (QmiDmsDellFirmwareVersionType val)
+qmi_dms_dell_firmware_version_type_get_string (QmiDeprecatedDmsDellFirmwareVersionType val)
 {
     return qmi_dms_foxconn_firmware_version_type_get_string ((QmiDmsFoxconnFirmwareVersionType) val);
 }
@@ -820,7 +820,7 @@ qmi_message_dms_dell_get_firmware_version_output_get_type (void)
 
 gboolean
 qmi_message_dms_dell_get_firmware_version_output_get_version (
-    QmiMessageDmsDellGetFirmwareVersionOutput *self,
+    QmiDeprecatedMessageDmsDellGetFirmwareVersionOutput *self,
     const gchar **value_version,
     GError **error)
 {
@@ -829,7 +829,7 @@ qmi_message_dms_dell_get_firmware_version_output_get_version (
 
 gboolean
 qmi_message_dms_dell_get_firmware_version_output_get_result (
-    QmiMessageDmsDellGetFirmwareVersionOutput *self,
+    QmiDeprecatedMessageDmsDellGetFirmwareVersionOutput *self,
     GError **error)
 {
     return qmi_message_dms_foxconn_get_firmware_version_output_get_result (self, error);
@@ -843,8 +843,8 @@ qmi_message_dms_dell_get_firmware_version_input_get_type (void)
 
 gboolean
 qmi_message_dms_dell_get_firmware_version_input_get_version_type (
-    QmiMessageDmsDellGetFirmwareVersionInput *self,
-    QmiDmsDellFirmwareVersionType *value_version_type,
+    QmiDeprecatedMessageDmsDellGetFirmwareVersionInput *self,
+    QmiDeprecatedDmsDellFirmwareVersionType *value_version_type,
     GError **error)
 {
     return qmi_message_dms_foxconn_get_firmware_version_input_get_version_type (self, (QmiDmsFoxconnFirmwareVersionType *)value_version_type, error);
@@ -852,39 +852,39 @@ qmi_message_dms_dell_get_firmware_version_input_get_version_type (
 
 gboolean
 qmi_message_dms_dell_get_firmware_version_input_set_version_type (
-    QmiMessageDmsDellGetFirmwareVersionInput *self,
-    QmiDmsDellFirmwareVersionType value_version_type,
+    QmiDeprecatedMessageDmsDellGetFirmwareVersionInput *self,
+    QmiDeprecatedDmsDellFirmwareVersionType value_version_type,
     GError **error)
 {
     return qmi_message_dms_foxconn_get_firmware_version_input_set_version_type (self, (QmiDmsFoxconnFirmwareVersionType)value_version_type, error);
 }
 
-QmiMessageDmsDellGetFirmwareVersionInput *
-qmi_message_dms_dell_get_firmware_version_input_ref (QmiMessageDmsDellGetFirmwareVersionInput *self)
+QmiDeprecatedMessageDmsDellGetFirmwareVersionInput *
+qmi_message_dms_dell_get_firmware_version_input_ref (QmiDeprecatedMessageDmsDellGetFirmwareVersionInput *self)
 {
     return qmi_message_dms_foxconn_get_firmware_version_input_ref (self);
 }
 
 void
-qmi_message_dms_dell_get_firmware_version_input_unref (QmiMessageDmsDellGetFirmwareVersionInput *self)
+qmi_message_dms_dell_get_firmware_version_input_unref (QmiDeprecatedMessageDmsDellGetFirmwareVersionInput *self)
 {
     qmi_message_dms_foxconn_get_firmware_version_input_unref (self);
 }
 
-QmiMessageDmsDellGetFirmwareVersionInput *
+QmiDeprecatedMessageDmsDellGetFirmwareVersionInput *
 qmi_message_dms_dell_get_firmware_version_input_new (void)
 {
     return qmi_message_dms_foxconn_get_firmware_version_input_new ();
 }
 
-QmiMessageDmsDellGetFirmwareVersionOutput *
-qmi_message_dms_dell_get_firmware_version_output_ref (QmiMessageDmsDellGetFirmwareVersionOutput *self)
+QmiDeprecatedMessageDmsDellGetFirmwareVersionOutput *
+qmi_message_dms_dell_get_firmware_version_output_ref (QmiDeprecatedMessageDmsDellGetFirmwareVersionOutput *self)
 {
     return qmi_message_dms_foxconn_get_firmware_version_output_ref (self);
 }
 
 void
-qmi_message_dms_dell_get_firmware_version_output_unref (QmiMessageDmsDellGetFirmwareVersionOutput *self)
+qmi_message_dms_dell_get_firmware_version_output_unref (QmiDeprecatedMessageDmsDellGetFirmwareVersionOutput *self)
 {
     qmi_message_dms_foxconn_get_firmware_version_output_unref (self);
 }
@@ -892,7 +892,7 @@ qmi_message_dms_dell_get_firmware_version_output_unref (QmiMessageDmsDellGetFirm
 void
 qmi_client_dms_dell_get_firmware_version (
     QmiClientDms *self,
-    QmiMessageDmsDellGetFirmwareVersionInput *input,
+    QmiDeprecatedMessageDmsDellGetFirmwareVersionInput *input,
     guint timeout,
     GCancellable *cancellable,
     GAsyncReadyCallback callback,
@@ -901,7 +901,7 @@ qmi_client_dms_dell_get_firmware_version (
     qmi_client_dms_foxconn_get_firmware_version (self, input, timeout, cancellable, callback, user_data);
 }
 
-QmiMessageDmsDellGetFirmwareVersionOutput *
+QmiDeprecatedMessageDmsDellGetFirmwareVersionOutput *
 qmi_client_dms_dell_get_firmware_version_finish (
     QmiClientDms *self,
     GAsyncResult *res,
@@ -921,7 +921,7 @@ qmi_dms_dell_device_mode_get_type (void)
 }
 
 const gchar *
-qmi_dms_dell_device_mode_get_string (QmiDmsDellDeviceMode val)
+qmi_dms_dell_device_mode_get_string (QmiDeprecatedDmsDellDeviceMode val)
 {
     return qmi_dms_foxconn_device_mode_get_string ((QmiDmsFoxconnDeviceMode) val);
 }
@@ -936,8 +936,8 @@ qmi_message_dms_dell_change_device_mode_input_get_type (void)
 
 gboolean
 qmi_message_dms_dell_change_device_mode_input_get_mode (
-    QmiMessageDmsDellChangeDeviceModeInput *self,
-    QmiDmsDellDeviceMode *value_mode,
+    QmiDeprecatedMessageDmsDellChangeDeviceModeInput *self,
+    QmiDeprecatedDmsDellDeviceMode *value_mode,
     GError **error)
 {
     return qmi_message_dms_foxconn_change_device_mode_input_get_mode (self, (QmiDmsFoxconnDeviceMode *) value_mode, error);
@@ -945,26 +945,26 @@ qmi_message_dms_dell_change_device_mode_input_get_mode (
 
 gboolean
 qmi_message_dms_dell_change_device_mode_input_set_mode (
-    QmiMessageDmsDellChangeDeviceModeInput *self,
-    QmiDmsDellDeviceMode value_mode,
+    QmiDeprecatedMessageDmsDellChangeDeviceModeInput *self,
+    QmiDeprecatedDmsDellDeviceMode value_mode,
     GError **error)
 {
     return qmi_message_dms_foxconn_change_device_mode_input_set_mode (self, (QmiDmsFoxconnDeviceMode) value_mode, error);
 }
 
-QmiMessageDmsDellChangeDeviceModeInput *
-qmi_message_dms_dell_change_device_mode_input_ref (QmiMessageDmsDellChangeDeviceModeInput *self)
+QmiDeprecatedMessageDmsDellChangeDeviceModeInput *
+qmi_message_dms_dell_change_device_mode_input_ref (QmiDeprecatedMessageDmsDellChangeDeviceModeInput *self)
 {
     return qmi_message_dms_foxconn_change_device_mode_input_ref (self);
 }
 
 void
-qmi_message_dms_dell_change_device_mode_input_unref (QmiMessageDmsDellChangeDeviceModeInput *self)
+qmi_message_dms_dell_change_device_mode_input_unref (QmiDeprecatedMessageDmsDellChangeDeviceModeInput *self)
 {
     qmi_message_dms_foxconn_change_device_mode_input_unref (self);
 }
 
-QmiMessageDmsDellChangeDeviceModeInput *
+QmiDeprecatedMessageDmsDellChangeDeviceModeInput *
 qmi_message_dms_dell_change_device_mode_input_new (void)
 {
     return qmi_message_dms_foxconn_change_device_mode_input_new ();
@@ -978,20 +978,20 @@ qmi_message_dms_dell_change_device_mode_output_get_type (void)
 
 gboolean
 qmi_message_dms_dell_change_device_mode_output_get_result (
-    QmiMessageDmsDellChangeDeviceModeOutput *self,
+    QmiDeprecatedMessageDmsDellChangeDeviceModeOutput *self,
     GError **error)
 {
     return qmi_message_dms_foxconn_change_device_mode_output_get_result (self, error);
 }
 
-QmiMessageDmsDellChangeDeviceModeOutput *
-qmi_message_dms_dell_change_device_mode_output_ref (QmiMessageDmsDellChangeDeviceModeOutput *self)
+QmiDeprecatedMessageDmsDellChangeDeviceModeOutput *
+qmi_message_dms_dell_change_device_mode_output_ref (QmiDeprecatedMessageDmsDellChangeDeviceModeOutput *self)
 {
     return qmi_message_dms_foxconn_change_device_mode_output_ref (self);
 }
 
 void
-qmi_message_dms_dell_change_device_mode_output_unref (QmiMessageDmsDellChangeDeviceModeOutput *self)
+qmi_message_dms_dell_change_device_mode_output_unref (QmiDeprecatedMessageDmsDellChangeDeviceModeOutput *self)
 {
     qmi_message_dms_foxconn_change_device_mode_output_unref (self);
 }
@@ -999,7 +999,7 @@ qmi_message_dms_dell_change_device_mode_output_unref (QmiMessageDmsDellChangeDev
 void
 qmi_client_dms_dell_change_device_mode (
     QmiClientDms *self,
-    QmiMessageDmsDellChangeDeviceModeInput *input,
+    QmiDeprecatedMessageDmsDellChangeDeviceModeInput *input,
     guint timeout,
     GCancellable *cancellable,
     GAsyncReadyCallback callback,
@@ -1008,7 +1008,7 @@ qmi_client_dms_dell_change_device_mode (
     qmi_client_dms_foxconn_change_device_mode (self, input, timeout, cancellable, callback, user_data);
 }
 
-QmiMessageDmsDellChangeDeviceModeOutput *
+QmiDeprecatedMessageDmsDellChangeDeviceModeOutput *
 qmi_client_dms_dell_change_device_mode_finish (
     QmiClientDms *self,
     GAsyncResult *res,
@@ -1129,6 +1129,32 @@ qmi_message_nas_get_home_network_output_get_home_network_3gpp2 (
 
 #if defined HAVE_QMI_MESSAGE_NAS_GET_CELL_LOCATION_INFO
 
+typedef struct {
+    GArray *geran_info_cell;
+} MessageNasGetCellLocationInfoOutputCompatContext;
+
+static void
+message_nas_get_cell_location_info_output_compat_context_free (MessageNasGetCellLocationInfoOutputCompatContext *ctx)
+{
+    if (ctx->geran_info_cell)
+        g_array_unref (ctx->geran_info_cell);
+    g_slice_free (MessageNasGetCellLocationInfoOutputCompatContext, ctx);
+}
+
+static MessageNasGetCellLocationInfoOutputCompatContext *
+message_nas_get_cell_location_info_output_get_compat_context (QmiMessageNasGetCellLocationInfoOutput *self)
+{
+    MessageNasGetCellLocationInfoOutputCompatContext *ctx;
+
+    ctx = qmi_message_nas_get_cell_location_info_output_get_compat_context (self);
+    if (!ctx) {
+        ctx = g_slice_new0 (MessageNasGetCellLocationInfoOutputCompatContext);
+        qmi_message_nas_get_cell_location_info_output_set_compat_context (self, ctx, (GDestroyNotify)message_nas_get_cell_location_info_output_compat_context_free);
+    }
+
+    return ctx;
+}
+
 /* This PLMN string is returned because it's a 3-char long valid UTF-8. */
 static const gchar invalid_plmn_str[] = "   ";
 
@@ -1164,7 +1190,8 @@ qmi_message_nas_get_cell_location_info_output_get_intrafrequency_lte_info (
              error))
       return FALSE;
 
-    *value_intrafrequency_lte_info_plmn = invalid_plmn_str;
+    if (value_intrafrequency_lte_info_plmn)
+        *value_intrafrequency_lte_info_plmn = invalid_plmn_str;
     return TRUE;
 }
 
@@ -1196,7 +1223,8 @@ qmi_message_nas_get_cell_location_info_output_get_umts_info (
            error))
         return FALSE;
 
-    *value_umts_info_plmn = invalid_plmn_str;
+    if (value_umts_info_plmn)
+        *value_umts_info_plmn = invalid_plmn_str;
     return TRUE;
 }
 
@@ -1213,6 +1241,8 @@ qmi_message_nas_get_cell_location_info_output_get_geran_info (
     GArray **value_geran_info_cell,
     GError **error)
 {
+    GArray *geran_info_v2_cell = NULL;
+
     if (!qmi_message_nas_get_cell_location_info_output_get_geran_info_v2 (
             self,
             value_geran_info_cell_id,
@@ -1222,12 +1252,41 @@ qmi_message_nas_get_cell_location_info_output_get_geran_info (
             value_geran_info_base_station_identity_code,
             value_geran_info_timing_advance,
             value_geran_info_rx_level,
-            NULL,
+            &geran_info_v2_cell,
             error))
         return FALSE;
 
-    *value_geran_info_plmn = invalid_plmn_str;
-    *value_geran_info_cell = NULL;
+    if (value_geran_info_plmn)
+      *value_geran_info_plmn = invalid_plmn_str;
+
+    if (value_geran_info_cell) {
+        MessageNasGetCellLocationInfoOutputCompatContext *ctx;
+
+        /* We have an array of QmiMessageNasGetCellLocationInfoOutputGeranInfoV2CellElement elements,
+         * we need to return an array of QmiMessageNasGetCellLocationInfoOutputGeranInfoCellElement elements
+         * instead.
+         */
+        ctx = message_nas_get_cell_location_info_output_get_compat_context (self);
+        if (!ctx->geran_info_cell) {
+            guint i;
+
+            ctx->geran_info_cell = g_array_sized_new (FALSE, FALSE, sizeof (QmiMessageNasGetCellLocationInfoOutputGeranInfoCellElement), geran_info_v2_cell->len);
+            for (i = 0; i < geran_info_v2_cell->len; i++) {
+                QmiMessageNasGetCellLocationInfoOutputGeranInfoV2CellElement *elemv2;
+                QmiMessageNasGetCellLocationInfoOutputGeranInfoCellElement elem;
+
+                elemv2 = &g_array_index (geran_info_v2_cell, QmiMessageNasGetCellLocationInfoOutputGeranInfoV2CellElement, i);
+                elem.cell_id = elemv2->cell_id;
+                elem.plmn = (gchar *)invalid_plmn_str;
+                elem.lac = elemv2->lac;
+                elem.geran_absolute_rf_channel_number = elemv2->geran_absolute_rf_channel_number;
+                elem.base_station_identity_code = elemv2->base_station_identity_code;
+                elem.rx_level = elemv2->rx_level;
+                g_array_append_val (ctx->geran_info_cell, elem);
+            }
+        }
+        *value_geran_info_cell = ctx->geran_info_cell;
+    }
     return TRUE;
 }
 
@@ -1243,7 +1302,7 @@ qmi_message_wds_get_default_profile_num_input_get_type (void)
 
 gboolean
 qmi_message_wds_get_default_profile_num_input_get_profile_type (
-    QmiMessageWdsGetDefaultProfileNumInput *self,
+    QmiDeprecatedMessageWdsGetDefaultProfileNumInput *self,
     QmiWdsProfileType *value_profile_type_profile_type,
     QmiWdsProfileFamily *value_profile_type_profile_family,
     GError **error)
@@ -1256,7 +1315,7 @@ qmi_message_wds_get_default_profile_num_input_get_profile_type (
 
 gboolean
 qmi_message_wds_get_default_profile_num_input_set_profile_type (
-    QmiMessageWdsGetDefaultProfileNumInput *self,
+    QmiDeprecatedMessageWdsGetDefaultProfileNumInput *self,
     QmiWdsProfileType value_profile_type_profile_type,
     QmiWdsProfileFamily value_profile_type_profile_family,
     GError **error)
@@ -1267,19 +1326,19 @@ qmi_message_wds_get_default_profile_num_input_set_profile_type (
                                                                               error);
 }
 
-QmiMessageWdsGetDefaultProfileNumInput *
-qmi_message_wds_get_default_profile_num_input_ref (QmiMessageWdsGetDefaultProfileNumInput *self)
+QmiDeprecatedMessageWdsGetDefaultProfileNumInput *
+qmi_message_wds_get_default_profile_num_input_ref (QmiDeprecatedMessageWdsGetDefaultProfileNumInput *self)
 {
     return qmi_message_wds_get_default_profile_number_input_ref (self);
 }
 
 void
-qmi_message_wds_get_default_profile_num_input_unref (QmiMessageWdsGetDefaultProfileNumInput *self)
+qmi_message_wds_get_default_profile_num_input_unref (QmiDeprecatedMessageWdsGetDefaultProfileNumInput *self)
 {
     qmi_message_wds_get_default_profile_number_input_unref (self);
 }
 
-QmiMessageWdsGetDefaultProfileNumInput *
+QmiDeprecatedMessageWdsGetDefaultProfileNumInput *
 qmi_message_wds_get_default_profile_num_input_new (void)
 {
     return qmi_message_wds_get_default_profile_number_input_new ();
@@ -1293,7 +1352,7 @@ qmi_message_wds_get_default_profile_num_output_get_type (void)
 
 gboolean
 qmi_message_wds_get_default_profile_num_output_get_result (
-    QmiMessageWdsGetDefaultProfileNumOutput *self,
+    QmiDeprecatedMessageWdsGetDefaultProfileNumOutput *self,
     GError **error)
 {
     return qmi_message_wds_get_default_profile_number_output_get_result (self, error);
@@ -1301,7 +1360,7 @@ qmi_message_wds_get_default_profile_num_output_get_result (
 
 gboolean
 qmi_message_wds_get_default_profile_num_output_get_default_profile_number (
-    QmiMessageWdsGetDefaultProfileNumOutput *self,
+    QmiDeprecatedMessageWdsGetDefaultProfileNumOutput *self,
     guint8 *value_default_profile_number,
     GError **error)
 {
@@ -1312,7 +1371,7 @@ qmi_message_wds_get_default_profile_num_output_get_default_profile_number (
 
 gboolean
 qmi_message_wds_get_default_profile_num_output_get_extended_error_code (
-    QmiMessageWdsGetDefaultProfileNumOutput *self,
+    QmiDeprecatedMessageWdsGetDefaultProfileNumOutput *self,
     QmiWdsDsProfileError *value_extended_error_code,
     GError **error)
 {
@@ -1321,14 +1380,14 @@ qmi_message_wds_get_default_profile_num_output_get_extended_error_code (
                                                                                       error);
 }
 
-QmiMessageWdsGetDefaultProfileNumOutput *
-qmi_message_wds_get_default_profile_num_output_ref (QmiMessageWdsGetDefaultProfileNumOutput *self)
+QmiDeprecatedMessageWdsGetDefaultProfileNumOutput *
+qmi_message_wds_get_default_profile_num_output_ref (QmiDeprecatedMessageWdsGetDefaultProfileNumOutput *self)
 {
     return qmi_message_wds_get_default_profile_number_output_ref (self);
 }
 
 void
-qmi_message_wds_get_default_profile_num_output_unref (QmiMessageWdsGetDefaultProfileNumOutput *self)
+qmi_message_wds_get_default_profile_num_output_unref (QmiDeprecatedMessageWdsGetDefaultProfileNumOutput *self)
 {
     qmi_message_wds_get_default_profile_number_output_unref (self);
 }
@@ -1372,7 +1431,7 @@ qmi_message_wds_set_default_profile_num_output_get_type (void)
 
 gboolean
 qmi_message_wds_set_default_profile_num_input_get_profile_identifier (
-    QmiMessageWdsSetDefaultProfileNumInput *self,
+    QmiDeprecatedMessageWdsSetDefaultProfileNumInput *self,
     QmiWdsProfileType *value_profile_identifier_profile_type,
     QmiWdsProfileFamily *value_profile_identifier_profile_family,
     guint8 *value_profile_identifier_profile_index,
@@ -1387,7 +1446,7 @@ qmi_message_wds_set_default_profile_num_input_get_profile_identifier (
 
 gboolean
 qmi_message_wds_set_default_profile_num_input_set_profile_identifier (
-    QmiMessageWdsSetDefaultProfileNumInput *self,
+    QmiDeprecatedMessageWdsSetDefaultProfileNumInput *self,
     QmiWdsProfileType value_profile_identifier_profile_type,
     QmiWdsProfileFamily value_profile_identifier_profile_family,
     guint8 value_profile_identifier_profile_index,
@@ -1400,19 +1459,19 @@ qmi_message_wds_set_default_profile_num_input_set_profile_identifier (
                                                                                     error);
 }
 
-QmiMessageWdsSetDefaultProfileNumInput *
-qmi_message_wds_set_default_profile_num_input_ref (QmiMessageWdsSetDefaultProfileNumInput *self)
+QmiDeprecatedMessageWdsSetDefaultProfileNumInput *
+qmi_message_wds_set_default_profile_num_input_ref (QmiDeprecatedMessageWdsSetDefaultProfileNumInput *self)
 {
     return qmi_message_wds_set_default_profile_number_input_ref (self);
 }
 
 void
-qmi_message_wds_set_default_profile_num_input_unref (QmiMessageWdsSetDefaultProfileNumInput *self)
+qmi_message_wds_set_default_profile_num_input_unref (QmiDeprecatedMessageWdsSetDefaultProfileNumInput *self)
 {
     qmi_message_wds_set_default_profile_number_input_unref (self);
 }
 
-QmiMessageWdsSetDefaultProfileNumInput *
+QmiDeprecatedMessageWdsSetDefaultProfileNumInput *
 qmi_message_wds_set_default_profile_num_input_new (void)
 {
     return qmi_message_wds_set_default_profile_number_input_new ();
@@ -1426,7 +1485,7 @@ qmi_message_wds_set_default_profile_num_input_get_type (void)
 
 gboolean
 qmi_message_wds_set_default_profile_num_output_get_result (
-    QmiMessageWdsSetDefaultProfileNumOutput *self,
+    QmiDeprecatedMessageWdsSetDefaultProfileNumOutput *self,
     GError **error)
 {
     return qmi_message_wds_set_default_profile_number_output_get_result (self, error);
@@ -1434,7 +1493,7 @@ qmi_message_wds_set_default_profile_num_output_get_result (
 
 gboolean
 qmi_message_wds_set_default_profile_num_output_get_extended_error_code (
-    QmiMessageWdsSetDefaultProfileNumOutput *self,
+    QmiDeprecatedMessageWdsSetDefaultProfileNumOutput *self,
     QmiWdsDsProfileError *value_extended_error_code,
     GError **error)
 {
@@ -1443,14 +1502,14 @@ qmi_message_wds_set_default_profile_num_output_get_extended_error_code (
                                                                                       error);
 }
 
-QmiMessageWdsSetDefaultProfileNumOutput *
-qmi_message_wds_set_default_profile_num_output_ref (QmiMessageWdsSetDefaultProfileNumOutput *self)
+QmiDeprecatedMessageWdsSetDefaultProfileNumOutput *
+qmi_message_wds_set_default_profile_num_output_ref (QmiDeprecatedMessageWdsSetDefaultProfileNumOutput *self)
 {
     return qmi_message_wds_set_default_profile_number_output_ref (self);
 }
 
 void
-qmi_message_wds_set_default_profile_num_output_unref (QmiMessageWdsSetDefaultProfileNumOutput *self)
+qmi_message_wds_set_default_profile_num_output_unref (QmiDeprecatedMessageWdsSetDefaultProfileNumOutput *self)
 {
     qmi_message_wds_set_default_profile_number_output_unref (self);
 }
@@ -2063,5 +2122,454 @@ qmi_message_nas_set_system_selection_preference_input_get_mnc_pds_digit_include_
 }
 
 #endif /* HAVE_QMI_MESSAGE_NAS_SET_SYSTEM_SELECTION_PREFERENCE */
+
+#if defined HAVE_QMI_MESSAGE_PDC_CONFIG_CHANGE
+
+gboolean
+qmi_message_pdc_config_change_input_get_type_with_id (
+    QmiMessagePdcConfigChangeInput *self,
+    QmiDeprecatedConfigTypeAndId *value_type_with_id,
+    GError **error)
+{
+    QmiPdcConfigurationType config_type = QMI_PDC_CONFIGURATION_TYPE_PLATFORM;
+    GArray *id = NULL;
+
+    if (!qmi_message_pdc_config_change_input_get_type_with_id_v2 (self, &config_type, &id, error))
+        return FALSE;
+    if (value_type_with_id) {
+        value_type_with_id->config_type = config_type;
+        value_type_with_id->id = id;
+    }
+    return TRUE;
+}
+
+gboolean
+qmi_message_pdc_config_change_input_set_type_with_id (
+    QmiMessagePdcConfigChangeInput *self,
+    const QmiDeprecatedConfigTypeAndId *value_type_with_id,
+    GError **error)
+{
+    return qmi_message_pdc_config_change_input_set_type_with_id_v2 (self, value_type_with_id->config_type, value_type_with_id->id, error);
+}
+
+gboolean
+qmi_message_pdc_config_change_output_get_type_with_id (
+    QmiMessagePdcConfigChangeOutput *self,
+    QmiDeprecatedConfigTypeAndId *value_type_with_id,
+    GError **error)
+{
+    QmiPdcConfigurationType config_type = QMI_PDC_CONFIGURATION_TYPE_PLATFORM;
+    GArray *id = NULL;
+
+    if (!qmi_message_pdc_config_change_output_get_type_with_id_v2 (self, &config_type, &id, error))
+        return FALSE;
+    if (value_type_with_id) {
+        value_type_with_id->config_type = config_type;
+        value_type_with_id->id = id;
+    }
+    return TRUE;
+}
+
+#endif /* HAVE_QMI_MESSAGE_PDC_CONFIG_CHANGE */
+
+#if defined HAVE_QMI_MESSAGE_PDC_SET_SELECTED_CONFIG
+
+gboolean
+qmi_message_pdc_set_selected_config_input_get_type_with_id (
+    QmiMessagePdcSetSelectedConfigInput *self,
+    QmiDeprecatedConfigTypeAndId *value_type_with_id,
+    GError **error)
+{
+    QmiPdcConfigurationType config_type = QMI_PDC_CONFIGURATION_TYPE_PLATFORM;
+    GArray *id = NULL;
+
+    if (!qmi_message_pdc_set_selected_config_input_get_type_with_id_v2 (self, &config_type, &id, error))
+        return FALSE;
+    if (value_type_with_id) {
+        value_type_with_id->config_type = config_type;
+        value_type_with_id->id = id;
+    }
+    return TRUE;
+}
+
+gboolean
+qmi_message_pdc_set_selected_config_input_set_type_with_id (
+    QmiMessagePdcSetSelectedConfigInput *self,
+    const QmiDeprecatedConfigTypeAndId *value_type_with_id,
+    GError **error)
+{
+    return qmi_message_pdc_set_selected_config_input_set_type_with_id_v2 (self, value_type_with_id->config_type, value_type_with_id->id, error);
+}
+
+#endif /* HAVE_QMI_MESSAGE_PDC_SET_SELECTED_CONFIG */
+
+#if defined HAVE_QMI_MESSAGE_PDC_GET_CONFIG_INFO
+
+gboolean
+qmi_message_pdc_get_config_info_input_get_type_with_id (
+    QmiMessagePdcGetConfigInfoInput *self,
+    QmiDeprecatedConfigTypeAndId *value_type_with_id,
+    GError **error)
+{
+    QmiPdcConfigurationType config_type = QMI_PDC_CONFIGURATION_TYPE_PLATFORM;
+    GArray *id = NULL;
+
+    if (!qmi_message_pdc_get_config_info_input_get_type_with_id_v2 (self, &config_type, &id, error))
+        return FALSE;
+    if (value_type_with_id) {
+        value_type_with_id->config_type = config_type;
+        value_type_with_id->id = id;
+    }
+    return TRUE;
+}
+
+gboolean
+qmi_message_pdc_get_config_info_input_set_type_with_id (
+    QmiMessagePdcGetConfigInfoInput *self,
+    const QmiDeprecatedConfigTypeAndId *value_type_with_id,
+    GError **error)
+{
+    return qmi_message_pdc_get_config_info_input_set_type_with_id_v2 (self, value_type_with_id->config_type, value_type_with_id->id, error);
+}
+
+#endif /* HAVE_QMI_MESSAGE_PDC_GET_CONFIG_INFO */
+
+#if defined HAVE_QMI_MESSAGE_DMS_DELETE_STORED_IMAGE
+
+gboolean
+qmi_message_dms_delete_stored_image_input_get_image (
+    QmiMessageDmsDeleteStoredImageInput *self,
+    QmiDeprecatedMessageDmsDeleteStoredImageInputImage *value_image,
+    GError **error)
+{
+    QmiDmsFirmwareImageType  type = QMI_DMS_FIRMWARE_IMAGE_TYPE_MODEM;
+    GArray                  *unique_id = NULL;
+    const gchar             *build_id = NULL;
+
+    if (!qmi_message_dms_delete_stored_image_input_get_image_details (self, &type, &unique_id, &build_id, error))
+        return FALSE;
+    if (value_image) {
+        value_image->type = type;
+        value_image->unique_id = unique_id;
+        value_image->build_id = (gchar *) build_id;
+    }
+    return TRUE;
+}
+
+gboolean
+qmi_message_dms_delete_stored_image_input_set_image (
+    QmiMessageDmsDeleteStoredImageInput *self,
+    const QmiDeprecatedMessageDmsDeleteStoredImageInputImage *value_image,
+    GError **error)
+{
+    return qmi_message_dms_delete_stored_image_input_set_image_details (self, value_image->type, value_image->unique_id, value_image->build_id, error);
+}
+
+#endif /* HAVE_QMI_MESSAGE_DMS_DELETE_STORED_IMAGE */
+
+#if defined HAVE_QMI_MESSAGE_DMS_GET_STORED_IMAGE_INFO
+
+gboolean
+qmi_message_dms_get_stored_image_info_input_get_image (
+    QmiMessageDmsGetStoredImageInfoInput *self,
+    QmiDeprecatedMessageDmsGetStoredImageInfoInputImage *value_image,
+    GError **error)
+{
+    QmiDmsFirmwareImageType  type = QMI_DMS_FIRMWARE_IMAGE_TYPE_MODEM;
+    GArray                  *unique_id = NULL;
+    const gchar             *build_id = NULL;
+
+    if (!qmi_message_dms_get_stored_image_info_input_get_image_details (self, &type, &unique_id, &build_id, error))
+        return FALSE;
+    if (value_image) {
+        value_image->type = type;
+        value_image->unique_id = unique_id;
+        value_image->build_id = (gchar *) build_id;
+    }
+    return TRUE;
+}
+
+gboolean
+qmi_message_dms_get_stored_image_info_input_set_image (
+    QmiMessageDmsGetStoredImageInfoInput *self,
+    const QmiDeprecatedMessageDmsGetStoredImageInfoInputImage *value_image,
+    GError **error)
+{
+    return qmi_message_dms_get_stored_image_info_input_set_image_details (self, value_image->type, value_image->unique_id, value_image->build_id, error);
+}
+
+#endif /* HAVE_QMI_MESSAGE_DMS_GET_STORED_IMAGE_INFO */
+
+#if defined  HAVE_QMI_INDICATION_LOC_POSITION_REPORT
+
+gboolean
+qmi_indication_loc_position_report_output_get_dilution_of_precision (
+    QmiIndicationLocPositionReportOutput *self,
+    QmiDeprecatedIndicationLocPositionReportOutputDilutionOfPrecision *value_dilution_of_precision,
+    GError **error)
+{
+    gfloat pdop = 0.0;
+    gfloat hdop = 0.0;
+    gfloat vdop = 0.0;
+
+    if (!qmi_indication_loc_position_report_output_get_dop (self, &pdop, &hdop, &vdop, error))
+        return FALSE;
+    if (value_dilution_of_precision) {
+        value_dilution_of_precision->position_dilution_of_precision = pdop;
+        value_dilution_of_precision->horizontal_dilution_of_precision = hdop;
+        value_dilution_of_precision->vertical_dilution_of_precision = vdop;
+    }
+    return TRUE;
+}
+
+gboolean
+qmi_indication_loc_position_report_output_get_gps_time (
+    QmiIndicationLocPositionReportOutput *self,
+    QmiDeprecatedIndicationLocPositionReportOutputGpsTime *value_gps_time,
+    GError **error)
+{
+    guint16 gps_weeks = 0;
+    guint32 gps_time_of_week_milliseconds = 0;
+
+    if (!qmi_indication_loc_position_report_output_get_gps_date_time (self, &gps_weeks, &gps_time_of_week_milliseconds, error))
+        return FALSE;
+    if (value_gps_time) {
+        value_gps_time->gps_weeks = gps_weeks;
+        value_gps_time->gps_time_of_week_milliseconds = gps_time_of_week_milliseconds;
+    }
+    return TRUE;
+}
+
+#endif /* HAVE_QMI_INDICATION_LOC_POSITION_REPORT */
+
+#if defined HAVE_QMI_MESSAGE_UIM_GET_SLOT_STATUS
+
+typedef struct {
+    GArray *slot_eid_information;
+} MessageUimGetSlotStatusOutputCompatContext;
+
+static void
+message_uim_get_slot_status_output_clear_slot_eid_information (GArray *array)
+{
+    guint i;
+
+    for (i = 0; i < array->len; i++)
+        g_array_unref (g_array_index (array, GArray *, i));
+    g_array_unref (array);
+}
+
+static void
+message_uim_get_slot_status_output_compat_context_free (MessageUimGetSlotStatusOutputCompatContext *ctx)
+{
+    if (ctx->slot_eid_information)
+        message_uim_get_slot_status_output_clear_slot_eid_information (ctx->slot_eid_information);
+    g_slice_free (MessageUimGetSlotStatusOutputCompatContext, ctx);
+}
+
+static MessageUimGetSlotStatusOutputCompatContext *
+message_uim_get_slot_status_output_get_compat_context (QmiMessageUimGetSlotStatusOutput *self)
+{
+    MessageUimGetSlotStatusOutputCompatContext *ctx;
+
+    ctx = qmi_message_uim_get_slot_status_output_get_compat_context (self);
+    if (!ctx) {
+        ctx = g_slice_new0 (MessageUimGetSlotStatusOutputCompatContext);
+        qmi_message_uim_get_slot_status_output_set_compat_context (self, ctx, (GDestroyNotify)message_uim_get_slot_status_output_compat_context_free);
+    }
+
+    return ctx;
+}
+
+gboolean
+qmi_message_uim_get_slot_status_output_get_slot_eid_information (
+    QmiMessageUimGetSlotStatusOutput *self,
+    GArray **value_slot_eid_information,
+    GError **error)
+{
+    GArray *slot_eid = NULL;
+
+    if (!qmi_message_uim_get_slot_status_output_get_slot_eid (self, &slot_eid, error))
+        return FALSE;
+
+    if (value_slot_eid_information) {
+        MessageUimGetSlotStatusOutputCompatContext *ctx;
+        guint                                       i;
+
+        ctx = message_uim_get_slot_status_output_get_compat_context (self);
+        ctx->slot_eid_information = g_array_sized_new (FALSE, FALSE, sizeof (GArray *), slot_eid->len);
+
+        if (ctx->slot_eid_information)
+            message_uim_get_slot_status_output_clear_slot_eid_information (ctx->slot_eid_information);
+
+        for (i = 0; i < slot_eid->len; i++) {
+            QmiSlotEidElement *element;
+            GArray            *aux;
+
+            element = &g_array_index (slot_eid, QmiSlotEidElement, i);
+            aux = g_array_ref (element->eid);
+            g_array_append_val (ctx->slot_eid_information, aux);
+        }
+
+        *value_slot_eid_information = ctx->slot_eid_information;
+    }
+    return TRUE;
+}
+
+#endif /* HAVE_QMI_MESSAGE_UIM_GET_SLOT_STATUS */
+
+#if defined HAVE_QMI_INDICATION_UIM_SLOT_STATUS
+
+typedef struct {
+    GArray *slot_eid_information;
+} IndicationUimSlotStatusOutputCompatContext;
+
+static void
+indication_uim_slot_status_output_clear_slot_eid_information (GArray *array)
+{
+    guint i;
+
+    for (i = 0; i < array->len; i++)
+        g_array_unref (g_array_index (array, GArray *, i));
+    g_array_unref (array);
+}
+
+static void
+indication_uim_slot_status_output_compat_context_free (IndicationUimSlotStatusOutputCompatContext *ctx)
+{
+    if (ctx->slot_eid_information)
+        indication_uim_slot_status_output_clear_slot_eid_information (ctx->slot_eid_information);
+    g_slice_free (IndicationUimSlotStatusOutputCompatContext, ctx);
+}
+
+static IndicationUimSlotStatusOutputCompatContext *
+indication_uim_slot_status_output_get_compat_context (QmiIndicationUimSlotStatusOutput *self)
+{
+    IndicationUimSlotStatusOutputCompatContext *ctx;
+
+    ctx = qmi_indication_uim_slot_status_output_get_compat_context (self);
+    if (!ctx) {
+        ctx = g_slice_new0 (IndicationUimSlotStatusOutputCompatContext);
+        qmi_indication_uim_slot_status_output_set_compat_context (self, ctx, (GDestroyNotify)indication_uim_slot_status_output_compat_context_free);
+    }
+
+    return ctx;
+}
+
+gboolean
+qmi_indication_uim_slot_status_output_get_slot_eid_information (
+    QmiIndicationUimSlotStatusOutput *self,
+    GArray **value_slot_eid_information,
+    GError **error)
+{
+    GArray *slot_eid = NULL;
+
+    if (!qmi_indication_uim_slot_status_output_get_slot_eid (self, &slot_eid, error))
+        return FALSE;
+
+    if (value_slot_eid_information) {
+        IndicationUimSlotStatusOutputCompatContext *ctx;
+        guint                                       i;
+
+        ctx = indication_uim_slot_status_output_get_compat_context (self);
+
+        if (ctx->slot_eid_information)
+            indication_uim_slot_status_output_clear_slot_eid_information (ctx->slot_eid_information);
+
+        ctx->slot_eid_information = g_array_sized_new (FALSE, FALSE, sizeof (GArray *), slot_eid->len);
+        for (i = 0; i < slot_eid->len; i++) {
+            QmiSlotEidElement *element;
+            GArray            *aux;
+
+            element = &g_array_index (slot_eid, QmiSlotEidElement, i);
+            aux = g_array_ref (element->eid);
+            g_array_append_val (ctx->slot_eid_information, aux);
+        }
+
+        *value_slot_eid_information = ctx->slot_eid_information;
+    }
+    return TRUE;
+}
+
+#endif /* HAVE_QMI_INDICATION_UIM_SLOT_STATUS */
+
+#if defined HAVE_QMI_MESSAGE_UIM_GET_CONFIGURATION
+
+typedef struct {
+    GArray *personalization_status_other_slots;
+} MessageUimGetConfigurationOutputCompatContext;
+
+static void
+message_uim_get_configuration_output_clear_personalization_status_other_slots (GArray *array)
+{
+    guint i;
+
+    for (i = 0; i < array->len; i++)
+        g_array_unref (g_array_index (array, GArray *, i));
+    g_array_unref (array);
+}
+
+static void
+message_uim_get_configuration_output_compat_context_free (MessageUimGetConfigurationOutputCompatContext *ctx)
+{
+    if (ctx->personalization_status_other_slots)
+        message_uim_get_configuration_output_clear_personalization_status_other_slots (ctx->personalization_status_other_slots);
+    g_slice_free (MessageUimGetConfigurationOutputCompatContext, ctx);
+}
+
+static MessageUimGetConfigurationOutputCompatContext *
+message_uim_get_configuration_output_get_compat_context (QmiMessageUimGetConfigurationOutput *self)
+{
+    MessageUimGetConfigurationOutputCompatContext *ctx;
+
+    ctx = qmi_message_uim_get_configuration_output_get_compat_context (self);
+    if (!ctx) {
+        ctx = g_slice_new0 (MessageUimGetConfigurationOutputCompatContext);
+        qmi_message_uim_get_configuration_output_set_compat_context (self, ctx, (GDestroyNotify)message_uim_get_configuration_output_compat_context_free);
+    }
+
+    return ctx;
+}
+
+gboolean
+qmi_message_uim_get_configuration_output_get_personalization_status_other_slots (
+    QmiMessageUimGetConfigurationOutput *self,
+    GArray **value_personalization_status_other_slots,
+    GError **error)
+{
+    GArray *array = NULL;
+
+    if (!qmi_message_uim_get_configuration_output_get_personalization_status_other (self, &array, error))
+        return FALSE;
+
+    if (value_personalization_status_other_slots) {
+        MessageUimGetConfigurationOutputCompatContext *ctx;
+        guint                                          i;
+
+        ctx = message_uim_get_configuration_output_get_compat_context (self);
+
+        if (ctx->personalization_status_other_slots)
+            message_uim_get_configuration_output_clear_personalization_status_other_slots (ctx->personalization_status_other_slots);
+
+        ctx->personalization_status_other_slots = g_array_sized_new (FALSE, FALSE, sizeof (GArray *), array->len);
+
+
+        for (i = 0; i < array->len; i++) {
+            QmiMessageUimGetConfigurationOutputPersonalizationStatusOtherElement *element;
+            GArray                                                               *aux;
+
+            element = &g_array_index (array, QmiMessageUimGetConfigurationOutputPersonalizationStatusOtherElement, i);
+
+            /* We can do this because QmiMessageUimGetConfigurationOutputPersonalizationStatusOtherElementSlotElement (the new type)
+             * and QmiMessageUimGetConfigurationOutputPersonalizationStatusOtherSlotsSlotsElement (the old type) are equivalent */
+            aux = g_array_ref (element->slot);
+            g_array_append_val (ctx->personalization_status_other_slots, aux);
+        }
+
+        *value_personalization_status_other_slots = ctx->personalization_status_other_slots;
+    }
+    return TRUE;
+}
+
+#endif /* HAVE_QMI_MESSAGE_UIM_GET_CONFIGURATION */
 
 #endif /* QMI_DISABLE_DEPRECATED */

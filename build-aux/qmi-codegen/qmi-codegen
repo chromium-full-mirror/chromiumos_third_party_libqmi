@@ -16,7 +16,7 @@
 # Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 #
 # Copyright (C) 2012 Lanedo GmbH
-# Copyright (C) 2012-2017 Aleksander Morgado <aleksander@aleksander.es>
+# Copyright (C) 2012-2022 Aleksander Morgado <aleksander@aleksander.es>
 #
 
 import os
@@ -81,7 +81,7 @@ def codegen_main():
         for message_id_enum_name in collection_list_json:
             if message_id_enum_name.startswith(message_list.request_prefix) or \
                message_id_enum_name.startswith(message_list.indication_prefix):
-                if message_list.contains(message_id_enum_name) == False:
+                if not message_list.contains(message_id_enum_name):
                     raise ValueError('Message ' + message_id_enum_name + ' in collection does not exist')
 
     # Add common stuff to the output files
