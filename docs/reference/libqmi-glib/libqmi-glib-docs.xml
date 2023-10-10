@@ -588,6 +588,51 @@
   </chapter>
 
   <chapter>
+    <title>IP Multimedia Subsystem Presence Service (IMSP)</title>
+    <xi:include href="xml/qmi-client-imsp.xml"/>
+    <xi:include href="xml/qmi-enums-imsp.xml"/>
+    <section>
+      <title>IMSP Requests</title>
+      <xi:include href="xml/qmi-message-imsp-get-enabler-state.xml"/>
+    </section>
+  </chapter>
+
+  <chapter>
+    <title>IP Multimedia Subsystem Application Service (IMSA)</title>
+    <xi:include href="xml/qmi-client-imsa.xml"/>
+    <xi:include href="xml/qmi-enums-imsa.xml"/>
+    <section>
+      <title>IMSA Requests</title>
+      <xi:include href="xml/qmi-message-imsa-get-ims-registration-status.xml"/>
+      <xi:include href="xml/qmi-message-imsa-get-ims-services-status.xml"/>
+    </section>
+  </chapter>
+
+  <chapter>
+    <title>IP Multimedia Subsystem Settings Service (IMS)</title>
+    <xi:include href="xml/qmi-client-ims.xml"/>
+    <section>
+      <title>IMS Requests</title>
+      <xi:include href="xml/qmi-message-ims-get-ims-services-enabled-setting.xml"/>
+    </section>
+  </chapter>
+
+  <chapter>
+    <title>Snapdragon Sensor Core Service (SSC)</title>
+    <xi:include href="xml/qmi-client-ssc.xml"/>
+    <xi:include href="xml/qmi-enums-ssc.xml"/>
+    <section>
+      <title>SSC Indications</title>
+      <xi:include href="xml/qmi-indication-ssc-report-small.xml"/>
+      <xi:include href="xml/qmi-indication-ssc-report-large.xml"/>
+    </section>
+    <section>
+      <title>SSC Requests</title>
+      <xi:include href="xml/qmi-message-ssc-control.xml"/>
+    </section>
+  </chapter>
+
+  <chapter>
     <title>Compatibility with older versions</title>
     <xi:include href="xml/qmi-compat.xml"/>
   </chapter>

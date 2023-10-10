@@ -462,9 +462,25 @@ endpoint_send (QmiEndpoint   *self,
                GCancellable  *cancellable,
                GError       **error)
 {
-    gconstpointer raw_message;
-    gsize raw_message_len;
-    GError *inner_error = NULL;
+    gconstpointer  raw_message;
+    gsize          raw_message_len;
+    GError        *inner_error = NULL;
+
+    /* QMUX endpoint allows only QMUX messages */
+    if (qmi_message_get_marker (message) != QMI_MESSAGE_QMUX_MARKER) {
+        g_set_error (error, QMI_CORE_ERROR, QMI_CORE_ERROR_FAILED,
+                     "QMUX endpoint expects only QMUX messages");
+        return FALSE;
+    }
+
+    /* Disallow private CTL operations */
+    if ((qmi_message_get_service (message) == QMI_SERVICE_CTL) &&
+        (qmi_message_get_message_id (message) == QMI_MESSAGE_CTL_INTERNAL_ALLOCATE_CID_QRTR ||
+         qmi_message_get_message_id (message) == QMI_MESSAGE_CTL_INTERNAL_RELEASE_CID_QRTR)) {
+        g_set_error (error, QMI_CORE_ERROR, QMI_CORE_ERROR_FAILED,
+                     "QMUX endpoint expects only 8bit QMI services");
+        return FALSE;
+    }
 
     /* Get raw message */
     raw_message = qmi_message_get_raw (message, &raw_message_len, &inner_error);

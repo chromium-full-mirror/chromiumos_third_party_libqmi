@@ -12,6 +12,8 @@ qmi_enums_headers = files(
   'qmi-enums-dsd.h',
   'qmi-enums-fox.h',
   'qmi-enums-gas.h',
+  'qmi-enums-imsa.h',
+  'qmi-enums-imsp.h',
   'qmi-enums-loc.h',
   'qmi-enums-nas.h',
   'qmi-enums-oma.h',
@@ -25,6 +27,7 @@ qmi_enums_headers = files(
   'qmi-enums-wda.h',
   'qmi-enums-wds.h',
   'qmi-enums-wms.h',
+  'qmi-enums-ssc.h',
 )
 
 qmi_enums_private_header = files('qmi-enums-private.h')

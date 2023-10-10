@@ -483,6 +483,27 @@ allocate_client_ready (QmiDevice *dev,
 #else
         break;
 #endif
+    case QMI_SERVICE_IMSP:
+#if defined HAVE_QMI_SERVICE_IMSP
+        qmicli_imsp_run (dev, QMI_CLIENT_IMSP (client), cancellable);
+        return;
+#else
+        break;
+#endif
+    case QMI_SERVICE_IMSA:
+#if defined HAVE_QMI_SERVICE_IMSA
+        qmicli_imsa_run (dev, QMI_CLIENT_IMSA (client), cancellable);
+        return;
+#else
+        break;
+#endif
+    case QMI_SERVICE_IMS:
+#if defined HAVE_QMI_SERVICE_IMS
+        qmicli_ims_run (dev, QMI_CLIENT_IMS (client), cancellable);
+        return;
+#else
+        break;
+#endif
     case QMI_SERVICE_UNKNOWN:
     case QMI_SERVICE_CTL:
     case QMI_SERVICE_AUTH:
@@ -491,7 +512,6 @@ allocate_client_ready (QmiDevice *dev,
     case QMI_SERVICE_QCHAT:
     case QMI_SERVICE_RMTFS:
     case QMI_SERVICE_TEST:
-    case QMI_SERVICE_IMS:
     case QMI_SERVICE_ADC:
     case QMI_SERVICE_CSD:
     case QMI_SERVICE_MFS:
@@ -503,9 +523,7 @@ allocate_client_ready (QmiDevice *dev,
     case QMI_SERVICE_RFSA:
     case QMI_SERVICE_CSVT:
     case QMI_SERVICE_QCMAP:
-    case QMI_SERVICE_IMSP:
     case QMI_SERVICE_IMSVT:
-    case QMI_SERVICE_IMSA:
     case QMI_SERVICE_COEX:
     case QMI_SERVICE_STX:
     case QMI_SERVICE_BIT:
@@ -517,6 +535,7 @@ allocate_client_ready (QmiDevice *dev,
     case QMI_SERVICE_FOTA:
     case QMI_SERVICE_PDS:
     case QMI_SERVICE_OMA:
+    case QMI_SERVICE_SSC:
     default:
         break;
     }
@@ -947,6 +966,27 @@ parse_actions (void)
     }
 #endif
 
+#if defined HAVE_QMI_SERVICE_IMSP
+    if (qmicli_imsp_options_enabled ()) {
+        service = QMI_SERVICE_IMSP;
+        actions_enabled++;
+    }
+#endif
+
+#if defined HAVE_QMI_SERVICE_IMSA
+    if (qmicli_imsa_options_enabled ()) {
+        service = QMI_SERVICE_IMSA;
+        actions_enabled++;
+    }
+#endif
+
+#if defined HAVE_QMI_SERVICE_IMS
+    if (qmicli_ims_options_enabled ()) {
+        service = QMI_SERVICE_IMS;
+        actions_enabled++;
+    }
+#endif
+
     /* Cannot mix actions from different services */
     if (actions_enabled > 1) {
         g_printerr ("error: cannot execute multiple actions of different services\n");
@@ -1025,6 +1065,15 @@ int main (int argc, char **argv)
 #endif
 #if defined HAVE_QMI_SERVICE_ATR
     g_option_context_add_group (context, qmicli_atr_get_option_group ());
+#endif
+#if defined HAVE_QMI_SERVICE_IMSP
+    g_option_context_add_group (context, qmicli_imsp_get_option_group ());
+#endif
+#if defined HAVE_QMI_SERVICE_IMSA
+    g_option_context_add_group (context, qmicli_imsa_get_option_group ());
+#endif
+#if defined HAVE_QMI_SERVICE_IMS
+    g_option_context_add_group (context, qmicli_ims_get_option_group ());
 #endif
     g_option_context_add_group (context, qmicli_link_management_get_option_group ());
     g_option_context_add_group (context, qmicli_qmiwwan_get_option_group ());

@@ -101,6 +101,17 @@
 
 #include "qmi-atr.h"
 
+#include "qmi-enums-imsp.h"
+#include "qmi-imsp.h"
+
+#include "qmi-enums-imsa.h"
+#include "qmi-imsa.h"
+
+#include "qmi-ims.h"
+
+#include "qmi-enums-ssc.h"
+#include "qmi-ssc.h"
+
 /* generated */
 #include "qmi-error-types.h"
 #include "qmi-enum-types.h"
