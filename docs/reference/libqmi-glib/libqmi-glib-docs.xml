@@ -371,6 +371,9 @@
       <xi:include href="xml/qmi-message-uim-refresh-register-all.xml"/>
       <xi:include href="xml/qmi-message-uim-refresh-complete.xml"/>
       <xi:include href="xml/qmi-message-uim-remote-unlock.xml"/>
+      <xi:include href="xml/qmi-message-uim-open-logical-channel.xml"/>
+      <xi:include href="xml/qmi-message-uim-send-apdu.xml"/>
+      <xi:include href="xml/qmi-message-uim-logical-channel.xml"/>
     </section>
   </chapter>
 
@@ -606,6 +609,10 @@
       <title>IMSA Requests</title>
       <xi:include href="xml/qmi-message-imsa-get-ims-registration-status.xml"/>
       <xi:include href="xml/qmi-message-imsa-get-ims-services-status.xml"/>
+      <xi:include href="xml/qmi-message-imsa-register-indications.xml"/>
+      <xi:include href="xml/qmi-indication-imsa-ims-registration-status-changed.xml"/>
+      <xi:include href="xml/qmi-indication-imsa-ims-services-status-changed.xml"/>
+      <xi:include href="xml/qmi-message-imsa-bind.xml"/>
     </section>
   </chapter>
 
@@ -615,6 +622,7 @@
     <section>
       <title>IMS Requests</title>
       <xi:include href="xml/qmi-message-ims-get-ims-services-enabled-setting.xml"/>
+      <xi:include href="xml/qmi-message-ims-bind.xml"/>
     </section>
   </chapter>
 
