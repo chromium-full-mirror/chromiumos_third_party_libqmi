@@ -26,6 +26,8 @@
       <year>2021</year>
       <year>2022</year>
       <year>2023</year>
+      <year>2024</year>
+      <year>2025</year>
       <holder>The libqmi-glib authors</holder>
     </copyright>
 
@@ -185,6 +187,7 @@
       <xi:include href="xml/qmi-message-nas-get-plmn-name.xml"/>
       <xi:include href="xml/qmi-message-nas-swi-get-status.xml"/>
       <xi:include href="xml/qmi-message-nas-get-drx.xml"/>
+      <xi:include href="xml/qmi-message-nas-get-network-time.xml"/>
     </section>
   </chapter>
 
@@ -403,10 +406,15 @@
     <xi:include href="xml/qmi-client-wda.xml"/>
     <xi:include href="xml/qmi-enums-wda.xml"/>
     <section>
+      <title>WDA Indications</title>
+      <xi:include href="xml/qmi-indication-wda-loopback-configuration.xml"/>
+    </section>
+    <section>
       <title>WDA Requests</title>
       <xi:include href="xml/qmi-message-wda-set-data-format.xml"/>
       <xi:include href="xml/qmi-message-wda-get-data-format.xml"/>
       <xi:include href="xml/qmi-message-wda-get-supported-messages.xml"/>
+      <xi:include href="xml/qmi-message-wda-loopback-configuration.xml"/>
     </section>
   </chapter>
 
@@ -516,6 +524,8 @@
       <xi:include href="xml/qmi-message-gas-dms-get-usb-composition.xml"/>
       <xi:include href="xml/qmi-message-gas-dms-get-firmware-list.xml"/>
       <xi:include href="xml/qmi-message-gas-dms-set-active-firmware.xml"/>
+      <xi:include href="xml/qmi-message-gas-dms-set-firmware-auto-sim.xml"/>
+      <xi:include href="xml/qmi-message-gas-dms-get-firmware-auto-sim.xml"/>
       <xi:include href="xml/qmi-message-gas-dms-get-ethernet-pdu-mac-address.xml"/>
     </section>
   </chapter>
