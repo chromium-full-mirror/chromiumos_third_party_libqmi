@@ -121,9 +121,7 @@ endif
 no_deprecated_declarations_flags = cc.get_supported_arguments('-Wno-deprecated-declarations')
 
 # Look for existing -DQMI_DISABLE_DEPRECATED in CFLAGS
-pymodule = import('python3')
-python3 = pymodule.find_python()
-res = run_command(python3, '-c', 'import os; print(os.environ["CFLAGS"])')
+res = run_command(python, '-c', 'import os; print(os.environ["CFLAGS"])')
 cflags_disable_deprecated = false
 if res.returncode() == 0 and res.stdout().contains('-DQMI_DISABLE_DEPRECATED')
    cflags_disable_deprecated = true
