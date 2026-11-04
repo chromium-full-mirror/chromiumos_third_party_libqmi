@@ -10,7 +10,7 @@ project(
     'c_std=gnu89',
     'warning_level=2',
   ],
-  meson_version: '>= 0.56.0',
+  meson_version: '>= 0.60.0',
 )
 
 fs = import('fs')
